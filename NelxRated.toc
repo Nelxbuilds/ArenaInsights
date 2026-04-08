@@ -6,3 +6,5 @@
 ## SavedVariables: NelxRatedDB
 
 Core.lua
+Challenges.lua
+ChallengesUI.lua

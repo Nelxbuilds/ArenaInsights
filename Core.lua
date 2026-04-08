@@ -19,6 +19,17 @@ NXR.BRACKET_NAMES = {
 NXR.TRACKED_BRACKETS = { 0, 1, 4, 7 }
 
 -- ============================================================================
+-- Color palette
+-- ============================================================================
+
+NXR.COLORS = {
+    CRIMSON_BRIGHT = { 0.9, 0.15, 0.15 },
+    CRIMSON_MID    = { 0.7, 0.1, 0.1 },
+    CRIMSON_DIM    = { 0.35, 0.05, 0.05 },
+    GOLD           = { 1.0, 0.82, 0.0 },
+}
+
+-- ============================================================================
 -- SavedVariables initialization (only after ADDON_LOADED)
 -- ============================================================================
 
@@ -129,6 +140,8 @@ eventFrame:SetScript("OnEvent", function(self, event, ...)
         local loadedAddon = ...
         if loadedAddon == addonName then
             InitDB()
+            if NXR.BuildSpecData then NXR.BuildSpecData() end
+            if NXR.InitChallenges then NXR.InitChallenges() end
             self:UnregisterEvent("ADDON_LOADED")
         end
 
@@ -146,3 +159,14 @@ eventFrame:SetScript("OnEvent", function(self, event, ...)
         end)
     end
 end)
+
+-- ============================================================================
+-- Slash command
+-- ============================================================================
+
+SLASH_NELXRATED1 = "/nxr"
+SlashCmdList["NELXRATED"] = function()
+    if NXR.ToggleMainFrame then
+        NXR.ToggleMainFrame()
+    end
+end
