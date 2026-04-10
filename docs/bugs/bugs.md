@@ -14,6 +14,20 @@ Template:
 **Fix**: (fill in when resolved)
 -->
 
+## BUG-6 — Overlay hard to move
+**Story**: 4-1
+**Status**: fixed
+**Found**: opening overlay
+**Description**: I try to drag it and i need to try multiple times until it works
+**Fix**: Rows had EnableMouse(true) for tooltips but weren't forwarding drag events, so they consumed clicks before the overlay frame could start dragging. Added RegisterForDrag and OnDragStart/OnDragStop scripts to each row that forward to the overlay frame.
+
+## BUG-5 — Overlay way too wide
+**Story**: 4-1
+**Status**: fixed
+**Found**: opening overlay
+**Description**: the overlay is way too wide. It shouldn't take up that much space. look at resources-to-delete/002-overlay-example.png that is way smaller and works too
+**Fix**: Reduced excessive padding in the dynamic width calculation — cut name-to-rating gap from 20px to 8px and removed a redundant 20px spacer before the right edge, saving 36px total.
+
 ## BUG-4 — Account name is not updated in export
 **Story**: 3-4
 **Status**: open

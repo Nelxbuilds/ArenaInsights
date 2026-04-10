@@ -242,6 +242,18 @@ local function CreateRow(parent, index)
         GameTooltip:Hide()
     end)
 
+    -- Forward drag events to the overlay so rows don't block dragging
+    row:RegisterForDrag("LeftButton")
+    row:SetScript("OnDragStart", function()
+        if not NelxRatedDB.settings.overlayLocked then
+            overlayFrame:StartMoving()
+        end
+    end)
+    row:SetScript("OnDragStop", function()
+        overlayFrame:StopMovingOrSizing()
+        SavePosition()
+    end)
+
     return row
 end
 
@@ -563,7 +575,7 @@ function NXR.RefreshOverlay()
 
     -- Resize overlay dynamically
     local totalHeight = PADDING * 2 + rowIndex * ROW_HEIGHT
-    local totalWidth = ICON_SIZE + 4 + 6 + maxNameWidth + 20 + maxRatingWidth + 20 + 4
+    local totalWidth = 4 + ICON_SIZE + 6 + maxNameWidth + 8 + maxRatingWidth + 4
     if totalWidth < MIN_WIDTH then totalWidth = MIN_WIDTH end
 
     overlayFrame:SetSize(totalWidth, totalHeight)
