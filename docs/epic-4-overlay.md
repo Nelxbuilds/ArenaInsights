@@ -14,15 +14,15 @@ A movable overlay frame showing spec rows from the **active challenge**. Each ro
 
 **Acceptance Criteria**:
 
-- [ ] On `ADDON_LOADED`, a frame is created via `CreateFrame("Frame", nil, UIParent, "BackdropTemplate")`
-- [ ] The frame is draggable via `SetMovable(true)` + `RegisterForDrag("LeftButton")`
-- [ ] Position is saved to `NelxRatedDB.overlayPosition` on drag stop and restored on load
-- [ ] Default position: `CENTER` offset slightly right
-- [ ] The frame uses PvP crimson design system (crimson border, dark background)
-- [ ] If `NelxRatedDB.settings.showOverlayBackground` is false, the backdrop is cleared (icons float without a frame)
-- [ ] `NXR.Overlay.OnBackgroundChanged()` re-applies or clears the backdrop
-- [ ] Frame strata: `MEDIUM`, clamped to screen
-- [ ] If no challenge is active, the overlay is hidden
+- [x] On `ADDON_LOADED`, a frame is created via `CreateFrame("Frame", nil, UIParent, "BackdropTemplate")`
+- [x] The frame is draggable via `SetMovable(true)` + `RegisterForDrag("LeftButton")`
+- [x] Position is saved to `NelxRatedDB.overlayPosition` on drag stop and restored on load
+- [x] Default position: `CENTER` offset slightly right
+- [x] The frame uses PvP crimson design system (crimson border, dark background)
+- [x] If `NelxRatedDB.settings.showOverlayBackground` is false, the backdrop is cleared (icons float without a frame)
+- [x] `NXR.Overlay.OnBackgroundChanged()` re-applies or clears the backdrop
+- [x] Frame strata: `MEDIUM`, clamped to screen
+- [x] If no challenge is active, the overlay is hidden
 
 **Technical Hints**:
 
@@ -38,17 +38,17 @@ A movable overlay frame showing spec rows from the **active challenge**. Each ro
 
 **Acceptance Criteria**:
 
-- [ ] The overlay reads the active challenge via `NXR.GetActiveChallenge()`
-- [ ] For each specID in the challenge's `specs` table, one row is rendered
-- [ ] Each row shows: icon (left, ~20px), character name (middle), rating number (right)
-- [ ] Row icon: if the challenge's `classes` table contains the class that owns this specID, use the class icon (`GetClassIcon(classID)` or `select(4, GetClassInfo(classIndex))`); otherwise use the spec icon (`select(4, GetSpecializationInfoByID(specID))`)
-- [ ] Character matching: find all characters whose `specID` matches AND who have rating > 0 in any of the challenge's selected brackets
-- [ ] Display the **highest-rated** character per spec row (highest rating across any selected bracket)
-- [ ] If no character matches a spec, show the spec icon with "—" for rating and no character name
-- [ ] Rows are laid out vertically; the overlay resizes dynamically
-- [ ] Row height: ~20-22px with compact spacing
-- [ ] The overlay refreshes when: challenges change, character data updates, active challenge changes
-- [ ] `NXR.RefreshOverlay` is exposed globally so Events.lua and Settings.lua can call it
+- [x] The overlay reads the active challenge via `NXR.GetActiveChallenge()`
+- [x] For each specID in the challenge's `specs` table, one row is rendered
+- [x] Each row shows: icon (left, ~20px), character name (middle), rating number (right)
+- [x] Row icon: if the challenge's `classes` table contains the class that owns this specID, use the class icon (`GetClassIcon(classID)` or `select(4, GetClassInfo(classIndex))`); otherwise use the spec icon (`select(4, GetSpecializationInfoByID(specID))`)
+- [x] Character matching: find all characters whose `specID` matches AND who have rating > 0 in any of the challenge's selected brackets
+- [x] Display the **highest-rated** character per spec row (highest rating across any selected bracket)
+- [x] If no character matches a spec, show the spec icon with "—" for rating and no character name
+- [x] Rows are laid out vertically; the overlay resizes dynamically
+- [x] Row height: ~20-22px with compact spacing
+- [x] The overlay refreshes when: challenges change, character data updates, active challenge changes
+- [x] `NXR.RefreshOverlay` is exposed globally so Events.lua and Settings.lua can call it
 
 **Technical Hints**:
 
@@ -65,13 +65,13 @@ A movable overlay frame showing spec rows from the **active challenge**. Each ro
 
 **Acceptance Criteria**:
 
-- [ ] Hovering a spec row shows a `GameTooltip` with:
+- [x] Hovering a spec row shows a `GameTooltip` with:
   - Spec name as the title
   - For each matching character (sorted by rating descending): name-realm, rating, and bracket name
   - Goal progress line: `"Goal: 1800 (94%)"` colored by progress threshold
-- [ ] If no character matches, tooltip says: "No character tracked for this spec"
-- [ ] Tooltip hides on mouse leave
-- [ ] When overlay opacity is 0, mouse is disabled on all rows — no tooltips fire
+- [x] If no character matches, tooltip says: "No character tracked for this spec"
+- [x] Tooltip hides on mouse leave
+- [x] When overlay opacity is 0, mouse is disabled on all rows — no tooltips fire
 
 **Technical Hints**:
 
@@ -87,12 +87,12 @@ A movable overlay frame showing spec rows from the **active challenge**. Each ro
 
 **Acceptance Criteria**:
 
-- [ ] < 80% of goal: white (default) `{1.00, 1.00, 1.00}`
-- [ ] >= 80% and < 90%: orange `{0.93, 0.55, 0.05}`
-- [ ] >= 90% and < 100%: yellow `{0.95, 0.80, 0.20}`
-- [ ] >= 100%: checkmark texture (`Interface\\RaidFrame\\ReadyCheck-Ready`) shown next to the rating
-- [ ] Progress = `bestRating / challenge.goalRating`
-- [ ] Color applies to the rating FontString only
+- [x] < 80% of goal: white (default) `{1.00, 1.00, 1.00}`
+- [x] >= 80% and < 90%: orange `{0.93, 0.55, 0.05}`
+- [x] >= 90% and < 100%: yellow `{0.95, 0.80, 0.20}`
+- [x] >= 100%: checkmark texture (`Interface\\RaidFrame\\ReadyCheck-Ready`) shown next to the rating
+- [x] Progress = `bestRating / challenge.goalRating`
+- [x] Color applies to the rating FontString only
 
 ---
 
@@ -102,14 +102,14 @@ A movable overlay frame showing spec rows from the **active challenge**. Each ro
 
 **Acceptance Criteria**:
 
-- [ ] In arena or rated BG: use `NelxRatedDB.settings.opacityInArena`
-- [ ] Outside: use `NelxRatedDB.settings.opacityOutOfArena`
-- [ ] `frame:SetAlpha(opacity)` applied on zone change
-- [ ] When opacity is 0: `EnableMouse(false)` on overlay and all child rows
-- [ ] When opacity > 0: `EnableMouse(true)` restored
-- [ ] Arena/BG detection: `IsActiveBattlefieldArena()` for arenas; check `C_PvP.IsBattleground()` or similar for Blitz BG
-- [ ] Re-evaluate on `PLAYER_ENTERING_WORLD` and `ZONE_CHANGED_NEW_AREA`
-- [ ] `NXR.Overlay.OnOpacityChanged()` is exposed for the Settings tab to call
+- [x] In arena or rated BG: use `NelxRatedDB.settings.opacityInArena`
+- [x] Outside: use `NelxRatedDB.settings.opacityOutOfArena`
+- [x] `frame:SetAlpha(opacity)` applied on zone change
+- [x] When opacity is 0: `EnableMouse(false)` on overlay and all child rows
+- [x] When opacity > 0: `EnableMouse(true)` restored
+- [x] Arena/BG detection: `IsActiveBattlefieldArena()` for arenas; check `C_PvP.IsBattleground()` or similar for Blitz BG
+- [x] Re-evaluate on `PLAYER_ENTERING_WORLD` and `ZONE_CHANGED_NEW_AREA`
+- [x] `NXR.Overlay.OnOpacityChanged()` is exposed for the Settings tab to call
 
 **Technical Hints**:
 
