@@ -183,13 +183,9 @@ local function CreateRow(parent, index)
     row.icon:SetSize(ICON_SIZE, ICON_SIZE)
     row.icon:SetPoint("LEFT", 4, 0)
 
-    -- Character name
-    row.charName = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    row.charName:SetPoint("LEFT", row.icon, "RIGHT", 6, 0)
-    row.charName:SetTextColor(0.85, 0.85, 0.85)
-
     -- Rating
     row.rating = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    row.rating:SetPoint("LEFT", row.icon, "RIGHT", 6, 0)
     row.rating:SetPoint("RIGHT", -4, 0)
 
     -- Checkmark texture (for >= 100% goal)
@@ -430,7 +426,6 @@ end
 
 local function PopulateRow(row, bestMatch, challenge)
     if bestMatch then
-        row.charName:SetText(bestMatch.charKey)
         row.rating:SetText(tostring(bestMatch.rating))
 
         local color, showCheck = GetProgressColor(bestMatch.rating, challenge.goalRating or 0)
@@ -441,7 +436,6 @@ local function PopulateRow(row, bestMatch, challenge)
             row.checkmark:Hide()
         end
     else
-        row.charName:SetText("")
         row.rating:SetText("\226\128\148") -- em dash
         row.rating:SetTextColor(0.5, 0.5, 0.5)
         row.checkmark:Hide()
@@ -476,7 +470,7 @@ function NXR.RefreshOverlay()
 
     local classMode = IsClassChallenge(challenge)
 
-    local maxNameWidth = 0
+
     local maxRatingWidth = 0
     local rowIndex = 0
 
@@ -524,9 +518,7 @@ function NXR.RefreshOverlay()
             row:SetPoint("RIGHT", overlayFrame, "RIGHT", 0, 0)
             row:Show()
 
-            local nw = row.charName:GetStringWidth() or 0
             local rw = row.rating:GetStringWidth() or 0
-            if nw > maxNameWidth then maxNameWidth = nw end
             if rw > maxRatingWidth then maxRatingWidth = rw end
         end
     else
@@ -567,16 +559,14 @@ function NXR.RefreshOverlay()
             row:SetPoint("RIGHT", overlayFrame, "RIGHT", 0, 0)
             row:Show()
 
-            local nw = row.charName:GetStringWidth() or 0
             local rw = row.rating:GetStringWidth() or 0
-            if nw > maxNameWidth then maxNameWidth = nw end
             if rw > maxRatingWidth then maxRatingWidth = rw end
         end
     end
 
     -- Resize overlay dynamically
     local totalHeight = PADDING * 2 + rowIndex * ROW_HEIGHT
-    local totalWidth = 4 + ICON_SIZE + 6 + maxNameWidth + 8 + maxRatingWidth + 4
+    local totalWidth = 4 + ICON_SIZE + 6 + maxRatingWidth + 4
     if totalWidth < MIN_WIDTH then totalWidth = MIN_WIDTH end
 
     overlayFrame:SetSize(totalWidth, totalHeight)
