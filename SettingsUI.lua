@@ -9,6 +9,8 @@ local accountInput
 local arenaSlider, arenaValueText
 local outArenaSlider, outArenaValueText
 local bgCheckbox
+local lockCheckbox
+local overlayToggleBtn
 
 local function Round(val, step)
     return math.floor(val / step + 0.5) * step
@@ -140,12 +142,57 @@ function NXR.CreateSettingsPanel(parent)
         end
     end)
 
+    y = y + 34
+
+    -- ----------------------------------------------------------------
+    -- Lock overlay checkbox
+    -- ----------------------------------------------------------------
+    lockCheckbox = CreateFrame("CheckButton", nil, panel, "UICheckButtonTemplate")
+    lockCheckbox:SetSize(26, 26)
+    lockCheckbox:SetPoint("TOPLEFT", 8, -y)
+
+    local lockLabel = panel:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    lockLabel:SetPoint("LEFT", lockCheckbox, "RIGHT", 4, 0)
+    lockLabel:SetText("Lock overlay position")
+
+    lockCheckbox:SetScript("OnClick", function(self)
+        NelxRatedDB.settings.overlayLocked = self:GetChecked()
+        if NXR.Overlay and NXR.Overlay.OnLockChanged then
+            NXR.Overlay.OnLockChanged()
+        end
+    end)
+
+    y = y + 34
+
+    -- ----------------------------------------------------------------
+    -- Show / Hide overlay button
+    -- ----------------------------------------------------------------
+    overlayToggleBtn = NXR.CreateNXRButton(panel, "Show Overlay", 140, 28)
+    overlayToggleBtn:SetPoint("TOPLEFT", 10, -y)
+    overlayToggleBtn:SetScript("OnClick", function()
+        if NXR.Overlay and NXR.Overlay.Toggle then
+            NXR.Overlay.Toggle()
+        end
+        -- Update button text
+        if NelxRatedDB.settings.showOverlay then
+            overlayToggleBtn.label:SetText("Hide Overlay")
+        else
+            overlayToggleBtn.label:SetText("Show Overlay")
+        end
+    end)
+
     -- Populate on show
     panel:SetScript("OnShow", function()
         accountInput:SetText(NelxRatedDB.settings.accountName or "")
         arenaSlider:SetValue(NelxRatedDB.settings.opacityInArena or 1.0)
         outArenaSlider:SetValue(NelxRatedDB.settings.opacityOutOfArena or 1.0)
         bgCheckbox:SetChecked(NelxRatedDB.settings.showOverlayBackground)
+        lockCheckbox:SetChecked(NelxRatedDB.settings.overlayLocked or false)
+        if NelxRatedDB.settings.showOverlay then
+            overlayToggleBtn.label:SetText("Hide Overlay")
+        else
+            overlayToggleBtn.label:SetText("Show Overlay")
+        end
     end)
 
     return panel

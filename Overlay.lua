@@ -8,7 +8,6 @@ NXR.Overlay = {}
 
 local overlayFrame
 local rowPool = {}
-local checkmarkPool = {}
 
 local ROW_HEIGHT = 22
 local ICON_SIZE  = 20
@@ -91,6 +90,35 @@ local function ApplyMouseState(opacity)
 end
 
 -- ============================================================================
+-- Lock / Unlock (drag toggle)
+-- ============================================================================
+
+local function ApplyLockState()
+    if not overlayFrame then return end
+    local locked = NelxRatedDB.settings.overlayLocked
+    overlayFrame:SetMovable(not locked)
+    if locked then
+        overlayFrame:RegisterForDrag()  -- clear drag registration
+    else
+        overlayFrame:RegisterForDrag("LeftButton")
+    end
+end
+
+function NXR.Overlay.OnLockChanged()
+    ApplyLockState()
+end
+
+function NXR.Overlay.SetLocked(locked)
+    NelxRatedDB.settings.overlayLocked = locked
+    ApplyLockState()
+    if locked then
+        print("|cffE6D200NelxRated|r: Overlay locked")
+    else
+        print("|cffE6D200NelxRated|r: Overlay unlocked")
+    end
+end
+
+-- ============================================================================
 -- Background toggle (Story 4-1)
 -- ============================================================================
 
@@ -118,6 +146,26 @@ function NXR.Overlay.OnOpacityChanged()
     local opacity = GetCurrentOpacity()
     overlayFrame:SetAlpha(opacity)
     ApplyMouseState(opacity)
+end
+
+-- ============================================================================
+-- Show / Hide toggle
+-- ============================================================================
+
+function NXR.Overlay.SetShown(show)
+    NelxRatedDB.settings.showOverlay = show
+    if show then
+        NXR.RefreshOverlay()
+        print("|cffE6D200NelxRated|r: Overlay shown")
+    else
+        if overlayFrame then overlayFrame:Hide() end
+        print("|cffE6D200NelxRated|r: Overlay hidden")
+    end
+end
+
+function NXR.Overlay.Toggle()
+    local current = NelxRatedDB.settings.showOverlay
+    NXR.Overlay.SetShown(not current)
 end
 
 -- ============================================================================
@@ -232,11 +280,39 @@ local function FindMatchingCharacters(specID, challenge)
 end
 
 -- ============================================================================
+-- Collect sorted spec IDs from challenge (specs is a hash table)
+-- ============================================================================
+
+local function GetSortedSpecIDs(challenge)
+    local specIDs = {}
+    for specID in pairs(challenge.specs) do
+        table.insert(specIDs, specID)
+    end
+    -- Sort by class name then spec name for consistent ordering
+    table.sort(specIDs, function(a, b)
+        local sa = NXR.specData[a]
+        local sb = NXR.specData[b]
+        if not sa or not sb then return a < b end
+        if sa.className ~= sb.className then
+            return sa.className < sb.className
+        end
+        return sa.specName < sb.specName
+    end)
+    return specIDs
+end
+
+-- ============================================================================
 -- Refresh overlay (Story 4-2, 4-3, 4-4)
 -- ============================================================================
 
 function NXR.RefreshOverlay()
     if not overlayFrame then return end
+
+    -- Respect show/hide setting
+    if NelxRatedDB.settings.showOverlay == false then
+        overlayFrame:Hide()
+        return
+    end
 
     local challenge = NXR.GetActiveChallenge()
 
@@ -246,7 +322,14 @@ function NXR.RefreshOverlay()
     end
 
     -- If no active challenge, hide overlay
-    if not challenge or not challenge.specs or #challenge.specs == 0 then
+    if not challenge or not challenge.specs then
+        overlayFrame:Hide()
+        return
+    end
+
+    -- Collect spec IDs from the hash table
+    local specIDs = GetSortedSpecIDs(challenge)
+    if #specIDs == 0 then
         overlayFrame:Hide()
         return
     end
@@ -257,7 +340,7 @@ function NXR.RefreshOverlay()
     local maxRatingWidth = 0
     local rowIndex = 0
 
-    for _, specID in ipairs(challenge.specs) do
+    for _, specID in ipairs(specIDs) do
         rowIndex = rowIndex + 1
         local row = GetRow(rowIndex)
 
@@ -267,7 +350,7 @@ function NXR.RefreshOverlay()
         if specInfo then
             local isClassChallenge = false
             if challenge.classes then
-                for _, classID in ipairs(challenge.classes) do
+                for classID in pairs(challenge.classes) do
                     if classID == specInfo.classID then
                         isClassChallenge = true
                         break
@@ -276,14 +359,7 @@ function NXR.RefreshOverlay()
             end
 
             if isClassChallenge then
-                -- Use class icon
-                local classInfo = NXR.classData[specInfo.classID]
-                if classInfo and classInfo.classFileName then
-                    iconTexture = "Interface\\GLUES\\CHARACTERCREATE\\UI-CHARACTERCREATE-CLASSES"
-                    -- Class icons are in atlas, use SetTexCoord for the class
-                    -- Simpler: use the spec icon even for class challenges for clarity
-                    iconTexture = specInfo.icon
-                end
+                iconTexture = specInfo.icon  -- use spec icon for clarity
             else
                 iconTexture = specInfo.icon
             end
@@ -386,7 +462,11 @@ local function CreateOverlayFrame()
     overlayFrame:SetMovable(true)
     overlayFrame:EnableMouse(true)
     overlayFrame:RegisterForDrag("LeftButton")
-    overlayFrame:SetScript("OnDragStart", overlayFrame.StartMoving)
+    overlayFrame:SetScript("OnDragStart", function(self)
+        if not NelxRatedDB.settings.overlayLocked then
+            self:StartMoving()
+        end
+    end)
     overlayFrame:SetScript("OnDragStop", function(self)
         self:StopMovingOrSizing()
         SavePosition()
@@ -397,6 +477,9 @@ local function CreateOverlayFrame()
 
     -- Restore position
     RestorePosition()
+
+    -- Apply lock state
+    ApplyLockState()
 
     -- Initial refresh
     NXR.RefreshOverlay()

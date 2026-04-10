@@ -39,10 +39,12 @@ NXR.COLORS = {
 -- ============================================================================
 
 local SETTINGS_DEFAULTS = {
-    accountName          = "",
-    opacityInArena       = 1.0,
-    opacityOutOfArena    = 1.0,
+    accountName           = "",
+    opacityInArena        = 1.0,
+    opacityOutOfArena     = 1.0,
     showOverlayBackground = true,
+    showOverlay           = true,
+    overlayLocked         = false,
 }
 
 local function InitDB()
@@ -198,7 +200,28 @@ SlashCmdList["NELXRATED"] = function(msg)
     if cmd == "help" then
         print("|cffE6D200NelxRated|r commands:")
         print("  /nxr — Open the main window")
+        print("  /nxr overlay — Toggle overlay visibility")
+        print("  /nxr lock — Lock overlay position")
+        print("  /nxr unlock — Unlock overlay position")
         print("  /nxr help — Show this help")
+        return
+    end
+    if cmd == "overlay" then
+        if NXR.Overlay and NXR.Overlay.Toggle then
+            NXR.Overlay.Toggle()
+        end
+        return
+    end
+    if cmd == "lock" then
+        if NXR.Overlay and NXR.Overlay.SetLocked then
+            NXR.Overlay.SetLocked(true)
+        end
+        return
+    end
+    if cmd == "unlock" then
+        if NXR.Overlay and NXR.Overlay.SetLocked then
+            NXR.Overlay.SetLocked(false)
+        end
         return
     end
     if NXR.ToggleMainFrame then
