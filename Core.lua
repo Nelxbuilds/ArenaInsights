@@ -88,8 +88,12 @@ function NXR.UpdateCharacterInfo()
     char.realm            = realm
     char.classFileName    = classFileName
     char.classDisplayName = classDisplayName
-    char.specID           = specID
-    char.specName         = specName
+    -- Preserve existing specID/specName when GetSpecialization() returns nil
+    -- (common during loading screens after matches)
+    if specID then
+        char.specID   = specID
+        char.specName = specName
+    end
     char.account          = NelxRatedDB.settings.accountName
 
     NelxRatedDB.characters[key] = char

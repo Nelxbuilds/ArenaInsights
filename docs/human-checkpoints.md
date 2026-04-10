@@ -86,27 +86,27 @@ Without this working, nothing else matters.
 
 ### After Story 4-1 (Overlay Frame — Movable, Persisted, Background Toggle)
 
-- [ ] Overlay frame is visible on login when a challenge is active.
-- [ ] Frame can be dragged to a new position.
-- [ ] `/reload` — overlay restores to the dragged position.
+- [x] Overlay frame is visible on login when a challenge is active.
+- [x] Frame can be dragged to a new position.
+- [x] `/reload` — overlay restores to the dragged position.
 - [ ] With no active challenge, the overlay is hidden entirely.
-- [ ] Toggle "Show overlay background" in Settings — backdrop appears/disappears immediately.
+- [x] Toggle "Show overlay background" in Settings — backdrop appears/disappears immediately.
 
 ### After Story 4-2 (Spec List Display)
 
-- [ ] Create a **spec** challenge — the correct spec icon(s) appear in the overlay.
-- [ ] Create a **class** challenge — the correct **class** icon appears for those rows (not individual spec icons).
+- [x] Create a **spec** challenge — the correct spec icon(s) appear in the overlay.
+- [x] Create a **class** challenge — the correct **class** icon appears for those rows (not individual spec icons).
 - [ ] Track two characters of the same spec in any selected bracket. Only **one** row appears in the overlay, showing the higher-rated character's data.
 - [ ] Delete the active challenge — its rows disappear from the overlay.
-- [ ] A spec with no tracked character shows "—" for rating and no character name.
+- [x] A spec with no tracked character shows "—" for rating and no character name.
 
 ### After Story 4-3 (Hover Tooltips)
 
 - [ ] Hover over a spec row — tooltip appears showing spec name, character name-realm, rating, and bracket name.
 - [ ] If multiple characters match the spec, all are listed (sorted by rating descending).
 - [ ] Goal progress line shown: e.g. `"Goal: 1800 (94%)"`.
-- [ ] Hovering a row with no tracked character shows: "No character tracked for this spec".
-- [ ] Move mouse away — tooltip hides.
+- [x] Hovering a row with no tracked character shows: "No character tracked for this spec".
+- [x] Move mouse away — tooltip hides.
 
 ### After Story 4-4 (Rating Progress Colors)
 
@@ -117,9 +117,9 @@ Without this working, nothing else matters.
 
 ### After Story 4-5 (Overlay Opacity & Arena/BG State)
 
-- [ ] Set outside-arena opacity to 0.5. Confirm overlay is semi-transparent in open world.
+- [x] Set outside-arena opacity to 0.5. Confirm overlay is semi-transparent in open world.
 - [ ] Queue into an arena. Confirm opacity switches to inside-arena value on zone entry.
 - [ ] Leave the arena. Confirm opacity switches back.
-- [ ] Set either opacity to **0**. Confirm hovering over rows produces **no tooltip**.
-- [ ] Set opacity back above 0. Confirm tooltips work again.
-- [ ] Changing opacity slider in Settings updates the overlay **immediately** (no reload needed).
+- [x] Set either opacity to **0**. Confirm hovering over rows produces **no tooltip**.
+- [x] Set opacity back above 0. Confirm tooltips work again.
+- [x] Changing opacity slider in Settings updates the overlay **immediately** (no reload needed).

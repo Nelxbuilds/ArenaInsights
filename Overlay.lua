@@ -8,11 +8,12 @@ NXR.Overlay = {}
 
 local overlayFrame
 local rowPool = {}
+local SavePosition
 
 local ROW_HEIGHT = 22
 local ICON_SIZE  = 20
 local PADDING    = 6
-local MIN_WIDTH  = 160
+local MIN_WIDTH  = 50
 
 -- ============================================================================
 -- Backdrop definition (Story 4-1)
@@ -588,7 +589,7 @@ end
 -- Position persistence (Story 4-1)
 -- ============================================================================
 
-local function SavePosition()
+SavePosition = function()
     if not overlayFrame then return end
     local point, _, relPoint, x, y = overlayFrame:GetPoint()
     NelxRatedDB.overlayPosition = {
