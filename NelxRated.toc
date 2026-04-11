@@ -15,4 +15,5 @@ ChallengesUI.lua
 CharactersUI.lua
 SettingsUI.lua
 ImportExportUI.lua
+HomeUI.lua
 MainFrame.lua

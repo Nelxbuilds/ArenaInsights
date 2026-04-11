@@ -71,7 +71,7 @@ local navButtons = {}
 local tabPanels  = {}
 local activeTab  = nil
 
-local TAB_ORDER = { "Challenges", "Characters", "Settings", "Import/Export" }
+local TAB_ORDER = { "Home", "Challenges", "Characters", "Settings", "Import/Export" }
 
 local function SelectTab(tabName)
     if activeTab == tabName then return end
@@ -211,6 +211,9 @@ local function CreateMainFrame()
         tabPanels[tabName] = panel
     end
 
+    -- Embed Home panel
+    NXR.CreateHomePanel(tabPanels["Home"])
+
     -- Embed Challenges panel
     NXR.CreateChallengesPanel(tabPanels["Challenges"])
 
@@ -225,8 +228,8 @@ local function CreateMainFrame()
         NXR.CreateImportExportPanel(tabPanels["Import/Export"])
     end
 
-    -- Default to Challenges tab
-    SelectTab("Challenges")
+    -- Default to Home tab
+    SelectTab("Home")
 
     mainFrame = f
     NXR.mainFrame = f
