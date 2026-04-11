@@ -38,6 +38,10 @@ Download from [CurseForge](https://www.curseforge.com/wow/addons/nelxrated) and 
 
 - World of Warcraft: Midnight (12.x)
 
+## Built With
+
+This addon is being developed with the assistance of [Claude Code](https://claude.ai/code) by Anthropic — from architecture and implementation to release automation.
+
 ## License
 
 [MIT](LICENSE)
