@@ -60,7 +60,7 @@ These are the `C_PvP.GetRatedBracketInfo()` bracket indices:
 
 ## Bug Tracking
 
-Bugs are tracked locally in `docs/bugs.md`. When you find a bug (via verify-story, lua-linter, or in-game testing), add an entry there using the template in that file. Do not open GitHub issues for bugs found during development.
+Bugs are tracked locally in `docs/bugs/bugs.md`. When you find a bug (via verify-story, lua-linter, or in-game testing), add an entry there using the template in that file. Do not open GitHub issues for bugs found during development.
 
 ## Working Style
 
@@ -72,6 +72,18 @@ Bugs are tracked locally in `docs/bugs.md`. When you find a bug (via verify-stor
 - Simple bug fixes (1-3 lines) should NOT spawn agents. Use direct Read + Edit.
 - Only use agents (implement-story, lua-linter, etc.) when explicitly asked or for multi-file tasks.
 - Don't re-read files already in context.
+
+## SavedVariables
+
+The addon persists all data in `NelxRatedDB` (declared in the TOC). Structure after `InitDB()`:
+
+```lua
+NelxRatedDB.settings        -- User preferences (opacity, overlay lock, account name, etc.)
+NelxRatedDB.characters      -- Tracked character rating data
+NelxRatedDB.challenges      -- Challenge definitions
+NelxRatedDB.overlayPosition -- Saved overlay frame position
+NelxRatedDB.schemaVersion   -- DB migration version (currently 1)
+```
 
 ## Addon Namespace
 
