@@ -79,8 +79,8 @@ local function SelectTab(tabName)
 
     for name, btn in pairs(navButtons) do
         if name == tabName then
-            btn:SetBackdropColor(unpack(NXR.COLORS.CRIMSON_DIM))
-            btn:SetBackdropBorderColor(unpack(NXR.COLORS.CRIMSON_BRIGHT))
+            btn:SetBackdropColor(0.15, 0.05, 0.05, 0.6)
+            btn:SetBackdropBorderColor(0, 0, 0, 0)
             btn.label:SetTextColor(1, 1, 1)
             btn.nxrActive = true
             btn.accent:Show()
@@ -105,8 +105,8 @@ end
 local function CreateSidebar(parent)
     local sidebar = CreateFrame("Frame", nil, parent, "BackdropTemplate")
     sidebar:SetWidth(SIDEBAR_WIDTH)
-    sidebar:SetPoint("TOPLEFT", 0, 0)
-    sidebar:SetPoint("BOTTOMLEFT", 0, 0)
+    sidebar:SetPoint("TOPLEFT", 2, -2)
+    sidebar:SetPoint("BOTTOMLEFT", 2, 2)
     sidebar:SetBackdrop(NXR.NXR_BACKDROP)
     sidebar:SetBackdropColor(unpack(NXR.COLORS.BG_RAISED))
     sidebar:SetBackdropBorderColor(0, 0, 0, 0)
@@ -125,10 +125,12 @@ local function CreateSidebar(parent)
     title:SetTextColor(unpack(NXR.COLORS.GOLD))
 
     -- Nav buttons
+    local TAB_HEIGHT = 44
+    local TAB_GAP = 4
     local yOff = -50
     for _, tabName in ipairs(TAB_ORDER) do
         local btn = CreateFrame("Button", nil, sidebar, "BackdropTemplate")
-        btn:SetHeight(30)
+        btn:SetHeight(TAB_HEIGHT)
         btn:SetPoint("TOPLEFT", 0, yOff)
         btn:SetPoint("RIGHT", sidebar, "RIGHT", -1, 0)
         btn:SetBackdrop({
@@ -168,7 +170,7 @@ local function CreateSidebar(parent)
         btn:SetScript("OnClick", function() SelectTab(tabName) end)
 
         navButtons[tabName] = btn
-        yOff = yOff - 30
+        yOff = yOff - TAB_HEIGHT - TAB_GAP
     end
 
     return sidebar
@@ -198,7 +200,7 @@ local function CreateMainFrame()
 
     -- Content area (right of sidebar)
     contentArea = CreateFrame("Frame", nil, f)
-    contentArea:SetPoint("TOPLEFT", SIDEBAR_WIDTH + 1, -8)
+    contentArea:SetPoint("TOPLEFT", SIDEBAR_WIDTH + 3, -8)
     contentArea:SetPoint("BOTTOMRIGHT", -8, 8)
 
     -- Create tab panels

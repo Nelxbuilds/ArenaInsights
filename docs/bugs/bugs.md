@@ -37,10 +37,10 @@ Template:
 
 ## BUG-3 — Active tab overlaps nearly with other tabs
 **Story**: 3-1
-**Status**: open
+**Status**: fixed
 **Found**: Open with /nxr and just click on a tab
 **Description**: I have given you a demo with bug-3.png and crimson border looks wrong as it is not around the whole frame.
-**Fix**: (fill in when resolved)
+**Fix**: Two issues: (1) Active tab used heavy crimson background+border making it look oversized — replaced with subtle dark-crimson tint + accent bar only. (2) Sidebar was anchored flush at (0,0) covering the main frame's crimson border — inset sidebar by 2px so the border wraps the entire frame.
 
 ## BUG-2 — Cannot close export after clicking on export once
 **Story**: 3-4
