@@ -8,6 +8,7 @@ local panel
 local accountInput
 local arenaSlider, arenaValueText
 local outArenaSlider, outArenaValueText
+local scaleSlider, scaleValueText
 local bgCheckbox
 local lockCheckbox
 local overlayToggleBtn
@@ -16,7 +17,15 @@ local function Round(val, step)
     return math.floor(val / step + 0.5) * step
 end
 
-local function CreateSliderRow(parent, labelText, yOffset, settingsKey, onChange)
+local function CreateSliderRow(parent, labelText, yOffset, settingsKey, onChange, opts)
+    opts = opts or {}
+    local minVal  = opts.min or 0
+    local maxVal  = opts.max or 1
+    local step    = opts.step or 0.05
+    local default = opts.default or 1.0
+    local fmt     = opts.format or "%.0f%%"
+    local fmtMul  = opts.formatMultiplier or 100
+
     local label = parent:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     label:SetPoint("TOPLEFT", 8, -yOffset)
     label:SetText(labelText)
@@ -31,8 +40,8 @@ local function CreateSliderRow(parent, labelText, yOffset, settingsKey, onChange
     })
     slider:SetBackdropColor(0.08, 0.08, 0.08, 0.9)
     slider:SetBackdropBorderColor(0.3, 0.3, 0.3, 0.6)
-    slider:SetMinMaxValues(0, 1)
-    slider:SetValueStep(0.05)
+    slider:SetMinMaxValues(minVal, maxVal)
+    slider:SetValueStep(step)
     slider:SetObeyStepOnDrag(true)
     slider:SetOrientation("HORIZONTAL")
 
@@ -46,14 +55,14 @@ local function CreateSliderRow(parent, labelText, yOffset, settingsKey, onChange
     valueText:SetPoint("LEFT", slider, "RIGHT", 10, 0)
     valueText:SetTextColor(0.8, 0.8, 0.8)
 
-    local initial = NelxRatedDB.settings[settingsKey] or 1.0
+    local initial = NelxRatedDB.settings[settingsKey] or default
     slider:SetValue(initial)
-    valueText:SetText(string.format("%.0f%%", initial * 100))
+    valueText:SetText(string.format(fmt, initial * fmtMul))
 
     slider:SetScript("OnValueChanged", function(self, value)
-        value = Round(value, 0.05)
+        value = Round(value, step)
         NelxRatedDB.settings[settingsKey] = value
-        valueText:SetText(string.format("%.0f%%", value * 100))
+        valueText:SetText(string.format(fmt, value * fmtMul))
         if onChange then onChange(value) end
     end)
 
@@ -125,6 +134,17 @@ function NXR.CreateSettingsPanel(parent)
     y = y + 56
 
     -- ----------------------------------------------------------------
+    -- Overlay Scale
+    -- ----------------------------------------------------------------
+    scaleSlider, scaleValueText = CreateSliderRow(panel, "Overlay Scale", y,
+        "overlayScale", function(value)
+            if NXR.Overlay and NXR.Overlay.OnScaleChanged then
+                NXR.Overlay.OnScaleChanged()
+            end
+        end, { min = 0.5, max = 2.0, step = 0.05, default = 1.0 })
+    y = y + 56
+
+    -- ----------------------------------------------------------------
     -- Show overlay background
     -- ----------------------------------------------------------------
     bgCheckbox = CreateFrame("CheckButton", nil, panel, "UICheckButtonTemplate")
@@ -186,6 +206,7 @@ function NXR.CreateSettingsPanel(parent)
         accountInput:SetText(NelxRatedDB.settings.accountName or "")
         arenaSlider:SetValue(NelxRatedDB.settings.opacityInArena or 1.0)
         outArenaSlider:SetValue(NelxRatedDB.settings.opacityOutOfArena or 1.0)
+        scaleSlider:SetValue(NelxRatedDB.settings.overlayScale or 1.0)
         bgCheckbox:SetChecked(NelxRatedDB.settings.showOverlayBackground)
         lockCheckbox:SetChecked(NelxRatedDB.settings.overlayLocked or false)
         if NelxRatedDB.settings.showOverlay then

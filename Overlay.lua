@@ -139,6 +139,20 @@ function NXR.Overlay.OnBackgroundChanged()
 end
 
 -- ============================================================================
+-- Scale changed (IMP-4)
+-- ============================================================================
+
+local function ApplyScale()
+    if not overlayFrame then return end
+    local scale = NelxRatedDB.settings.overlayScale or 1.0
+    overlayFrame:SetScale(scale)
+end
+
+function NXR.Overlay.OnScaleChanged()
+    ApplyScale()
+end
+
+-- ============================================================================
 -- Opacity changed (Story 4-5)
 -- ============================================================================
 
@@ -628,6 +642,9 @@ local function CreateOverlayFrame()
 
     -- Apply backdrop
     ApplyBackground()
+
+    -- Apply scale
+    ApplyScale()
 
     -- Restore position
     RestorePosition()

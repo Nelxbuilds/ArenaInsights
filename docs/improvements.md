@@ -9,8 +9,13 @@ Template:
 ## IMP-N — Short description
 **Story**: X-Y
 **Status**: open | in progress | done
-**Description**: what's wrong
+**Description**: what can be improved?
 -->
+
+## IMP-4 — Add a new setting scale
+**Story**: 3-3
+**Status**: done
+**Description**: Add a new scaling slider to increase size or make it smaller. default should be 1.
 
 ## IMP-3 — Why do we have settings
 **Epic**: 3

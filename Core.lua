@@ -45,6 +45,7 @@ local SETTINGS_DEFAULTS = {
     showOverlayBackground = true,
     showOverlay           = true,
     overlayLocked         = false,
+    overlayScale          = 1.0,
 }
 
 local function InitDB()
