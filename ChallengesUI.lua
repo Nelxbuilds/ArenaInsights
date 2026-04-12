@@ -332,9 +332,12 @@ end
 local function SaveForm()
     if not ValidateForm() then return end
 
+    local rating = tonumber(formState.goalRating)
+    if not rating or rating <= 0 then return end
+
     local data = {
         name       = formState.name,
-        goalRating = tonumber(formState.goalRating),
+        goalRating = rating,
         brackets   = CopyTable(formState.brackets),
         specs      = CopyTable(formState.specs),
         classes    = CopyTable(formState.classes),

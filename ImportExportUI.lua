@@ -60,8 +60,10 @@ local function DeserializeCharacters(text)
     end
 
     if #lines == 0 or lines[1] ~= HEADER then
+        NXR.Debug("Import: invalid header — got '" .. tostring(lines[1]) .. "', expected '" .. HEADER .. "'")
         return nil, "Invalid format: missing header line '" .. HEADER .. "'"
     end
+    NXR.Debug("Import: parsing", #lines, "lines")
 
     local chars = {}
     local current = nil
@@ -112,11 +114,24 @@ local function DeserializeCharacters(text)
     return chars
 end
 
+local function ValidateCharacter(key, char)
+    if type(key) ~= "string" or not key:find("-.+") then return false end
+    if type(char) ~= "table" then return false end
+    if char.name and type(char.name) ~= "string" then return false end
+    if char.realm and type(char.realm) ~= "string" then return false end
+    if char.brackets and type(char.brackets) ~= "table" then return false end
+    if char.specBrackets and type(char.specBrackets) ~= "table" then return false end
+    return true
+end
+
 local function MergeCharacters(imported)
     local added, skipped = 0, 0
 
     for key, char in pairs(imported) do
-        if NelxRatedDB.characters[key] then
+        if not ValidateCharacter(key, char) then
+            NXR.Debug("Import: skipping invalid entry:", tostring(key))
+            skipped = skipped + 1
+        elseif NelxRatedDB.characters[key] then
             skipped = skipped + 1
         else
             NelxRatedDB.characters[key] = char

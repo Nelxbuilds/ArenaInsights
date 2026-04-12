@@ -158,7 +158,9 @@ end
 
 function NXR.Overlay.OnOpacityChanged()
     if not overlayFrame then return end
+    local inPvP = IsInRatedPvP()
     local opacity = GetCurrentOpacity()
+    NXR.Debug("Overlay opacity:", opacity, "| inPvP:", tostring(inPvP))
     overlayFrame:SetAlpha(opacity)
     ApplyMouseState(opacity)
 end
@@ -461,10 +463,14 @@ end
 -- ============================================================================
 
 function NXR.RefreshOverlay()
-    if not overlayFrame then return end
+    if not overlayFrame then
+        NXR.Debug("RefreshOverlay: frame not created yet")
+        return
+    end
 
     -- Respect show/hide setting
     if NelxRatedDB.settings.showOverlay == false then
+        NXR.Debug("RefreshOverlay: overlay hidden by setting")
         overlayFrame:Hide()
         return
     end
@@ -478,11 +484,17 @@ function NXR.RefreshOverlay()
 
     -- If no active challenge, hide overlay
     if not challenge or not challenge.specs then
+        NXR.Debug("RefreshOverlay: no active challenge")
         overlayFrame:Hide()
         return
     end
 
     local classMode = IsClassChallenge(challenge)
+    NXR.Debug("RefreshOverlay: challenge='" .. challenge.name .. "'",
+        "goal=" .. tostring(challenge.goalRating),
+        "classMode=" .. tostring(classMode),
+        "brackets=" .. NXR.TableCount(challenge.brackets),
+        classMode and ("classes=" .. NXR.TableCount(challenge.classes)) or ("specs=" .. NXR.TableCount(challenge.specs)))
 
 
     local maxRatingWidth = 0
@@ -653,6 +665,7 @@ local function CreateOverlayFrame()
     ApplyLockState()
 
     -- Initial refresh
+    NXR.Debug("Overlay frame created, restoring position and refreshing")
     NXR.RefreshOverlay()
 end
 

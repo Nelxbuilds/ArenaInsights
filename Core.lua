@@ -35,6 +35,23 @@ NXR.COLORS = {
 }
 
 -- ============================================================================
+-- Debug logging
+-- ============================================================================
+
+local debugMode = false
+
+function NXR.Debug(...)
+    if not debugMode then return end
+    print("|cff888888[NXR]|r", ...)
+end
+
+function NXR.TableCount(t)
+    local n = 0
+    if t then for _ in pairs(t) do n = n + 1 end end
+    return n
+end
+
+-- ============================================================================
 -- SavedVariables initialization (only after ADDON_LOADED)
 -- ============================================================================
 
@@ -48,6 +65,22 @@ local SETTINGS_DEFAULTS = {
     overlayScale          = 1.0,
 }
 
+local CURRENT_SCHEMA = 1
+
+local MIGRATIONS = {
+    -- [2] = function(db) ... end,  -- add future migrations here
+}
+
+local function RunMigrations(db)
+    local from = db.schemaVersion or 0
+    for version = from + 1, CURRENT_SCHEMA do
+        if MIGRATIONS[version] then
+            MIGRATIONS[version](db)
+        end
+        db.schemaVersion = version
+    end
+end
+
 local function InitDB()
     NelxRatedDB = NelxRatedDB or {}
 
@@ -55,7 +88,12 @@ local function InitDB()
     NelxRatedDB.characters      = NelxRatedDB.characters or {}
     NelxRatedDB.challenges      = NelxRatedDB.challenges or {}
     NelxRatedDB.overlayPosition = NelxRatedDB.overlayPosition or {}
-    NelxRatedDB.schemaVersion   = NelxRatedDB.schemaVersion or 1
+    NelxRatedDB.schemaVersion   = NelxRatedDB.schemaVersion or 0
+
+    RunMigrations(NelxRatedDB)
+    NXR.Debug("InitDB complete — schema", NelxRatedDB.schemaVersion,
+        "| chars:", NXR.TableCount(NelxRatedDB.characters),
+        "| challenges:", #NelxRatedDB.challenges)
 
     for k, v in pairs(SETTINGS_DEFAULTS) do
         if NelxRatedDB.settings[k] == nil then
@@ -98,6 +136,8 @@ function NXR.UpdateCharacterInfo()
     char.account          = NelxRatedDB.settings.accountName
 
     NelxRatedDB.characters[key] = char
+    NXR.Debug("UpdateCharacterInfo:", key, classFileName or "?",
+        specName and ("spec=" .. specName .. " [" .. tostring(specID) .. "]") or "spec=nil")
 end
 
 -- ============================================================================
@@ -122,18 +162,26 @@ local function AppendHistory(char, historyKey, rating)
 
     history[#history + 1] = { rating = rating, timestamp = time() }
 
-    -- Cap at 250 entries
-    while #history > HISTORY_CAP do
-        table.remove(history, 1)
+    -- Cap at 250 entries — bulk trim instead of per-element shift
+    if #history > HISTORY_CAP then
+        local trim = #history - HISTORY_CAP
+        for i = 1, HISTORY_CAP do history[i] = history[i + trim] end
+        for i = HISTORY_CAP + 1, HISTORY_CAP + trim do history[i] = nil end
     end
 end
 
 function NXR.SaveBracketData(bracketIndex, rating, mmr)
     local key = NXR.currentCharKey
-    if not key then return end
+    if not key then
+        NXR.Debug("SaveBracketData: no currentCharKey, skipping")
+        return
+    end
 
     local char = NelxRatedDB.characters[key]
-    if not char then return end
+    if not char then
+        NXR.Debug("SaveBracketData: char not found for", key)
+        return
+    end
 
     local data = {
         rating    = rating,
@@ -143,14 +191,21 @@ function NXR.SaveBracketData(bracketIndex, rating, mmr)
 
     if NXR.PER_SPEC_BRACKETS[bracketIndex] then
         local specID = char.specID
-        if not specID then return end
+        if not specID then
+            NXR.Debug("SaveBracketData: per-spec bracket", bracketIndex, "but specID is nil for", key)
+            return
+        end
         char.specBrackets = char.specBrackets or {}
         char.specBrackets[specID] = char.specBrackets[specID] or {}
         char.specBrackets[specID][bracketIndex] = data
         AppendHistory(char, specID .. ":" .. bracketIndex, rating)
+        NXR.Debug("SaveBracketData:", key, NXR.BRACKET_NAMES[bracketIndex] or bracketIndex,
+            "rating=" .. rating, "spec=" .. specID)
     else
         char.brackets[bracketIndex] = data
         AppendHistory(char, bracketIndex, rating)
+        NXR.Debug("SaveBracketData:", key, NXR.BRACKET_NAMES[bracketIndex] or bracketIndex,
+            "rating=" .. rating)
     end
 end
 
@@ -179,16 +234,26 @@ function NXR.GetRatingHistory(charKey, bracketIndex, specID)
 end
 
 local function CapturePvPStats()
-    if not GetPersonalRatedInfo then return end
+    if not GetPersonalRatedInfo then
+        NXR.Debug("CapturePvPStats: GetPersonalRatedInfo not available")
+        return
+    end
 
     NXR.UpdateCharacterInfo()
+    NXR.Debug("CapturePvPStats: scanning brackets for", NXR.currentCharKey or "?")
 
+    local captured = 0
     for _, bracketIndex in ipairs(NXR.TRACKED_BRACKETS) do
         local rating, seasonBest, weeklyBest, seasonPlayed, seasonWon, weeklyPlayed, weeklyWon, cap = GetPersonalRatedInfo(bracketIndex)
         if rating and rating > 0 then
             NXR.SaveBracketData(bracketIndex, rating, 0)
+            captured = captured + 1
+        else
+            NXR.Debug("  bracket", NXR.BRACKET_NAMES[bracketIndex] or bracketIndex,
+                "— rating:", tostring(rating), "(skipped)")
         end
     end
+    NXR.Debug("CapturePvPStats: saved", captured, "brackets")
 
     if NXR.RefreshOverlay then
         NXR.RefreshOverlay()
@@ -217,16 +282,22 @@ eventFrame:SetScript("OnEvent", function(self, event, ...)
             InitDB()
             if NXR.BuildSpecData then NXR.BuildSpecData() end
             if NXR.InitChallenges then NXR.InitChallenges() end
+            NXR.Debug("ADDON_LOADED complete — specs loaded:",
+                NXR.TableCount(NXR.specData), "| active challenge:",
+                NXR.GetActiveChallenge and NXR.GetActiveChallenge() and NXR.GetActiveChallenge().name or "none")
             self:UnregisterEvent("ADDON_LOADED")
         end
 
     elseif event == "PLAYER_ENTERING_WORLD" then
+        NXR.Debug("Event: PLAYER_ENTERING_WORLD")
         NXR.UpdateCharacterInfo()
 
     elseif event == "ACTIVE_TALENT_GROUP_CHANGED" then
+        NXR.Debug("Event: ACTIVE_TALENT_GROUP_CHANGED")
         NXR.UpdateCharacterInfo()
 
     elseif event == "PVP_RATED_STATS_UPDATE" then
+        NXR.Debug("Event: PVP_RATED_STATS_UPDATE", pvpStatsTimer and "(debounced)" or "(capturing)")
         if pvpStatsTimer then return end
         pvpStatsTimer = C_Timer.After(0.5, function()
             pvpStatsTimer = nil
@@ -249,7 +320,13 @@ SlashCmdList["NELXRATED"] = function(msg)
         print("  /nxr overlay — Toggle overlay visibility")
         print("  /nxr lock — Lock overlay position")
         print("  /nxr unlock — Unlock overlay position")
+        print("  /nxr debug — Toggle debug logging")
         print("  /nxr help — Show this help")
+        return
+    end
+    if cmd == "debug" then
+        debugMode = not debugMode
+        print("|cffE6D200NelxRated|r debug " .. (debugMode and "ON" or "OFF"))
         return
     end
     if cmd == "overlay" then

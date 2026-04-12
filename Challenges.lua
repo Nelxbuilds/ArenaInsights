@@ -64,6 +64,12 @@ function NXR.BuildSpecData()
             return a.className < b.className
         end)
     end
+
+    NXR.Debug("BuildSpecData:", NXR.TableCount(NXR.specData), "specs across",
+        #NXR.sortedClassIDs, "classes |",
+        #NXR.roleSpecs.HEALER, "healers,",
+        #NXR.roleSpecs.DAMAGER, "dps,",
+        #NXR.roleSpecs.TANK, "tanks")
 end
 
 -- ============================================================================
@@ -90,6 +96,11 @@ function NXR.AddChallenge(data)
         active     = isFirst,
     }
     table.insert(NelxRatedDB.challenges, c)
+    NXR.Debug("AddChallenge: id=" .. c.id, "'" .. c.name .. "'",
+        "goal=" .. c.goalRating,
+        "brackets=" .. NXR.TableCount(c.brackets),
+        "specs=" .. NXR.TableCount(c.specs),
+        "active=" .. tostring(c.active))
     if isFirst and NXR.RefreshOverlay then
         NXR.RefreshOverlay()
     end
@@ -127,6 +138,7 @@ function NXR.UpdateChallenge(id, data)
 end
 
 function NXR.SetActiveChallenge(id)
+    NXR.Debug("SetActiveChallenge: id=" .. tostring(id))
     for _, c in ipairs(NelxRatedDB.challenges) do
         c.active = (c.id == id)
     end
@@ -150,5 +162,7 @@ function NXR.InitChallenges()
     local challenges = NelxRatedDB.challenges
     if #challenges > 0 and not NXR.GetActiveChallenge() then
         challenges[1].active = true
+        NXR.Debug("InitChallenges: auto-activated '" .. challenges[1].name .. "'")
     end
+    NXR.Debug("InitChallenges:", #challenges, "challenges loaded")
 end

@@ -94,7 +94,7 @@ local function RefreshGraph()
     local challenge = NXR.GetActiveChallenge and NXR.GetActiveChallenge()
     if challenge then
         local bracketMatch = false
-        for _, b in ipairs(challenge.brackets or {}) do
+        for b, _ in pairs(challenge.brackets or {}) do
             if b == filterBracketIndex then bracketMatch = true; break end
         end
         if bracketMatch then
