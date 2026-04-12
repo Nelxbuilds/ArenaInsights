@@ -29,5 +29,5 @@ Template:
 
 ## IMP-1 — Auto activate first created challenge
 **Story**: 2-2
-**Status**: open
+**Status**: done
 **Description**: If you create your first challenge ever. This should automatically be set to active without any user interaction

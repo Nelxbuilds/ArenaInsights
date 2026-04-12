@@ -79,6 +79,7 @@ local function NextID()
 end
 
 function NXR.AddChallenge(data)
+    local isFirst = #NelxRatedDB.challenges == 0
     local c = {
         id         = NextID(),
         name       = data.name or "Untitled",
@@ -86,9 +87,12 @@ function NXR.AddChallenge(data)
         brackets   = data.brackets or {},
         specs      = data.specs or {},
         classes    = data.classes or {},
-        active     = false,
+        active     = isFirst,
     }
     table.insert(NelxRatedDB.challenges, c)
+    if isFirst and NXR.RefreshOverlay then
+        NXR.RefreshOverlay()
+    end
     return c
 end
 
