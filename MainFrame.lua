@@ -71,7 +71,7 @@ local navButtons = {}
 local tabPanels  = {}
 local activeTab  = nil
 
-local TAB_ORDER = { "Home", "Challenges", "Characters", "Settings", "Import/Export" }
+local TAB_ORDER = { "Home", "History", "Challenges", "Characters", "Settings", "Import/Export" }
 
 local function SelectTab(tabName)
     if activeTab == tabName then return end
@@ -223,6 +223,9 @@ local function CreateMainFrame()
     end
     if NXR.CreateSettingsPanel then
         NXR.CreateSettingsPanel(tabPanels["Settings"])
+    end
+    if NXR.CreateHistoryPanel then
+        NXR.CreateHistoryPanel(tabPanels["History"])
     end
     if NXR.CreateImportExportPanel then
         NXR.CreateImportExportPanel(tabPanels["Import/Export"])

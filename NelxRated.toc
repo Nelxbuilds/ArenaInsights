@@ -16,4 +16,5 @@ CharactersUI.lua
 SettingsUI.lua
 ImportExportUI.lua
 HomeUI.lua
+HistoryUI.lua
 MainFrame.lua

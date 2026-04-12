@@ -16,14 +16,14 @@ Track rating changes over time per character/spec/bracket and visualize progress
 
 **Acceptance Criteria**:
 
-- [ ] When `SaveBracketData()` fires, after updating the existing snapshot, append to a history array on the character
-- [ ] History is stored at `char.ratingHistory[bracketIndex][entryIndex]` for shared brackets (2v2, 3v3)
-- [ ] History is stored at `char.ratingHistory[specID..":"..bracketIndex][entryIndex]` for per-spec brackets (Solo Shuffle, Blitz)
-- [ ] Each history entry is `{ rating = number, timestamp = number }` (no MMR — keep it lean)
-- [ ] Only append when the rating actually differs from the last entry in the array (deduplication)
-- [ ] If `ratingHistory` does not exist on the character, create it and seed with the current snapshot as the first entry
-- [ ] Cap each history array at 250 entries; when exceeded, remove the oldest entries
-- [ ] Existing snapshot behavior (`brackets[bracketIndex]` / `specBrackets[specID][bracketIndex]`) remains unchanged
+- [x] When `SaveBracketData()` fires, after updating the existing snapshot, append to a history array on the character
+- [x] History is stored at `char.ratingHistory[bracketIndex][entryIndex]` for shared brackets (2v2, 3v3)
+- [x] History is stored at `char.ratingHistory[specID..":"..bracketIndex][entryIndex]` for per-spec brackets (Solo Shuffle, Blitz)
+- [x] Each history entry is `{ rating = number, timestamp = number }` (no MMR — keep it lean)
+- [x] Only append when the rating actually differs from the last entry in the array (deduplication)
+- [x] If `ratingHistory` does not exist on the character, create it and seed with the current snapshot as the first entry
+- [x] Cap each history array at 250 entries; when exceeded, remove the oldest entries
+- [x] Existing snapshot behavior (`brackets[bracketIndex]` / `specBrackets[specID][bracketIndex]`) remains unchanged
 
 **Technical Hints**:
 
@@ -39,11 +39,11 @@ Track rating changes over time per character/spec/bracket and visualize progress
 
 **Acceptance Criteria**:
 
-- [ ] `NXR.GetRatingHistory(charKey, bracketIndex, specID)` returns the history array or nil
-- [ ] For per-spec brackets, it looks up using the composite key (`specID..":"..bracketIndex`)
-- [ ] For shared brackets, it looks up using just `bracketIndex`
-- [ ] Returns a reference to the actual array (no copy needed — graph is read-only)
-- [ ] Returns nil gracefully if the character, history table, or specific key doesn't exist
+- [x] `NXR.GetRatingHistory(charKey, bracketIndex, specID)` returns the history array or nil
+- [x] For per-spec brackets, it looks up using the composite key (`specID..":"..bracketIndex`)
+- [x] For shared brackets, it looks up using just `bracketIndex`
+- [x] Returns a reference to the actual array (no copy needed — graph is read-only)
+- [x] Returns nil gracefully if the character, history table, or specific key doesn't exist
 
 **Technical Hints**:
 
@@ -57,13 +57,13 @@ Track rating changes over time per character/spec/bracket and visualize progress
 
 **Acceptance Criteria**:
 
-- [ ] "History" appears in the sidebar between "Home" and "Challenges"
-- [ ] Tab order becomes: Home, History, Challenges, Characters, Settings, Import/Export
-- [ ] The History tab has a content area consistent with other tabs (same padding, backdrop)
-- [ ] The top of the tab contains filter controls (dropdowns/buttons for character, spec, bracket)
-- [ ] Below the filters is the graph area, taking up the remaining vertical space
-- [ ] When no history data exists for the current selection, show a placeholder: "Play rated games to build history"
-- [ ] Uses the PvP crimson design system
+- [x] "History" appears in the sidebar between "Home" and "Challenges"
+- [x] Tab order becomes: Home, History, Challenges, Characters, Settings, Import/Export
+- [x] The History tab has a content area consistent with other tabs (same padding, backdrop)
+- [x] The top of the tab contains filter controls (dropdowns/buttons for character, spec, bracket)
+- [x] Below the filters is the graph area, taking up the remaining vertical space
+- [x] When no history data exists for the current selection, show a placeholder: "Play rated games to build history"
+- [x] Uses the PvP crimson design system
 
 **Technical Hints**:
 
@@ -79,16 +79,16 @@ Track rating changes over time per character/spec/bracket and visualize progress
 
 **Acceptance Criteria**:
 
-- [ ] Graph draws a line chart using `CreateLine()` segments between data points
-- [ ] X-axis represents data point sequence (1, 2, 3, ..., N) — not timestamps
-- [ ] Y-axis represents rating values
-- [ ] Y-axis has 4-5 evenly spaced tick labels showing rating values
-- [ ] X-axis has tick labels showing point indices (e.g., every 50th point)
-- [ ] Axis border lines on the left and bottom edges of the graph area
-- [ ] Line color uses crimson accent (`CRIMSON_BRIGHT`) to match the addon theme
-- [ ] Minimum 3 data points required to render; otherwise show placeholder text
-- [ ] Line objects and label FontStrings are pooled and reused across refreshes
-- [ ] Graph redraws when filters change or new data arrives
+- [x] Graph draws a line chart using `CreateLine()` segments between data points
+- [x] X-axis represents data point sequence (1, 2, 3, ..., N) — not timestamps
+- [x] Y-axis represents rating values
+- [x] Y-axis has 4-5 evenly spaced tick labels showing rating values
+- [x] X-axis has tick labels showing point indices (e.g., every 50th point)
+- [x] Axis border lines on the left and bottom edges of the graph area
+- [x] Line color uses crimson accent (`CRIMSON_BRIGHT`) to match the addon theme
+- [x] Minimum 3 data points required to render; otherwise show placeholder text
+- [x] Line objects and label FontStrings are pooled and reused across refreshes
+- [x] Graph redraws when filters change or new data arrives
 
 **Technical Hints**:
 
@@ -104,12 +104,12 @@ Track rating changes over time per character/spec/bracket and visualize progress
 
 **Acceptance Criteria**:
 
-- [ ] When the active challenge's brackets include the currently selected bracket, draw a horizontal dashed or solid line at the goal rating
-- [ ] Goal line uses gold color (`COLORS.GOLD` or similar) to distinguish from the rating line
-- [ ] Goal line only appears if the goal rating falls within or near the Y-axis range
-- [ ] If the goal is above all data points, extend the Y-axis range to include it
-- [ ] A small label on the right end of the goal line shows the rating value (e.g., "2400")
-- [ ] Goal line hides when no active challenge exists or the challenge doesn't include the selected bracket
+- [x] When the active challenge's brackets include the currently selected bracket, draw a horizontal dashed or solid line at the goal rating
+- [x] Goal line uses gold color (`COLORS.GOLD` or similar) to distinguish from the rating line
+- [x] Goal line only appears if the goal rating falls within or near the Y-axis range
+- [x] If the goal is above all data points, extend the Y-axis range to include it
+- [x] A small label on the right end of the goal line shows the rating value (e.g., "2400")
+- [x] Goal line hides when no active challenge exists or the challenge doesn't include the selected bracket
 
 **Technical Hints**:
 
@@ -124,13 +124,13 @@ Track rating changes over time per character/spec/bracket and visualize progress
 
 **Acceptance Criteria**:
 
-- [ ] Character selector shows all tracked characters (from `NelxRatedDB.characters`), displaying "Name - Realm"
-- [ ] Spec selector shows specs available for the selected character (from `specBrackets` keys + class spec list)
-- [ ] Bracket selector shows tracked brackets: Solo Shuffle, Blitz, 2v2, 3v3
-- [ ] For per-spec brackets (Solo Shuffle, Blitz), the spec selector is enabled; for shared brackets (2v2, 3v3), the spec selector is disabled/hidden
-- [ ] Changing any filter immediately refreshes the graph
-- [ ] Default selection: current character, current spec, Solo Shuffle
-- [ ] Filters remember their selection while the tab is open (reset on frame close is fine)
+- [x] Character selector shows all tracked characters (from `NelxRatedDB.characters`), displaying "Name - Realm"
+- [x] Spec selector shows specs available for the selected character (from `specBrackets` keys + class spec list)
+- [x] Bracket selector shows tracked brackets: Solo Shuffle, Blitz, 2v2, 3v3
+- [x] For per-spec brackets (Solo Shuffle, Blitz), the spec selector is enabled; for shared brackets (2v2, 3v3), the spec selector is disabled/hidden
+- [x] Changing any filter immediately refreshes the graph
+- [x] Default selection: current character, current spec, Solo Shuffle
+- [x] Filters remember their selection while the tab is open (reset on frame close is fine)
 
 **Technical Hints**:
 

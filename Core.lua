@@ -104,6 +104,30 @@ end
 -- Rating & MMR capture
 -- ============================================================================
 
+local HISTORY_CAP = 250
+
+local function AppendHistory(char, historyKey, rating)
+    char.ratingHistory = char.ratingHistory or {}
+    local history = char.ratingHistory[historyKey]
+
+    if not history then
+        -- Seed with current rating as first entry
+        char.ratingHistory[historyKey] = { { rating = rating, timestamp = time() } }
+        return
+    end
+
+    -- Deduplicate: only append if rating changed
+    local last = history[#history]
+    if last and last.rating == rating then return end
+
+    history[#history + 1] = { rating = rating, timestamp = time() }
+
+    -- Cap at 250 entries
+    while #history > HISTORY_CAP do
+        table.remove(history, 1)
+    end
+end
+
 function NXR.SaveBracketData(bracketIndex, rating, mmr)
     local key = NXR.currentCharKey
     if not key then return end
@@ -123,8 +147,10 @@ function NXR.SaveBracketData(bracketIndex, rating, mmr)
         char.specBrackets = char.specBrackets or {}
         char.specBrackets[specID] = char.specBrackets[specID] or {}
         char.specBrackets[specID][bracketIndex] = data
+        AppendHistory(char, specID .. ":" .. bracketIndex, rating)
     else
         char.brackets[bracketIndex] = data
+        AppendHistory(char, bracketIndex, rating)
     end
 end
 
@@ -137,6 +163,18 @@ function NXR.GetRating(charKey, bracketIndex, specID)
         return sb and sb[bracketIndex]
     else
         return char.brackets and char.brackets[bracketIndex]
+    end
+end
+
+function NXR.GetRatingHistory(charKey, bracketIndex, specID)
+    local char = NelxRatedDB.characters[charKey]
+    if not char or not char.ratingHistory then return nil end
+
+    if NXR.PER_SPEC_BRACKETS[bracketIndex] then
+        if not specID then return nil end
+        return char.ratingHistory[specID .. ":" .. bracketIndex]
+    else
+        return char.ratingHistory[bracketIndex]
     end
 end
 
@@ -154,6 +192,9 @@ local function CapturePvPStats()
 
     if NXR.RefreshOverlay then
         NXR.RefreshOverlay()
+    end
+    if NXR.RefreshHistoryGraph then
+        NXR.RefreshHistoryGraph()
     end
 end
 
