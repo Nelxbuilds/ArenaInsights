@@ -56,14 +56,14 @@ When multiple characters match the same spec, the one with the **highest rating*
 
 **Acceptance Criteria**:
 
-- [ ] `NXR.AddChallenge(data)` creates a challenge record with a unique auto-incrementing ID and appends it to `NelxRatedDB.challenges`
-- [ ] `NXR.RemoveChallenge(id)` removes a challenge by ID
-- [ ] `NXR.UpdateChallenge(id, data)` updates name, goalRating, brackets, and specs for an existing challenge
-- [ ] `NXR.SetActiveChallenge(id)` sets one challenge active and all others inactive; triggers `NXR.RefreshOverlay()` if it exists
-- [ ] `NXR.GetActiveChallenge()` returns the challenge record with `active = true`, or `nil`
-- [ ] Deleting the active challenge removes it and triggers overlay refresh (overlay hides); no other challenge is automatically promoted to active — the user must set a new one manually
-- [ ] On `ADDON_LOADED`, if challenges exist but none is active, the first one is set active
-- [ ] All mutations persist immediately to `NelxRatedDB` (it's a SavedVariable — WoW saves on logout/reload)
+- [x] `NXR.AddChallenge(data)` creates a challenge record with a unique auto-incrementing ID and appends it to `NelxRatedDB.challenges`
+- [x] `NXR.RemoveChallenge(id)` removes a challenge by ID
+- [x] `NXR.UpdateChallenge(id, data)` updates name, goalRating, brackets, and specs for an existing challenge
+- [x] `NXR.SetActiveChallenge(id)` sets one challenge active and all others inactive; triggers `NXR.RefreshOverlay()` if it exists
+- [x] `NXR.GetActiveChallenge()` returns the challenge record with `active = true`, or `nil`
+- [x] Deleting the active challenge removes it and triggers overlay refresh (overlay hides); no other challenge is automatically promoted to active — the user must set a new one manually
+- [x] On `ADDON_LOADED`, if challenges exist but none is active, the first one is set active
+- [x] All mutations persist immediately to `NelxRatedDB` (it's a SavedVariable — WoW saves on logout/reload)
 
 **Technical Hints**:
 
@@ -78,13 +78,13 @@ When multiple characters match the same spec, the one with the **highest rating*
 
 **Acceptance Criteria**:
 
-- [ ] Each challenge row shows: name, bracket names, goal rating, count of selected specs, and a small row of spec icon previews (first 5-6 icons)
-- [ ] Each row has a **Delete** button
-- [ ] Each row has an **Edit** button that opens the create/edit form pre-populated
-- [ ] Each row has a **Set Active** / **Active** toggle — the active challenge is visually highlighted
-- [ ] Setting a challenge active immediately refreshes the overlay
-- [ ] If no challenges exist, show an empty-state message: "No challenges yet. Create one below."
-- [ ] A "Create New Challenge" button at the top or bottom opens the create form
+- [x] Each challenge row shows: name, bracket names, goal rating, count of selected specs, and a small row of spec icon previews (first 5-6 icons)
+- [x] Each row has a **Delete** button
+- [x] Each row has an **Edit** button that opens the create/edit form pre-populated
+- [x] Each row has a **Set Active** / **Active** toggle — the active challenge is visually highlighted
+- [x] Setting a challenge active immediately refreshes the overlay
+- [x] If no challenges exist, show an empty-state message: "No challenges yet. Create one below."
+- [x] A "Create New Challenge" button at the top or bottom opens the create form
 
 **Technical Hints**:
 
@@ -100,18 +100,18 @@ When multiple characters match the same spec, the one with the **highest rating*
 
 **Acceptance Criteria**:
 
-- [ ] **Name input**: text EditBox for the challenge name
-- [ ] **Bracket selector**: four toggle buttons (2v2, 3v3, Blitz BG, Solo Shuffle) — multi-select, at least one required
-- [ ] **Goal rating input**: numeric EditBox
-- [ ] **Spec picker** organized by role (Healers, DPS, Tanks):
+- [x] **Name input**: text EditBox for the challenge name
+- [x] **Bracket selector**: four toggle buttons (2v2, 3v3, Blitz BG, Solo Shuffle) — multi-select, at least one required
+- [x] **Goal rating input**: numeric EditBox
+- [x] **Spec picker** organized by role (Healers, DPS, Tanks):
   - Each role section has **All** and **None** buttons to bulk-select/deselect
   - Each spec entry shows: checkbox, spec icon, spec name colored by class color
-- [ ] **Class picker**: clicking a class icon/button checks all specs of that class in the spec picker; clicking the same class again unchecks all of its specs
-- [ ] At least one spec/class must be selected to save
-- [ ] **Save / Create** button commits the challenge; **Cancel** returns to the list
-- [ ] When editing, the form is pre-populated with the existing challenge's data
-- [ ] After save, the challenge list refreshes and the overlay updates if the saved challenge is active
-- [ ] Validation feedback: show inline error messages for empty name, no specs, no brackets, invalid rating
+- [x] **Class picker**: clicking a class icon/button checks all specs of that class in the spec picker; clicking the same class again unchecks all of its specs
+- [x] At least one spec/class must be selected to save
+- [x] **Save / Create** button commits the challenge; **Cancel** returns to the list
+- [x] When editing, the form is pre-populated with the existing challenge's data
+- [x] After save, the challenge list refreshes and the overlay updates if the saved challenge is active
+- [x] Validation feedback: show inline error messages for empty name, no specs, no brackets, invalid rating
 
 **Technical Hints**:
 

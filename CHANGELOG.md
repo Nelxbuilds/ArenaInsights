@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.0.0] -- 2026-04-12
+
+### Changed
+- Major version bump from 0.1.0 — all six epics complete
+
+### Completed
+- Epic 1: Core Tracking — arena rating and MMR capture for all brackets
+- Epic 2: Challenge System — multi-spec, multi-bracket challenge CRUD
+- Epic 3: Settings UI — full settings panel with all configuration options
+- Epic 4: Overlay — movable overlay with color-coded progress and tooltips
+- Epic 5: Home Screen — dashboard with summary stats
+- Epic 6: Rating History — historical rating tracking and UI
+
 ## [0.1.0] — Initial Release
 
 ### Added
