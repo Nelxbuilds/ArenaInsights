@@ -112,31 +112,7 @@ If `CHANGELOG.md` does not exist, create it. Read the TOC for the current versio
 If `CHANGELOG.md` already exists, do not overwrite it — append a note only if it is empty.
 
 ### 3c. `LICENSE`
-If `LICENSE` does not exist, create it with the MIT license. Use today's date year and the author name from the TOC (or `Nelx` if blank):
-
-```
-MIT License
-
-Copyright (c) <YEAR> <AUTHOR>
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-```
+If `LICENSE` does not exist, create a standard MIT license file using the current year and the author name from the TOC (or `Nelx` if blank).
 
 ---
 
@@ -156,16 +132,7 @@ Note findings in the final report. Do NOT fix Lua code — flag it for the user.
 
 Read `docs/curseforge-release-checklist.md` to check the "Addon Completeness" section.
 
-Then check each epic doc for unchecked acceptance criteria:
-
-```
-docs/epic-1-core-tracking.md
-docs/epic-2-challenge-system.md
-docs/epic-3-settings-ui.md
-docs/epic-4-overlay.md
-```
-
-For each doc, count `- [ ]` (unchecked) vs `- [x]` / `- [X]` (checked) criteria. Report epics with unchecked criteria as blockers.
+Then use `Glob("docs/epic-*.md")` to find all epic docs. For each doc, count `- [ ]` (unchecked) vs `- [x]` / `- [X]` (checked) criteria. Report epics with unchecked criteria as blockers.
 
 ---
 
@@ -206,14 +173,11 @@ Print a structured go/no-go report:
 ---
 
 ### Manual Steps Required (cannot be automated)
-1. **Verify interface number** — run `/run print(select(4, GetBuildInfo()))` in-game and confirm `NelxRated.toc` line `## Interface:` matches
-2. **Confirm version** — current version is `1.0.0`; tag git with `v1.0.0` when ready to publish
-3. **In-game smoke test** — install from zip on a clean client, complete a rated arena, verify rating is captured and overlay updates
-4. **Test Import/Export** — export from one account, import on another, confirm data merges correctly without overwriting
-5. **Test opacity=0** — set overlay opacity to 0, verify tooltips are non-functional
-6. **Screenshots** — capture overlay in-game and settings panel for CurseForge project page
-7. **CurseForge project** — create project at curseforge.com, set game version to WoW Midnight 12.x, upload zip
-8. **GitHub Actions CI** (optional) — add `.github/workflows/release.yml` with BigWigs packager + CF_API_KEY secret for automated publishing on git tag push
+1. **Verify interface number** in-game: `/run print(select(4, GetBuildInfo()))`
+2. **Confirm version** in TOC before tagging
+3. **In-game smoke test** — rated arena → rating captured, overlay updates
+4. **Test Import/Export** — merge across accounts without overwriting
+5. **Screenshots** for CurseForge project page
 
 ---
 

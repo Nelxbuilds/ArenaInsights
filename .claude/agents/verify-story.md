@@ -16,13 +16,7 @@ You do NOT write code. You do NOT update docs. You only read and report.
 
 The user will give you a reference like "story 5-2", "epic 3 story 1", or "story 7-3".
 
-Read the relevant epic doc:
-```
-docs/epic-1-core-tracking.md
-docs/epic-2-challenge-system.md
-docs/epic-3-settings-ui.md
-docs/epic-4-overlay.md
-```
+Use `Glob("docs/epic-*.md")` to find all epic docs. Read the one matching the user's reference.
 
 Extract:
 - Story title

@@ -14,17 +14,7 @@ You do NOT implement features. You read, compare, and update docs.
 
 ## Step 1: Load the Plan
 
-Read all planning documents:
-
-```
-CLAUDE.md                              ← architecture overview, public API, SavedVariables schema
-docs/epic-1-core-tracking.md
-docs/epic-2-challenge-system.md
-docs/epic-3-settings-ui.md
-docs/epic-4-overlay.md
-```
-
-For each epic doc, extract every story's acceptance criteria checkboxes. These are your definition of done.
+Read `CLAUDE.md` for architecture overview. Then use `Glob("docs/epic-*.md")` to find all epic docs and read each one. Extract every story's acceptance criteria checkboxes — these are your definition of done.
 
 ---
 
@@ -53,10 +43,8 @@ For each story across all epics, evaluate its acceptance criteria:
 | 🔍 Untestable | Requires in-game verification |
 
 Also check:
-- Public API functions listed in `CLAUDE.md` — do they all exist?
-- SavedVariables schema in `CLAUDE.md` — does the code match?
-- Slash commands in `CLAUDE.md` — are they all wired up?
-- TODO/FIXME comments in the Lua — note these as known gaps
+- Does the code match `CLAUDE.md` (public API, SavedVariables schema, slash commands)?
+- Any TODO/FIXME comments in the Lua?
 
 ---
 

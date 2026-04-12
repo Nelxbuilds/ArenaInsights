@@ -1,21 +1,10 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-
 Research the codebase before editing. Never change code you haven't read.
 
 ## Project Overview
 
 NelxRated is a World of Warcraft addon that tracks PvP ratings across characters and specs. It supports Solo Shuffle, 2v2, 3v3, and Blitz Battleground, and displays progress toward user-defined rating challenges via a movable overlay.
-
-## WoW Addon Development
-
-WoW addons are written in **Lua** and use the WoW client API. Key concepts:
-
-- **TOC file** (`NelxRated.toc`): Declares addon metadata and file load order
-- **SavedVariables**: WoW's persistence mechanism for addon data, declared in the TOC file and accessed as globals
-- **Events**: Addons react to WoW game events (e.g., `PVP_RATED_STATS_UPDATE`, `PLAYER_ENTERING_WORLD`)
-- **Frames**: UI elements created via `CreateFrame()` and positioned/styled with the WoW UI API
 
 ## Architecture
 
@@ -65,13 +54,9 @@ Bugs are tracked locally in `docs/bugs/bugs.md`. When you find a bug (via verify
 ## Working Style
 
 - For bug fixes: read the bug, read the relevant code, fix it. Don't spawn agents or run linters unless asked.
-- Keep responses short. No summaries of what was done — the diff speaks for itself.
-
-## Token Efficiency
-
-- Simple bug fixes (1-3 lines) should NOT spawn agents. Use direct Read + Edit.
 - Only use agents (implement-story, lua-linter, etc.) when explicitly asked or for multi-file tasks.
 - Don't re-read files already in context.
+- Keep responses short. No summaries of what was done — the diff speaks for itself.
 
 ## SavedVariables
 
@@ -85,6 +70,3 @@ NelxRatedDB.overlayPosition -- Saved overlay frame position
 NelxRatedDB.schemaVersion   -- DB migration version (currently 1)
 ```
 
-## Addon Namespace
-
-The shared addon table is `NXR` (changed from `NXA`). All modules receive it via `local addonName, NXR = ...`.

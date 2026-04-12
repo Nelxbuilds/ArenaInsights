@@ -100,22 +100,17 @@ local function CreateSimpleDropdown(parent, label, options, currentKey, onChange
     end
     SetCurrent(currentKey)
 
-    -- Popup menu (built on click)
+    -- Popup menu (built on click) — uses MenuUtil (12.x), NOT EasyMenu
     btn:SetScript("OnClick", function(self)
-        -- Use Blizzard's MenuUtil (12.x) for a simple popup
-        local menuItems = {}
-        for _, opt in ipairs(options) do
-            local o = opt  -- upvalue capture
-            menuItems[#menuItems+1] = {
-                text     = o.label,
-                func     = function()
+        MenuUtil.CreateContextMenu(self, function(ownerRegion, rootDescription)
+            for _, opt in ipairs(options) do
+                local o = opt  -- upvalue capture
+                rootDescription:CreateButton(o.label, function()
                     SetCurrent(o.key)
                     if onChange then onChange(o.key) end
-                end,
-                notCheckable = true,
-            }
-        end
-        EasyMenu(menuItems, CreateFrame("Frame", "TempDropdownMenuFrame", UIParent, "UIDropDownMenuTemplate"), "cursor", 0, 0, "MENU")
+                end)
+            end
+        end)
     end)
 
     return container, btn
