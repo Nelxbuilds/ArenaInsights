@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.1] -- 2026-04-17
+
+### Fixed
+- Interface info display corrections
+- History tracking and persistence issues
+- History visualization improvements and cleanup
+
 ## [1.0.0] -- 2026-04-12
 
 ### Changed
