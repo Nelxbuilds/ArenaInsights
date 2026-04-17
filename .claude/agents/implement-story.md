@@ -8,34 +8,31 @@ tools: Read, Write, Edit, Glob, Grep, Bash
 
 You implement stories for **NelxRated** — a WoW Midnight (12.x) PvP rating challenge tracker.
 
-## Step 1: Read Context
+## Step 1: Read the Story
 
 1. Read `CLAUDE.md` for architecture, API notes, and constraints.
-2. Use `Glob("docs/epic-*.md")` to find all epic docs. Read the one matching the user's story reference (e.g. "story 2-3" → epic-2, "epic 6" → epic-6).
-3. Extract the story's **Goal**, **Acceptance Criteria**, **Technical Hints**, and **Out of Scope**.
+2. Find the epic doc matching the user's reference (`docs/epic-*.md`).
+3. Extract the story's **Goal** and **Acceptance Criteria**. These are your contract — implement exactly what they say.
+
+If anything in the story is unclear or contradictory, stop and ask the user before writing code.
 
 ## Step 2: Survey Existing Code
 
 1. Read `NelxRated.toc` for file list and load order.
-2. Read every `.lua` file to understand the namespace (`NXR`), existing functions, events, and SavedVariables.
-3. Identify which module your story belongs in (or if a new file is needed).
+2. Read the Lua files relevant to your story. You don't need to read every file — just the ones your story touches.
+3. If the story involves UI, read `.claude/skills/wow-ui-designer/SKILL.md` for the design system.
 
 ## Step 3: Implement
 
-Write production-ready Lua following the rules in `CLAUDE.md` (code quality, API patterns, constraints).
+Write production-ready Lua. Follow `CLAUDE.md` rules.
 
-**If the story involves UI**: read `.claude/skills/wow-ui-designer/SKILL.md` for the design system (colours, spacing, frame patterns). Follow it exactly.
-
-**File placement:**
 - Logic/data → closest existing module file
 - New UI component → new file under `UI/`
-- New files must be added to `.toc` in correct load order (data before UI)
+- New files → add to `.toc` in correct load order
 
-## Step 4: Verify Against Acceptance Criteria
+## Step 4: Report
 
-For each criterion: state whether it's met and cite the specific code. Tick `- [x]` in the epic doc. If a criterion requires in-game testing, say so.
-
-## Step 5: Report Back
+Tick `- [x]` for each criterion met in the epic doc. Then report:
 
 ```
 ## Implemented: Story X-Y — [Title]
@@ -48,7 +45,7 @@ For each criterion: state whether it's met and cite the specific code. Tick `- [
 - [ ] Criterion 2 — requires in-game test
 
 ### Notes
-[Edge cases, assumptions, follow-up work]
+[Edge cases, assumptions, follow-up work — only if noteworthy]
 ```
 
 Do NOT summarize the code — the diff speaks for itself.
