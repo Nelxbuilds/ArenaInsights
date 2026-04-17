@@ -39,6 +39,14 @@ These are the `C_PvP.GetRatedBracketInfo()` bracket indices:
 - **Challenge flexibility**: Challenges support multi-spec selection (individual specs), class challenges (all specs of a class count), and multi-bracket selection (rating in any selected bracket counts).
 - **PvP crimson theme**: UI uses crimson accent colors (`CRIMSON_BRIGHT`/`MID`/`DIM`) for borders and active states. Gold is used only for section title text.
 
+## Icon Atlas Notes
+
+- `classicon-<class>` — flat circular style (used in Overlay, ChallengesUI)
+- `raceicon-<race>-<gender>` — 3D embossed style
+- Spec icons via `GetSpecializationInfoForClassID()` — 3D painted texture IDs
+- No single atlas covers all three in same style. History tab: race icon + class-colored text only (no classicon).
+- FontStrings cannot parent child frames/textures. To layer texture behind FontString, parent texture to the containing frame and anchor its points to the FontString.
+
 ## WoW 12.x API Notes
 
 - `EasyMenu` and `UIDropDownMenuTemplate` are **removed** in Midnight 12.x. Use `MenuUtil.CreateContextMenu()` or custom button-based selectors.
@@ -49,7 +57,15 @@ These are the `C_PvP.GetRatedBracketInfo()` bracket indices:
 
 ## Bug Tracking
 
-Bugs are tracked locally in `docs/bugs/bugs.md`. When you find a bug (via verify-story, lua-linter, or in-game testing), add an entry there using the template in that file. Do not open GitHub issues for bugs found during development.
+Bugs are tracked in epic story docs (`docs/epic-N-*.md`) as unchecked acceptance criteria. Do not maintain a separate bug file. Do not open GitHub issues for bugs found during development.
+
+## Skills & Automation
+
+- Project skills live in `.claude/skills/` (ship, update-readme, wow-ui-designer, wow-api-research)
+- `/update-readme` — syncs README.md from epic docs; runs automatically inside `/ship`
+- `/write-story` — system agent (not a local skill); interactive story writer; asks clarifying questions, produces story doc, does NOT write code
+- `/caveman-commit` — ultra-compressed commit message generator; use when committing
+- Don't manually update README before a release; `/ship` handles it via Step 4.5
 
 ## Working Style
 

@@ -95,6 +95,10 @@ Tell the user you're running the release-prep agent as a pre-flight check. Spawn
 
 If release-prep reports blockers (linter errors, unchecked epic criteria, etc.), show the report to the user and ask if they want to continue anyway or abort.
 
+## Step 4.5: Sync README
+
+Run `/update-readme` to ensure README.md reflects the current feature set before the release commit. This happens automatically — no user prompt needed. If the skill makes changes, those changes will be included in the Step 7 commit alongside the TOC and CHANGELOG.
+
 ## Step 5: Update the TOC
 
 Edit `NelxRated.toc` to set the new version:
