@@ -43,7 +43,7 @@ Download from [CurseForge](https://www.curseforge.com/wow/addons/nelxrated) and 
 ### Manual
 
 1. Download the latest release from [GitHub Releases](https://github.com/Nelxbuilds/NelxRated/releases)
-2. Extract `NelxRated` into your `World of Warcraft/_midnight_/Interface/AddOns/` directory
+2. Extract `NelxRated` into your `World of Warcraft/_retail_/Interface/AddOns/` directory
 3. Restart WoW or `/reload`
 
 ## Requirements
