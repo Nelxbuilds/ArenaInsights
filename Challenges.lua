@@ -84,10 +84,15 @@ local function NextID()
     return max + 1
 end
 
+local function GenerateUID()
+    return time() .. "-" .. math.random(100000, 999999)
+end
+
 function NXR.AddChallenge(data)
     local isFirst = #NelxRatedDB.challenges == 0
     local c = {
         id         = NextID(),
+        uid        = data.uid or GenerateUID(),
         name       = data.name or "Untitled",
         goalRating = data.goalRating or 1800,
         brackets   = data.brackets or {},
@@ -160,6 +165,15 @@ end
 
 function NXR.InitChallenges()
     local challenges = NelxRatedDB.challenges
+
+    -- Backfill UIDs for pre-9-6 challenges
+    for _, c in ipairs(challenges) do
+        if not c.uid then
+            c.uid = GenerateUID()
+            NXR.Debug("InitChallenges: backfilled uid for '" .. c.name .. "': " .. c.uid)
+        end
+    end
+
     if #challenges > 0 and not NXR.GetActiveChallenge() then
         challenges[1].active = true
         NXR.Debug("InitChallenges: auto-activated '" .. challenges[1].name .. "'")
