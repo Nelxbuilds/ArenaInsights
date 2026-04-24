@@ -654,7 +654,7 @@ function NXR.RefreshOverlay()
 
     overlayFrame:Show()
 
-    local groupByRole = NelxRatedDB.settings.overlayGroupByRole
+    local groupByRole = NelxRatedDB.settings.overlayGroupByRole and not classMode
     local numColumns = NelxRatedDB.settings.overlayColumns or 1
 
     -- First pass: create rows, populate data, measure text
