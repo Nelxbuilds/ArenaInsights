@@ -37,6 +37,7 @@ local COLOR_ORANGE = { 0.93, 0.55, 0.05 }
 local COLOR_YELLOW = { 0.95, 0.80, 0.20 }
 
 local CHECKMARK_TEXTURE = "Interface\\RaidFrame\\ReadyCheck-Ready"
+local COLOR_GOLD = { 1.0, 0.82, 0.0, 0.8 }
 
 local function GetProgressColor(rating, goalRating)
     if goalRating <= 0 then return COLOR_WHITE, false end
@@ -202,12 +203,19 @@ local function CreateRow(parent, index)
     -- Rating
     row.rating = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     row.rating:SetPoint("LEFT", row.icon, "RIGHT", 6, 0)
-    row.rating:SetPoint("RIGHT", -4, 0)
+    row.rating:SetPoint("RIGHT", -8, 0)
 
-    -- Checkmark texture (for >= 100% goal)
+    -- Gold border for logged-in character indicator (Story 9-3)
+    row.activeGlow = row:CreateTexture(nil, "BACKGROUND")
+    row.activeGlow:SetPoint("TOPLEFT", row.icon, "TOPLEFT", -2, 2)
+    row.activeGlow:SetPoint("BOTTOMRIGHT", row.icon, "BOTTOMRIGHT", 2, -2)
+    row.activeGlow:SetColorTexture(COLOR_GOLD[1], COLOR_GOLD[2], COLOR_GOLD[3], COLOR_GOLD[4])
+    row.activeGlow:Hide()
+
+    -- Checkmark texture (for >= 100% goal) — replaces rating text when shown
     row.checkmark = row:CreateTexture(nil, "OVERLAY")
     row.checkmark:SetSize(14, 14)
-    row.checkmark:SetPoint("RIGHT", row.rating, "LEFT", -2, 0)
+    row.checkmark:SetPoint("LEFT", row.icon, "RIGHT", 6, 0)
     row.checkmark:SetTexture(CHECKMARK_TEXTURE)
     row.checkmark:Hide()
 
@@ -440,15 +448,29 @@ end
 -- Populate a single row with match data
 -- ============================================================================
 
-local function PopulateRow(row, bestMatch, challenge)
-    if bestMatch then
-        row.rating:SetText(tostring(bestMatch.rating))
+local function IsLoggedInRow(specID, classID, classMode)
+    local charKey = NXR.currentCharKey
+    if not charKey then return false end
+    local char = NelxRatedDB.characters and NelxRatedDB.characters[charKey]
+    if not char then return false end
 
+    if classMode then
+        local charSpec = char.specID and NXR.specData[char.specID]
+        return charSpec and charSpec.classID == classID
+    else
+        return char.specID == specID
+    end
+end
+
+local function PopulateRow(row, bestMatch, challenge, specID, classID, classMode)
+    if bestMatch then
         local color, showCheck = GetProgressColor(bestMatch.rating, challenge.goalRating or 0)
-        row.rating:SetTextColor(color[1], color[2], color[3])
         if showCheck then
+            row.rating:SetText("")
             row.checkmark:Show()
         else
+            row.rating:SetText(tostring(bestMatch.rating))
+            row.rating:SetTextColor(color[1], color[2], color[3])
             row.checkmark:Hide()
         end
     else
@@ -456,10 +478,121 @@ local function PopulateRow(row, bestMatch, challenge)
         row.rating:SetTextColor(0.5, 0.5, 0.5)
         row.checkmark:Hide()
     end
+
+    -- Logged-in character indicator (Story 9-3)
+    if IsLoggedInRow(specID, classID, classMode) then
+        row.activeGlow:Show()
+    else
+        row.activeGlow:Hide()
+    end
 end
 
 -- ============================================================================
--- Refresh overlay (Story 4-2, 4-3, 4-4)
+-- Role grouping helpers (Story 9-5)
+-- ============================================================================
+
+local ROLE_ORDER = { "HEALER", "DAMAGER", "TANK" }
+local ROLE_LABELS = { HEALER = "Healers", DAMAGER = "DPS", TANK = "Tanks" }
+
+local roleHeaderPool = {}
+
+local function GetRoleHeader(index)
+    if not roleHeaderPool[index] then
+        local header = overlayFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalTiny")
+        header:SetTextColor(0.48, 0.45, 0.43)
+        roleHeaderPool[index] = header
+    end
+    return roleHeaderPool[index]
+end
+
+local function GetSpecRole(specID)
+    local specInfo = NXR.specData[specID]
+    return specInfo and specInfo.role or "DAMAGER"
+end
+
+local function GetClassPrimaryRole(classID)
+    local classInfo = NXR.classData[classID]
+    if not classInfo then return "DAMAGER" end
+    local roleCounts = { HEALER = 0, DAMAGER = 0, TANK = 0 }
+    for _, s in ipairs(classInfo.specs) do
+        local role = s.role or "DAMAGER"
+        roleCounts[role] = (roleCounts[role] or 0) + 1
+    end
+    local bestRole, bestCount = "DAMAGER", 0
+    for role, count in pairs(roleCounts) do
+        if count > bestCount then
+            bestRole = role
+            bestCount = count
+        end
+    end
+    return bestRole
+end
+
+-- ============================================================================
+-- Build row entries from challenge data
+-- ============================================================================
+
+local function BuildRowEntries(challenge, classMode)
+    local entries = {}
+
+    if classMode then
+        local classIDs = GetSortedClassIDs(challenge)
+        for _, classID in ipairs(classIDs) do
+            local classInfo = NXR.classData[classID]
+            local matches = FindMatchingCharactersForClass(classID, challenge)
+            table.insert(entries, {
+                type       = "class",
+                classID    = classID,
+                classInfo  = classInfo,
+                matches    = matches,
+                bestMatch  = matches[1],
+                role       = GetClassPrimaryRole(classID),
+            })
+        end
+    else
+        local specIDs = GetSortedSpecIDs(challenge)
+        for _, specID in ipairs(specIDs) do
+            local specInfo = NXR.specData[specID]
+            local matches = FindMatchingCharactersForSpec(specID, challenge)
+            table.insert(entries, {
+                type       = "spec",
+                specID     = specID,
+                specInfo   = specInfo,
+                matches    = matches,
+                bestMatch  = matches[1],
+                role       = GetSpecRole(specID),
+            })
+        end
+    end
+
+    return entries
+end
+
+-- ============================================================================
+-- Group entries by role
+-- ============================================================================
+
+local function GroupEntriesByRole(entries)
+    local groups = {}
+    local byRole = {}
+    for _, role in ipairs(ROLE_ORDER) do
+        byRole[role] = {}
+    end
+    for _, entry in ipairs(entries) do
+        local role = entry.role or "DAMAGER"
+        if not byRole[role] then byRole[role] = {} end
+        table.insert(byRole[role], entry)
+    end
+    for _, role in ipairs(ROLE_ORDER) do
+        if #byRole[role] > 0 then
+            table.insert(groups, { role = role, label = ROLE_LABELS[role], entries = byRole[role] })
+        end
+    end
+    return groups
+end
+
+-- ============================================================================
+-- Refresh overlay (Story 4-2, 4-3, 4-4, 9-1 through 9-5)
 -- ============================================================================
 
 function NXR.RefreshOverlay()
@@ -477,9 +610,12 @@ function NXR.RefreshOverlay()
 
     local challenge = NXR.GetActiveChallenge()
 
-    -- Hide all rows first
+    -- Hide all rows and role headers
     for _, row in ipairs(rowPool) do
         row:Hide()
+    end
+    for _, header in ipairs(roleHeaderPool) do
+        header:Hide()
     end
 
     -- If no active challenge, hide overlay
@@ -496,104 +632,140 @@ function NXR.RefreshOverlay()
         "brackets=" .. NXR.TableCount(challenge.brackets),
         classMode and ("classes=" .. NXR.TableCount(challenge.classes)) or ("specs=" .. NXR.TableCount(challenge.specs)))
 
+    -- Build row data
+    local entries = BuildRowEntries(challenge, classMode)
+    if #entries == 0 then
+        overlayFrame:Hide()
+        return
+    end
 
-    local maxRatingWidth = 0
-    local rowIndex = 0
+    overlayFrame:Show()
 
-    if classMode then
-        -- ============================================================
-        -- CLASS CHALLENGE: one row per class
-        -- ============================================================
-        local classIDs = GetSortedClassIDs(challenge)
-        if #classIDs == 0 then
-            overlayFrame:Hide()
-            return
-        end
+    local groupByRole = NelxRatedDB.settings.overlayGroupByRole
+    local numColumns = NelxRatedDB.settings.overlayColumns or 1
 
-        overlayFrame:Show()
+    -- Build layout items: either flat or grouped
+    -- Each layout item is { type="row", entry=... } or { type="header", label=... }
+    local layoutItems = {}
 
-        for _, classID in ipairs(classIDs) do
-            rowIndex = rowIndex + 1
-            local row = GetRow(rowIndex)
-            local classInfo = NXR.classData[classID]
-
-            -- Class icon via atlas
-            if classInfo then
-                SetClassIcon(row.icon, classInfo.classFileName)
-            else
-                row.icon:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
+    if groupByRole then
+        local groups = GroupEntriesByRole(entries)
+        for _, group in ipairs(groups) do
+            table.insert(layoutItems, { type = "header", label = group.label })
+            for _, entry in ipairs(group.entries) do
+                table.insert(layoutItems, { type = "row", entry = entry })
             end
-
-            -- Find best character across all specs of this class
-            local matches = FindMatchingCharactersForClass(classID, challenge)
-            local bestMatch = matches[1]
-
-            PopulateRow(row, bestMatch, challenge)
-
-            -- Tooltip: class name, then each character with spec/rating/bracket detail
-            row.tooltipData = {
-                title      = classInfo and classInfo.className or ("Class " .. classID),
-                classMode  = true,
-                characters = matches,
-                goalRating = challenge.goalRating,
-            }
-
-            -- Layout
-            row:ClearAllPoints()
-            row:SetPoint("TOPLEFT", overlayFrame, "TOPLEFT", 0, -PADDING - (rowIndex - 1) * ROW_HEIGHT)
-            row:SetPoint("RIGHT", overlayFrame, "RIGHT", 0, 0)
-            row:Show()
-
-            local rw = row.rating:GetStringWidth() or 0
-            if rw > maxRatingWidth then maxRatingWidth = rw end
         end
     else
-        -- ============================================================
-        -- SPEC CHALLENGE: one row per spec
-        -- ============================================================
-        local specIDs = GetSortedSpecIDs(challenge)
-        if #specIDs == 0 then
-            overlayFrame:Hide()
-            return
-        end
-
-        overlayFrame:Show()
-
-        for _, specID in ipairs(specIDs) do
-            rowIndex = rowIndex + 1
-            local row = GetRow(rowIndex)
-
-            local specInfo = NXR.specData[specID]
-            row.icon:SetTexture(specInfo and specInfo.icon or "Interface\\Icons\\INV_Misc_QuestionMark")
-
-            local matches = FindMatchingCharactersForSpec(specID, challenge)
-            local bestMatch = matches[1]
-
-            PopulateRow(row, bestMatch, challenge)
-
-            -- Tooltip: spec name, then each character
-            row.tooltipData = {
-                title      = specInfo and specInfo.specName or ("Spec " .. specID),
-                classMode  = false,
-                characters = matches,
-                goalRating = challenge.goalRating,
-            }
-
-            -- Layout
-            row:ClearAllPoints()
-            row:SetPoint("TOPLEFT", overlayFrame, "TOPLEFT", 0, -PADDING - (rowIndex - 1) * ROW_HEIGHT)
-            row:SetPoint("RIGHT", overlayFrame, "RIGHT", 0, 0)
-            row:Show()
-
-            local rw = row.rating:GetStringWidth() or 0
-            if rw > maxRatingWidth then maxRatingWidth = rw end
+        for _, entry in ipairs(entries) do
+            table.insert(layoutItems, { type = "row", entry = entry })
         end
     end
 
-    -- Resize overlay dynamically
-    local totalHeight = PADDING * 2 + rowIndex * ROW_HEIGHT
-    local totalWidth = 4 + ICON_SIZE + 6 + maxRatingWidth + 4
-    if totalWidth < MIN_WIDTH then totalWidth = MIN_WIDTH end
+    -- Render all items and measure widths
+    local maxRatingWidth = 0
+    local hasCheckmark = false
+    local rowIndex = 0
+    local headerIndex = 0
+
+    -- First pass: create rows/headers, populate data, measure text
+    local renderedItems = {} -- { type, row/header, layoutIndex }
+    for i, item in ipairs(layoutItems) do
+        if item.type == "header" then
+            headerIndex = headerIndex + 1
+            local header = GetRoleHeader(headerIndex)
+            header:SetText(item.label)
+            table.insert(renderedItems, { type = "header", element = header, layoutIndex = i })
+        else
+            rowIndex = rowIndex + 1
+            local row = GetRow(rowIndex)
+            local entry = item.entry
+
+            -- Set icon
+            if entry.type == "class" then
+                if entry.classInfo then
+                    SetClassIcon(row.icon, entry.classInfo.classFileName)
+                else
+                    row.icon:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
+                end
+            else
+                row.icon:SetTexture(entry.specInfo and entry.specInfo.icon or "Interface\\Icons\\INV_Misc_QuestionMark")
+            end
+
+            -- Populate rating/checkmark/glow
+            PopulateRow(row, entry.bestMatch, challenge,
+                entry.specID, entry.classID, classMode)
+
+            -- Tooltip
+            if entry.type == "class" then
+                row.tooltipData = {
+                    title      = entry.classInfo and entry.classInfo.className or ("Class " .. entry.classID),
+                    classMode  = true,
+                    characters = entry.matches,
+                    goalRating = challenge.goalRating,
+                }
+            else
+                row.tooltipData = {
+                    title      = entry.specInfo and entry.specInfo.specName or ("Spec " .. entry.specID),
+                    classMode  = false,
+                    characters = entry.matches,
+                    goalRating = challenge.goalRating,
+                }
+            end
+
+            -- Measure
+            if row.checkmark:IsShown() then
+                hasCheckmark = true
+            else
+                local rw = row.rating:GetStringWidth() or 0
+                if rw > maxRatingWidth then maxRatingWidth = rw end
+            end
+
+            table.insert(renderedItems, { type = "row", element = row, layoutIndex = i })
+        end
+    end
+
+    -- Calculate column width
+    local CHECKMARK_WIDTH = 14
+    if hasCheckmark and maxRatingWidth < CHECKMARK_WIDTH then
+        maxRatingWidth = CHECKMARK_WIDTH
+    end
+    local colWidth = 4 + ICON_SIZE + 6 + maxRatingWidth + 12
+    if colWidth < MIN_WIDTH then colWidth = MIN_WIDTH end
+
+    -- Layout: distribute items across columns
+    local totalItems = #renderedItems
+    local effectiveCols = numColumns
+    if effectiveCols > totalItems then effectiveCols = totalItems end
+    if effectiveCols < 1 then effectiveCols = 1 end
+
+    local rowsPerCol = math.ceil(totalItems / effectiveCols)
+
+    for i, rendered in ipairs(renderedItems) do
+        local itemIdx = i - 1
+        local colIdx = math.floor(itemIdx / rowsPerCol)
+        local rowInCol = itemIdx % rowsPerCol
+
+        local xOff = colIdx * colWidth
+        local yOff = -PADDING - rowInCol * ROW_HEIGHT
+
+        if rendered.type == "header" then
+            local header = rendered.element
+            header:ClearAllPoints()
+            header:SetPoint("TOPLEFT", overlayFrame, "TOPLEFT", xOff + 4, yOff - 4)
+            header:Show()
+        else
+            local row = rendered.element
+            row:ClearAllPoints()
+            row:SetPoint("TOPLEFT", overlayFrame, "TOPLEFT", xOff, yOff)
+            row:SetWidth(colWidth)
+            row:Show()
+        end
+    end
+
+    -- Resize overlay
+    local totalHeight = PADDING * 2 + rowsPerCol * ROW_HEIGHT
+    local totalWidth = effectiveCols * colWidth
 
     overlayFrame:SetSize(totalWidth, totalHeight)
 

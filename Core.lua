@@ -63,6 +63,8 @@ local SETTINGS_DEFAULTS = {
     showOverlay           = true,
     overlayLocked         = false,
     overlayScale          = 1.0,
+    overlayColumns        = 1,
+    overlayGroupByRole    = false,
     chartColor            = "default",
 }
 

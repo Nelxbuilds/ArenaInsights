@@ -4,16 +4,16 @@ local addonName, NXR = ...
 -- Import/Export Tab (Story 3-4)
 -- ============================================================================
 
-local HEADER = "NelxRated-Export-v1"
+local HEADER_V1 = "NelxRated-Export-v1"
+local HEADER_V2 = "NelxRated-Export-v2"
 local panel
 
 -- ============================================================================
--- Export
+-- Character serialization
 -- ============================================================================
 
-local function SerializeCharacters()
-    local lines = { HEADER }
-
+local function SerializeCharacterLines(lines)
+    table.insert(lines, "[BEGIN_CHARS]")
     for key, char in pairs(NelxRatedDB.characters) do
         table.insert(lines, "[BEGIN_CHAR]")
         table.insert(lines, "key=" .. key)
@@ -25,7 +25,6 @@ local function SerializeCharacters()
         table.insert(lines, "specID=" .. tostring(char.specID or ""))
         table.insert(lines, "specName=" .. (char.specName or ""))
 
-        -- Non-spec brackets (2v2, 3v3)
         if char.brackets then
             for bi, data in pairs(char.brackets) do
                 table.insert(lines, "bracket_" .. bi .. "_rating=" .. (data.rating or 0))
@@ -33,7 +32,6 @@ local function SerializeCharacters()
             end
         end
 
-        -- Per-spec brackets (Blitz, Solo Shuffle)
         if char.specBrackets then
             for specID, brackets in pairs(char.specBrackets) do
                 for bi, data in pairs(brackets) do
@@ -45,74 +43,236 @@ local function SerializeCharacters()
 
         table.insert(lines, "[END_CHAR]")
     end
+    table.insert(lines, "[END_CHARS]")
+end
 
+-- ============================================================================
+-- Challenge serialization
+-- ============================================================================
+
+local function SerializeHashKeys(tbl)
+    local keys = {}
+    for k in pairs(tbl) do
+        table.insert(keys, tostring(k))
+    end
+    return table.concat(keys, ",")
+end
+
+local function SerializeChallengeLines(lines)
+    table.insert(lines, "[BEGIN_CHALLENGES]")
+    for _, c in ipairs(NelxRatedDB.challenges) do
+        table.insert(lines, "[BEGIN_CHALLENGE]")
+        table.insert(lines, "uid=" .. (c.uid or ""))
+        table.insert(lines, "name=" .. (c.name or ""))
+        table.insert(lines, "goalRating=" .. (c.goalRating or 0))
+        table.insert(lines, "active=" .. tostring(c.active or false))
+        table.insert(lines, "specs=" .. SerializeHashKeys(c.specs or {}))
+        table.insert(lines, "classes=" .. SerializeHashKeys(c.classes or {}))
+        table.insert(lines, "brackets=" .. SerializeHashKeys(c.brackets or {}))
+        table.insert(lines, "[END_CHALLENGE]")
+    end
+    table.insert(lines, "[END_CHALLENGES]")
+end
+
+-- ============================================================================
+-- Settings serialization
+-- ============================================================================
+
+local function SerializeSettingsLines(lines)
+    table.insert(lines, "[BEGIN_SETTINGS]")
+    for k, v in pairs(NelxRatedDB.settings) do
+        table.insert(lines, k .. "=" .. tostring(v))
+    end
+    table.insert(lines, "[END_SETTINGS]")
+end
+
+-- ============================================================================
+-- Full export (v2)
+-- ============================================================================
+
+local function SerializeAll()
+    local lines = { HEADER_V2 }
+    SerializeCharacterLines(lines)
+    SerializeChallengeLines(lines)
+    SerializeSettingsLines(lines)
     return table.concat(lines, "\n")
 end
 
 -- ============================================================================
--- Import
+-- Import parsing
 -- ============================================================================
 
-local function DeserializeCharacters(text)
+local function ParseLines(text)
     local lines = {}
     for line in text:gmatch("[^\n]+") do
-        table.insert(lines, line:match("^%s*(.-)%s*$")) -- trim
+        table.insert(lines, line:match("^%s*(.-)%s*$"))
     end
+    return lines
+end
 
-    if #lines == 0 or lines[1] ~= HEADER then
-        NXR.Debug("Import: invalid header — got '" .. tostring(lines[1]) .. "', expected '" .. HEADER .. "'")
-        return nil, "Invalid format: missing header line '" .. HEADER .. "'"
-    end
-    NXR.Debug("Import: parsing", #lines, "lines")
-
-    local chars = {}
-    local current = nil
-
-    for i = 2, #lines do
+local function ParseCharacterBlock(lines, startIdx)
+    local current = { brackets = {}, specBrackets = {} }
+    for i = startIdx, #lines do
         local line = lines[i]
-
-        if line == "[BEGIN_CHAR]" then
-            current = { brackets = {}, specBrackets = {} }
-        elseif line == "[END_CHAR]" then
-            if current and current.key then
-                chars[current.key] = current
-                current.key = nil -- remove internal key from stored data
-            end
-            current = nil
-        elseif current then
-            local k, v = line:match("^(.-)=(.*)$")
-            if k and v then
-                -- Per-spec bracket data
-                local specID, bi, field = k:match("^specbracket_(%d+)_(%d+)_(%a+)$")
-                if specID and bi and field then
-                    specID = tonumber(specID)
-                    bi = tonumber(bi)
-                    current.specBrackets[specID] = current.specBrackets[specID] or {}
-                    current.specBrackets[specID][bi] = current.specBrackets[specID][bi] or {}
-                    current.specBrackets[specID][bi][field] = tonumber(v) or 0
-                    current.specBrackets[specID][bi].updatedAt = current.specBrackets[specID][bi].updatedAt or time()
+        if line == "[END_CHAR]" then
+            return current, i
+        end
+        local k, v = line:match("^(.-)=(.*)$")
+        if k and v then
+            local specID, bi, field = k:match("^specbracket_(%d+)_(%d+)_(%a+)$")
+            if specID and bi and field then
+                specID = tonumber(specID)
+                bi = tonumber(bi)
+                current.specBrackets[specID] = current.specBrackets[specID] or {}
+                current.specBrackets[specID][bi] = current.specBrackets[specID][bi] or {}
+                current.specBrackets[specID][bi][field] = tonumber(v) or 0
+                current.specBrackets[specID][bi].updatedAt = current.specBrackets[specID][bi].updatedAt or time()
+            else
+                local bracketIdx, bracketField = k:match("^bracket_(%d+)_(%a+)$")
+                if bracketIdx and bracketField then
+                    bracketIdx = tonumber(bracketIdx)
+                    current.brackets[bracketIdx] = current.brackets[bracketIdx] or {}
+                    current.brackets[bracketIdx][bracketField] = tonumber(v) or 0
+                    current.brackets[bracketIdx].updatedAt = current.brackets[bracketIdx].updatedAt or time()
+                elseif k == "specID" then
+                    current[k] = tonumber(v)
+                elseif k == "key" then
+                    current.key = v
                 else
-                    -- Regular bracket data
-                    local bracketIdx, bracketField = k:match("^bracket_(%d+)_(%a+)$")
-                    if bracketIdx and bracketField then
-                        bracketIdx = tonumber(bracketIdx)
-                        current.brackets[bracketIdx] = current.brackets[bracketIdx] or {}
-                        current.brackets[bracketIdx][bracketField] = tonumber(v) or 0
-                        current.brackets[bracketIdx].updatedAt = current.brackets[bracketIdx].updatedAt or time()
-                    elseif k == "specID" then
-                        current[k] = tonumber(v)
-                    elseif k == "key" then
-                        current.key = v
-                    else
-                        current[k] = v
-                    end
+                    current[k] = v
                 end
             end
         end
     end
-
-    return chars
+    return current, #lines
 end
+
+local function DeserializeHashKeys(str)
+    local tbl = {}
+    if str and str ~= "" then
+        for val in str:gmatch("[^,]+") do
+            local num = tonumber(val)
+            if num then tbl[num] = true end
+        end
+    end
+    return tbl
+end
+
+local function ParseChallengeBlock(lines, startIdx)
+    local c = {}
+    for i = startIdx, #lines do
+        local line = lines[i]
+        if line == "[END_CHALLENGE]" then
+            return c, i
+        end
+        local k, v = line:match("^(.-)=(.*)$")
+        if k and v then
+            if k == "goalRating" then
+                c.goalRating = tonumber(v) or 0
+            elseif k == "active" then
+                c.active = (v == "true")
+            elseif k == "specs" then
+                c.specs = DeserializeHashKeys(v)
+            elseif k == "classes" then
+                c.classes = DeserializeHashKeys(v)
+            elseif k == "brackets" then
+                c.brackets = DeserializeHashKeys(v)
+            else
+                c[k] = v
+            end
+        end
+    end
+    return c, #lines
+end
+
+local function ParseSettingsBlock(lines, startIdx)
+    local settings = {}
+    for i = startIdx, #lines do
+        local line = lines[i]
+        if line == "[END_SETTINGS]" then
+            return settings, i
+        end
+        local k, v = line:match("^(.-)=(.*)$")
+        if k and v then
+            -- Coerce types
+            if v == "true" then
+                settings[k] = true
+            elseif v == "false" then
+                settings[k] = false
+            elseif tonumber(v) then
+                settings[k] = tonumber(v)
+            else
+                settings[k] = v
+            end
+        end
+    end
+    return settings, #lines
+end
+
+local function DeserializeV1(lines)
+    local chars = {}
+    local i = 2
+    while i <= #lines do
+        if lines[i] == "[BEGIN_CHAR]" then
+            local char, endIdx = ParseCharacterBlock(lines, i + 1)
+            if char and char.key then
+                chars[char.key] = char
+                char.key = nil
+            end
+            i = endIdx + 1
+        else
+            i = i + 1
+        end
+    end
+    return { characters = chars }
+end
+
+local function DeserializeV2(lines)
+    local result = { characters = {}, challenges = {}, settings = nil }
+    local i = 2
+    while i <= #lines do
+        local line = lines[i]
+        if line == "[BEGIN_CHAR]" then
+            local char, endIdx = ParseCharacterBlock(lines, i + 1)
+            if char and char.key then
+                result.characters[char.key] = char
+                char.key = nil
+            end
+            i = endIdx + 1
+        elseif line == "[BEGIN_CHALLENGE]" then
+            local c, endIdx = ParseChallengeBlock(lines, i + 1)
+            table.insert(result.challenges, c)
+            i = endIdx + 1
+        elseif line == "[BEGIN_SETTINGS]" then
+            local s, endIdx = ParseSettingsBlock(lines, i + 1)
+            result.settings = s
+            i = endIdx + 1
+        else
+            i = i + 1
+        end
+    end
+    return result
+end
+
+local function DeserializeAll(text)
+    local lines = ParseLines(text)
+    if #lines == 0 then
+        return nil, "Empty import data"
+    end
+
+    local header = lines[1]
+    if header == HEADER_V2 then
+        return DeserializeV2(lines)
+    elseif header == HEADER_V1 then
+        return DeserializeV1(lines)
+    else
+        return nil, "Invalid format: unrecognized header '" .. tostring(header) .. "'"
+    end
+end
+
+-- ============================================================================
+-- Merge logic
+-- ============================================================================
 
 local function ValidateCharacter(key, char)
     if type(key) ~= "string" or not key:find("-.+") then return false end
@@ -126,7 +286,6 @@ end
 
 local function MergeCharacters(imported)
     local added, skipped = 0, 0
-
     for key, char in pairs(imported) do
         if not ValidateCharacter(key, char) then
             NXR.Debug("Import: skipping invalid entry:", tostring(key))
@@ -138,8 +297,40 @@ local function MergeCharacters(imported)
             added = added + 1
         end
     end
-
     return added, skipped
+end
+
+local function MergeChallenges(imported)
+    local added, skipped = 0, 0
+    local existingUIDs = {}
+    for _, c in ipairs(NelxRatedDB.challenges) do
+        if c.uid then existingUIDs[c.uid] = true end
+    end
+
+    for _, c in ipairs(imported) do
+        if c.uid and existingUIDs[c.uid] then
+            skipped = skipped + 1
+        else
+            -- Add as inactive to preserve single-active rule
+            c.active = false
+            NXR.AddChallenge({
+                uid        = c.uid,
+                name       = c.name,
+                goalRating = c.goalRating,
+                brackets   = c.brackets or {},
+                specs      = c.specs or {},
+                classes    = c.classes or {},
+            })
+            added = added + 1
+        end
+    end
+    return added, skipped
+end
+
+local function MergeSettings(imported)
+    for k, v in pairs(imported) do
+        NelxRatedDB.settings[k] = v
+    end
 end
 
 -- ============================================================================
@@ -211,7 +402,7 @@ function NXR.CreateImportExportPanel(parent)
     end)
 
     exportBtn:SetScript("OnClick", function()
-        exportText = SerializeCharacters()
+        exportText = SerializeAll()
         exportBox:SetText(exportText)
         exportBox:SetFocus()
         exportBox:HighlightText()
@@ -267,18 +458,52 @@ function NXR.CreateImportExportPanel(parent)
             return
         end
 
-        local chars, err = DeserializeCharacters(text)
-        if not chars then
+        local data, err = DeserializeAll(text)
+        if not data then
             statusText:SetTextColor(1, 0.3, 0.3)
             statusText:SetText(err)
             return
         end
 
-        local added, skipped = MergeCharacters(chars)
-        statusText:SetTextColor(0.3, 1, 0.3)
-        statusText:SetText("Imported " .. added .. " character(s), skipped " .. skipped .. " duplicate(s).")
+        local parts = {}
 
-        -- Refresh overlay and characters tab
+        -- Characters
+        if data.characters then
+            local added, skipped = MergeCharacters(data.characters)
+            table.insert(parts, added .. " char(s) added, " .. skipped .. " skipped")
+        end
+
+        -- Challenges
+        if data.challenges and #data.challenges > 0 then
+            local added, skipped = MergeChallenges(data.challenges)
+            table.insert(parts, added .. " challenge(s) added, " .. skipped .. " skipped")
+        end
+
+        -- Settings — apply with confirmation via StaticPopup
+        if data.settings then
+            StaticPopupDialogs["NELXRATED_IMPORT_SETTINGS"] = {
+                text = "Import settings? This will overwrite your current settings.",
+                button1 = "Yes",
+                button2 = "No",
+                OnAccept = function()
+                    MergeSettings(data.settings)
+                    NXR.Overlay.OnOpacityChanged()
+                    NXR.Overlay.OnScaleChanged()
+                    NXR.Overlay.OnBackgroundChanged()
+                    NXR.Overlay.OnLockChanged()
+                    NXR.RefreshOverlay()
+                    print("|cffE6D200NelxRated|r: Settings imported.")
+                end,
+                timeout = 0,
+                whileDead = true,
+                hideOnEscape = true,
+            }
+            StaticPopup_Show("NELXRATED_IMPORT_SETTINGS")
+        end
+
+        statusText:SetTextColor(0.3, 1, 0.3)
+        statusText:SetText("Imported: " .. table.concat(parts, " | "))
+
         if NXR.RefreshOverlay then NXR.RefreshOverlay() end
 
         importBox:SetText("")

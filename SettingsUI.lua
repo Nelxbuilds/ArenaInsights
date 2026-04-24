@@ -9,6 +9,8 @@ local accountInput
 local arenaSlider, arenaValueText
 local outArenaSlider, outArenaValueText
 local scaleSlider, scaleValueText
+local columnsSlider, columnsValueText
+local groupByRoleCheckbox
 local bgCheckbox
 local lockCheckbox
 local overlayToggleBtn
@@ -146,6 +148,33 @@ function NXR.CreateSettingsPanel(parent)
     y = y + 56
 
     -- ----------------------------------------------------------------
+    -- Overlay Columns (Story 9-4)
+    -- ----------------------------------------------------------------
+    columnsSlider, columnsValueText = CreateSliderRow(panel, "Overlay Columns", y,
+        "overlayColumns", function()
+            NXR.RefreshOverlay()
+        end, { min = 1, max = 10, step = 1, default = 1, format = "%d", formatMultiplier = 1 })
+    y = y + 56
+
+    -- ----------------------------------------------------------------
+    -- Group by Role (Story 9-5)
+    -- ----------------------------------------------------------------
+    groupByRoleCheckbox = CreateFrame("CheckButton", nil, panel, "UICheckButtonTemplate")
+    groupByRoleCheckbox:SetSize(26, 26)
+    groupByRoleCheckbox:SetPoint("TOPLEFT", 8, -y)
+
+    local groupLabel = panel:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    groupLabel:SetPoint("LEFT", groupByRoleCheckbox, "RIGHT", 4, 0)
+    groupLabel:SetText("Group overlay by role")
+
+    groupByRoleCheckbox:SetScript("OnClick", function(self)
+        NelxRatedDB.settings.overlayGroupByRole = self:GetChecked()
+        NXR.RefreshOverlay()
+    end)
+
+    y = y + 34
+
+    -- ----------------------------------------------------------------
     -- Show overlay background
     -- ----------------------------------------------------------------
     bgCheckbox = CreateFrame("CheckButton", nil, panel, "UICheckButtonTemplate")
@@ -253,6 +282,8 @@ function NXR.CreateSettingsPanel(parent)
         arenaSlider:SetValue(NelxRatedDB.settings.opacityInArena or 1.0)
         outArenaSlider:SetValue(NelxRatedDB.settings.opacityOutOfArena or 1.0)
         scaleSlider:SetValue(NelxRatedDB.settings.overlayScale or 1.0)
+        columnsSlider:SetValue(NelxRatedDB.settings.overlayColumns or 1)
+        groupByRoleCheckbox:SetChecked(NelxRatedDB.settings.overlayGroupByRole or false)
         bgCheckbox:SetChecked(NelxRatedDB.settings.showOverlayBackground)
         lockCheckbox:SetChecked(NelxRatedDB.settings.overlayLocked or false)
         if NelxRatedDB.settings.showOverlay then
