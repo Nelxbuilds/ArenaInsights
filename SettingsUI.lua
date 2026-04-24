@@ -5,6 +5,7 @@ local addonName, NXR = ...
 -- ============================================================================
 
 local panel
+local scrollChild
 local accountInput
 local arenaSlider, arenaValueText
 local outArenaSlider, outArenaValueText
@@ -83,26 +84,45 @@ function NXR.CreateSettingsPanel(parent)
     title:SetText("Settings")
     title:SetTextColor(unpack(NXR.COLORS.GOLD))
 
-    local y = 40
+    -- Scroll container
+    local scroll = CreateFrame("ScrollFrame", nil, panel)
+    scroll:SetPoint("TOPLEFT", 0, -30)
+    scroll:SetPoint("BOTTOMRIGHT", 0, 0)
+    scroll:EnableMouseWheel(true)
+    scroll:SetScript("OnMouseWheel", function(self, delta)
+        local cur = self:GetVerticalScroll()
+        local max = self:GetVerticalScrollRange()
+        self:SetVerticalScroll(math.max(0, math.min(cur - delta * 40, max)))
+    end)
+
+    scrollChild = CreateFrame("Frame", nil, scroll)
+    scroll:SetScrollChild(scrollChild)
+    scrollChild:SetHeight(1)
+    scroll:SetScript("OnSizeChanged", function(self, w)
+        scrollChild:SetWidth(w)
+    end)
+
+    local p = scrollChild  -- all controls parent to scroll child
+    local y = 10
 
     -- ----------------------------------------------------------------
     -- Account name
     -- ----------------------------------------------------------------
-    local accLabel = panel:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    local accLabel = p:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     accLabel:SetPoint("TOPLEFT", 8, -y)
     accLabel:SetText("Account Name")
     y = y + 18
 
-    accountInput = NXR.CreateNXRInput(panel, 200, 24)
+    accountInput = NXR.CreateNXRInput(p, 200, 24)
     accountInput:SetPoint("TOPLEFT", 10, -y)
 
-    local saveAccBtn = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
+    local saveAccBtn = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
     saveAccBtn:SetSize(60, 24)
     saveAccBtn:SetPoint("LEFT", accountInput, "RIGHT", 8, 0)
     saveAccBtn:SetText("Save")
     saveAccBtn:SetNormalFontObject("GameFontNormalSmall")
 
-    local accStatus = panel:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    local accStatus = p:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     accStatus:SetPoint("LEFT", saveAccBtn, "RIGHT", 8, 0)
     accStatus:SetTextColor(0.3, 1, 0.3)
 
@@ -117,7 +137,7 @@ function NXR.CreateSettingsPanel(parent)
     -- ----------------------------------------------------------------
     -- Opacity: In Arena
     -- ----------------------------------------------------------------
-    arenaSlider, arenaValueText = CreateSliderRow(panel, "Overlay Opacity (In Arena)", y,
+    arenaSlider, arenaValueText = CreateSliderRow(p, "Overlay Opacity (In Arena)", y,
         "opacityInArena", function()
             if NXR.Overlay and NXR.Overlay.OnOpacityChanged then
                 NXR.Overlay.OnOpacityChanged()
@@ -128,7 +148,7 @@ function NXR.CreateSettingsPanel(parent)
     -- ----------------------------------------------------------------
     -- Opacity: Out of Arena
     -- ----------------------------------------------------------------
-    outArenaSlider, outArenaValueText = CreateSliderRow(panel, "Overlay Opacity (Out of Arena)", y,
+    outArenaSlider, outArenaValueText = CreateSliderRow(p, "Overlay Opacity (Out of Arena)", y,
         "opacityOutOfArena", function()
             if NXR.Overlay and NXR.Overlay.OnOpacityChanged then
                 NXR.Overlay.OnOpacityChanged()
@@ -139,7 +159,7 @@ function NXR.CreateSettingsPanel(parent)
     -- ----------------------------------------------------------------
     -- Overlay Scale
     -- ----------------------------------------------------------------
-    scaleSlider, scaleValueText = CreateSliderRow(panel, "Overlay Scale", y,
+    scaleSlider, scaleValueText = CreateSliderRow(p, "Overlay Scale", y,
         "overlayScale", function(value)
             if NXR.Overlay and NXR.Overlay.OnScaleChanged then
                 NXR.Overlay.OnScaleChanged()
@@ -150,7 +170,7 @@ function NXR.CreateSettingsPanel(parent)
     -- ----------------------------------------------------------------
     -- Overlay Columns (Story 9-4)
     -- ----------------------------------------------------------------
-    columnsSlider, columnsValueText = CreateSliderRow(panel, "Overlay Columns", y,
+    columnsSlider, columnsValueText = CreateSliderRow(p, "Overlay Columns", y,
         "overlayColumns", function()
             NXR.RefreshOverlay()
         end, { min = 1, max = 10, step = 1, default = 1, format = "%d", formatMultiplier = 1 })
@@ -159,11 +179,11 @@ function NXR.CreateSettingsPanel(parent)
     -- ----------------------------------------------------------------
     -- Group by Role (Story 9-5)
     -- ----------------------------------------------------------------
-    groupByRoleCheckbox = CreateFrame("CheckButton", nil, panel, "UICheckButtonTemplate")
+    groupByRoleCheckbox = CreateFrame("CheckButton", nil, p, "UICheckButtonTemplate")
     groupByRoleCheckbox:SetSize(26, 26)
     groupByRoleCheckbox:SetPoint("TOPLEFT", 8, -y)
 
-    local groupLabel = panel:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    local groupLabel = p:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     groupLabel:SetPoint("LEFT", groupByRoleCheckbox, "RIGHT", 4, 0)
     groupLabel:SetText("Group overlay by role")
 
@@ -177,11 +197,11 @@ function NXR.CreateSettingsPanel(parent)
     -- ----------------------------------------------------------------
     -- Show overlay background
     -- ----------------------------------------------------------------
-    bgCheckbox = CreateFrame("CheckButton", nil, panel, "UICheckButtonTemplate")
+    bgCheckbox = CreateFrame("CheckButton", nil, p, "UICheckButtonTemplate")
     bgCheckbox:SetSize(26, 26)
     bgCheckbox:SetPoint("TOPLEFT", 8, -y)
 
-    local bgLabel = panel:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    local bgLabel = p:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     bgLabel:SetPoint("LEFT", bgCheckbox, "RIGHT", 4, 0)
     bgLabel:SetText("Show overlay background & border")
 
@@ -197,11 +217,11 @@ function NXR.CreateSettingsPanel(parent)
     -- ----------------------------------------------------------------
     -- Lock overlay checkbox
     -- ----------------------------------------------------------------
-    lockCheckbox = CreateFrame("CheckButton", nil, panel, "UICheckButtonTemplate")
+    lockCheckbox = CreateFrame("CheckButton", nil, p, "UICheckButtonTemplate")
     lockCheckbox:SetSize(26, 26)
     lockCheckbox:SetPoint("TOPLEFT", 8, -y)
 
-    local lockLabel = panel:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    local lockLabel = p:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     lockLabel:SetPoint("LEFT", lockCheckbox, "RIGHT", 4, 0)
     lockLabel:SetText("Lock overlay position")
 
@@ -217,13 +237,12 @@ function NXR.CreateSettingsPanel(parent)
     -- ----------------------------------------------------------------
     -- Show / Hide overlay button
     -- ----------------------------------------------------------------
-    overlayToggleBtn = NXR.CreateNXRButton(panel, "Show Overlay", 140, 28)
+    overlayToggleBtn = NXR.CreateNXRButton(p, "Show Overlay", 140, 28)
     overlayToggleBtn:SetPoint("TOPLEFT", 10, -y)
     overlayToggleBtn:SetScript("OnClick", function()
         if NXR.Overlay and NXR.Overlay.Toggle then
             NXR.Overlay.Toggle()
         end
-        -- Update button text
         if NelxRatedDB.settings.showOverlay then
             overlayToggleBtn.label:SetText("Hide Overlay")
         else
@@ -234,20 +253,20 @@ function NXR.CreateSettingsPanel(parent)
     -- ----------------------------------------------------------------
     -- Graph section
     -- ----------------------------------------------------------------
-    y = y + 16
+    y = y + 48
 
-    local graphHeader = panel:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    local graphHeader = p:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
     graphHeader:SetPoint("TOPLEFT", 8, -y)
     graphHeader:SetText("Graph")
     graphHeader:SetTextColor(unpack(NXR.COLORS.GOLD))
     y = y + 24
 
-    local chartLabel = panel:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    local chartLabel = p:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     chartLabel:SetPoint("TOPLEFT", 8, -y)
     chartLabel:SetText("Chart Line Color")
     y = y + 18
 
-    chartColorBtn = NXR.CreateNXRButton(panel, "Default (Crimson)", 180, 24)
+    chartColorBtn = NXR.CreateNXRButton(p, "Default (Crimson)", 180, 24)
     chartColorBtn:SetPoint("TOPLEFT", 10, -y)
 
     local function UpdateChartColorLabel()
@@ -275,6 +294,9 @@ function NXR.CreateSettingsPanel(parent)
     end)
 
     y = y + 40
+
+    -- Set scroll child height for scrolling
+    scrollChild:SetHeight(y)
 
     -- Populate on show
     panel:SetScript("OnShow", function()

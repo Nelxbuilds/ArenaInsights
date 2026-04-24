@@ -9,6 +9,23 @@ NXR.specData       = {}   -- specID  -> { specID, specName, icon, role, classID,
 NXR.roleSpecs      = {}   -- role    -> sorted array of spec entries
 NXR.sortedClassIDs = {}   -- ordered array of classIDs
 
+-- Ranged DPS specIDs (WoW 12.x) — all other DAMAGER specs are melee
+local RANGED_SPEC_IDS = {
+    [102]  = true,  -- Balance Druid
+    [253]  = true,  -- Beast Mastery Hunter
+    [254]  = true,  -- Marksmanship Hunter
+    [62]   = true,  -- Arcane Mage
+    [63]   = true,  -- Fire Mage
+    [64]   = true,  -- Frost Mage
+    [258]  = true,  -- Shadow Priest
+    [262]  = true,  -- Elemental Shaman
+    [265]  = true,  -- Affliction Warlock
+    [266]  = true,  -- Demonology Warlock
+    [267]  = true,  -- Destruction Warlock
+    [1467] = true,  -- Devastation Evoker
+    [1473] = true,  -- Augmentation Evoker
+}
+
 function NXR.BuildSpecData()
     wipe(NXR.classData)
     wipe(NXR.specData)
@@ -17,6 +34,8 @@ function NXR.BuildSpecData()
 
     NXR.roleSpecs.HEALER  = {}
     NXR.roleSpecs.DAMAGER = {}
+    NXR.roleSpecs.MELEE   = {}
+    NXR.roleSpecs.RANGED  = {}
     NXR.roleSpecs.TANK    = {}
 
     for i = 1, GetNumClasses() do
@@ -45,7 +64,14 @@ function NXR.BuildSpecData()
                     }
                     table.insert(entry.specs, s)
                     NXR.specData[specID] = s
-                    if NXR.roleSpecs[role] then
+                    if role == "DAMAGER" then
+                        table.insert(NXR.roleSpecs.DAMAGER, s)
+                        if RANGED_SPEC_IDS[specID] then
+                            table.insert(NXR.roleSpecs.RANGED, s)
+                        else
+                            table.insert(NXR.roleSpecs.MELEE, s)
+                        end
+                    elseif NXR.roleSpecs[role] then
                         table.insert(NXR.roleSpecs[role], s)
                     end
                 end
@@ -56,19 +82,21 @@ function NXR.BuildSpecData()
     end
 
     -- Sort each role group by class name then spec name
-    for _, role in ipairs({"HEALER", "DAMAGER", "TANK"}) do
-        table.sort(NXR.roleSpecs[role], function(a, b)
-            if a.className == b.className then
-                return a.specName < b.specName
-            end
-            return a.className < b.className
-        end)
+    local sortFn = function(a, b)
+        if a.className == b.className then
+            return a.specName < b.specName
+        end
+        return a.className < b.className
+    end
+    for _, role in ipairs({"HEALER", "DAMAGER", "MELEE", "RANGED", "TANK"}) do
+        table.sort(NXR.roleSpecs[role], sortFn)
     end
 
     NXR.Debug("BuildSpecData:", NXR.TableCount(NXR.specData), "specs across",
         #NXR.sortedClassIDs, "classes |",
         #NXR.roleSpecs.HEALER, "healers,",
-        #NXR.roleSpecs.DAMAGER, "dps,",
+        #NXR.roleSpecs.MELEE, "melee,",
+        #NXR.roleSpecs.RANGED, "ranged,",
         #NXR.roleSpecs.TANK, "tanks")
 end
 

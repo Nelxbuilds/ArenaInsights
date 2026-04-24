@@ -215,7 +215,7 @@ local function CreateRow(parent, index)
     -- Checkmark texture (for >= 100% goal) — replaces rating text when shown
     row.checkmark = row:CreateTexture(nil, "OVERLAY")
     row.checkmark:SetSize(14, 14)
-    row.checkmark:SetPoint("LEFT", row.icon, "RIGHT", 6, 0)
+    row.checkmark:SetPoint("CENTER", row.rating, "CENTER", 0, 0)
     row.checkmark:SetTexture(CHECKMARK_TEXTURE)
     row.checkmark:Hide()
 
@@ -491,8 +491,8 @@ end
 -- Role grouping helpers (Story 9-5)
 -- ============================================================================
 
-local ROLE_ORDER = { "HEALER", "DAMAGER", "TANK" }
-local ROLE_LABELS = { HEALER = "Healers", DAMAGER = "DPS", TANK = "Tanks" }
+local ROLE_ORDER = { "HEALER", "MELEE", "RANGED", "TANK" }
+local ROLE_LABELS = { HEALER = "Healers", MELEE = "Melee", RANGED = "Ranged", TANK = "Tanks" }
 
 local roleHeaderPool = {}
 
@@ -507,18 +507,31 @@ end
 
 local function GetSpecRole(specID)
     local specInfo = NXR.specData[specID]
-    return specInfo and specInfo.role or "DAMAGER"
+    if not specInfo then return "MELEE" end
+    if specInfo.role == "DAMAGER" then
+        -- Check melee vs ranged via roleSpecs lookup
+        for _, s in ipairs(NXR.roleSpecs.RANGED or {}) do
+            if s.specID == specID then return "RANGED" end
+        end
+        return "MELEE"
+    end
+    return specInfo.role
 end
 
 local function GetClassPrimaryRole(classID)
     local classInfo = NXR.classData[classID]
-    if not classInfo then return "DAMAGER" end
-    local roleCounts = { HEALER = 0, DAMAGER = 0, TANK = 0 }
+    if not classInfo then return "MELEE" end
+    local roleCounts = { HEALER = 0, MELEE = 0, RANGED = 0, TANK = 0 }
     for _, s in ipairs(classInfo.specs) do
-        local role = s.role or "DAMAGER"
-        roleCounts[role] = (roleCounts[role] or 0) + 1
+        if s.role == "DAMAGER" then
+            local subRole = GetSpecRole(s.specID)
+            roleCounts[subRole] = (roleCounts[subRole] or 0) + 1
+        else
+            local role = s.role or "MELEE"
+            roleCounts[role] = (roleCounts[role] or 0) + 1
+        end
     end
-    local bestRole, bestCount = "DAMAGER", 0
+    local bestRole, bestCount = "MELEE", 0
     for role, count in pairs(roleCounts) do
         if count > bestCount then
             bestRole = role
@@ -579,7 +592,7 @@ local function GroupEntriesByRole(entries)
         byRole[role] = {}
     end
     for _, entry in ipairs(entries) do
-        local role = entry.role or "DAMAGER"
+        local role = entry.role or "MELEE"
         if not byRole[role] then byRole[role] = {} end
         table.insert(byRole[role], entry)
     end
@@ -644,130 +657,195 @@ function NXR.RefreshOverlay()
     local groupByRole = NelxRatedDB.settings.overlayGroupByRole
     local numColumns = NelxRatedDB.settings.overlayColumns or 1
 
-    -- Build layout items: either flat or grouped
-    -- Each layout item is { type="row", entry=... } or { type="header", label=... }
-    local layoutItems = {}
-
-    if groupByRole then
-        local groups = GroupEntriesByRole(entries)
-        for _, group in ipairs(groups) do
-            table.insert(layoutItems, { type = "header", label = group.label })
-            for _, entry in ipairs(group.entries) do
-                table.insert(layoutItems, { type = "row", entry = entry })
-            end
-        end
-    else
-        for _, entry in ipairs(entries) do
-            table.insert(layoutItems, { type = "row", entry = entry })
-        end
-    end
-
-    -- Render all items and measure widths
+    -- First pass: create rows, populate data, measure text
     local maxRatingWidth = 0
     local hasCheckmark = false
     local rowIndex = 0
-    local headerIndex = 0
 
-    -- First pass: create rows/headers, populate data, measure text
-    local renderedItems = {} -- { type, row/header, layoutIndex }
-    for i, item in ipairs(layoutItems) do
-        if item.type == "header" then
+    local function PrepareRow(entry)
+        rowIndex = rowIndex + 1
+        local row = GetRow(rowIndex)
+
+        -- Set icon
+        if entry.type == "class" then
+            if entry.classInfo then
+                SetClassIcon(row.icon, entry.classInfo.classFileName)
+            else
+                row.icon:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
+            end
+        else
+            row.icon:SetTexture(entry.specInfo and entry.specInfo.icon or "Interface\\Icons\\INV_Misc_QuestionMark")
+        end
+
+        -- Populate rating/checkmark/glow
+        PopulateRow(row, entry.bestMatch, challenge,
+            entry.specID, entry.classID, classMode)
+
+        -- Tooltip
+        if entry.type == "class" then
+            row.tooltipData = {
+                title      = entry.classInfo and entry.classInfo.className or ("Class " .. entry.classID),
+                classMode  = true,
+                characters = entry.matches,
+                goalRating = challenge.goalRating,
+            }
+        else
+            row.tooltipData = {
+                title      = entry.specInfo and entry.specInfo.specName or ("Spec " .. entry.specID),
+                classMode  = false,
+                characters = entry.matches,
+                goalRating = challenge.goalRating,
+            }
+        end
+
+        -- Measure
+        if row.checkmark:IsShown() then
+            hasCheckmark = true
+        else
+            local rw = row.rating:GetStringWidth() or 0
+            if rw > maxRatingWidth then maxRatingWidth = rw end
+        end
+
+        return row
+    end
+
+    -- Calculate column width (after measuring)
+    local function CalcColWidth()
+        local CHECKMARK_WIDTH = 14
+        if hasCheckmark and maxRatingWidth < CHECKMARK_WIDTH then
+            maxRatingWidth = CHECKMARK_WIDTH
+        end
+        local w = 4 + ICON_SIZE + 6 + maxRatingWidth + 12
+        if w < MIN_WIDTH then w = MIN_WIDTH end
+        return w
+    end
+
+    if groupByRole then
+        -- ============================================================
+        -- GROUPED LAYOUT: each role starts a new column
+        -- ============================================================
+        local groups = GroupEntriesByRole(entries)
+        local numGroups = #groups
+
+        -- Prepare all rows first (for width measurement)
+        local headerIndex = 0
+        local groupData = {}
+        for _, group in ipairs(groups) do
             headerIndex = headerIndex + 1
             local header = GetRoleHeader(headerIndex)
-            header:SetText(item.label)
-            table.insert(renderedItems, { type = "header", element = header, layoutIndex = i })
-        else
-            rowIndex = rowIndex + 1
-            local row = GetRow(rowIndex)
-            local entry = item.entry
-
-            -- Set icon
-            if entry.type == "class" then
-                if entry.classInfo then
-                    SetClassIcon(row.icon, entry.classInfo.classFileName)
-                else
-                    row.icon:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
-                end
-            else
-                row.icon:SetTexture(entry.specInfo and entry.specInfo.icon or "Interface\\Icons\\INV_Misc_QuestionMark")
+            header:SetText(group.label)
+            local rows = {}
+            for _, entry in ipairs(group.entries) do
+                table.insert(rows, PrepareRow(entry))
             end
-
-            -- Populate rating/checkmark/glow
-            PopulateRow(row, entry.bestMatch, challenge,
-                entry.specID, entry.classID, classMode)
-
-            -- Tooltip
-            if entry.type == "class" then
-                row.tooltipData = {
-                    title      = entry.classInfo and entry.classInfo.className or ("Class " .. entry.classID),
-                    classMode  = true,
-                    characters = entry.matches,
-                    goalRating = challenge.goalRating,
-                }
-            else
-                row.tooltipData = {
-                    title      = entry.specInfo and entry.specInfo.specName or ("Spec " .. entry.specID),
-                    classMode  = false,
-                    characters = entry.matches,
-                    goalRating = challenge.goalRating,
-                }
-            end
-
-            -- Measure
-            if row.checkmark:IsShown() then
-                hasCheckmark = true
-            else
-                local rw = row.rating:GetStringWidth() or 0
-                if rw > maxRatingWidth then maxRatingWidth = rw end
-            end
-
-            table.insert(renderedItems, { type = "row", element = row, layoutIndex = i })
+            table.insert(groupData, { header = header, rows = rows })
         end
-    end
 
-    -- Calculate column width
-    local CHECKMARK_WIDTH = 14
-    if hasCheckmark and maxRatingWidth < CHECKMARK_WIDTH then
-        maxRatingWidth = CHECKMARK_WIDTH
-    end
-    local colWidth = 4 + ICON_SIZE + 6 + maxRatingWidth + 12
-    if colWidth < MIN_WIDTH then colWidth = MIN_WIDTH end
+        local colWidth = CalcColWidth()
 
-    -- Layout: distribute items across columns
-    local totalItems = #renderedItems
-    local effectiveCols = numColumns
-    if effectiveCols > totalItems then effectiveCols = totalItems end
-    if effectiveCols < 1 then effectiveCols = 1 end
+        -- Distribute columns: minimum = numGroups, extra go to largest groups
+        local effectiveCols = math.max(numGroups, numColumns)
+        local groupCols = {}
+        for i = 1, numGroups do
+            groupCols[i] = 1
+        end
 
-    local rowsPerCol = math.ceil(totalItems / effectiveCols)
+        local extraCols = effectiveCols - numGroups
+        if extraCols > 0 then
+            -- Distribute extra columns round-robin to groups sorted by size (largest first)
+            local sortedIdx = {}
+            for i = 1, numGroups do sortedIdx[i] = i end
+            table.sort(sortedIdx, function(a, b)
+                return #groupData[a].rows > #groupData[b].rows
+            end)
+            for e = 1, extraCols do
+                local idx = sortedIdx[((e - 1) % numGroups) + 1]
+                groupCols[idx] = groupCols[idx] + 1
+            end
+        end
 
-    for i, rendered in ipairs(renderedItems) do
-        local itemIdx = i - 1
-        local colIdx = math.floor(itemIdx / rowsPerCol)
-        local rowInCol = itemIdx % rowsPerCol
+        -- Layout each group
+        local colOffset = 0
+        local tallestCol = 0
 
-        local xOff = colIdx * colWidth
-        local yOff = -PADDING - rowInCol * ROW_HEIGHT
+        for gi, gd in ipairs(groupData) do
+            local gCols = groupCols[gi]
+            local numEntries = #gd.rows
+            local rowsPerGCol = math.ceil(numEntries / gCols)
+            if rowsPerGCol < 1 then rowsPerGCol = 1 end
 
-        if rendered.type == "header" then
-            local header = rendered.element
-            header:ClearAllPoints()
-            header:SetPoint("TOPLEFT", overlayFrame, "TOPLEFT", xOff + 4, yOff - 4)
-            header:Show()
-        else
-            local row = rendered.element
+            -- Header on first column of group
+            gd.header:ClearAllPoints()
+            gd.header:SetPoint("TOPLEFT", overlayFrame, "TOPLEFT", colOffset * colWidth + 4, -PADDING + 2)
+            gd.header:Show()
+
+            -- Offset rows below header
+            local headerOffset = ROW_HEIGHT
+
+            for ri, row in ipairs(gd.rows) do
+                local entryIdx = ri - 1
+                local localCol = math.floor(entryIdx / rowsPerGCol)
+                local localRow = entryIdx % rowsPerGCol
+
+                local xOff = (colOffset + localCol) * colWidth
+                local yOff = -PADDING - headerOffset - localRow * ROW_HEIGHT
+
+                row:ClearAllPoints()
+                row:SetPoint("TOPLEFT", overlayFrame, "TOPLEFT", xOff, yOff)
+                row:SetWidth(colWidth)
+                row:Show()
+
+                local colHeight = headerOffset + (localRow + 1) * ROW_HEIGHT
+                if colHeight > tallestCol then tallestCol = colHeight end
+            end
+
+            -- If group is empty, still account for header
+            if numEntries == 0 then
+                if headerOffset > tallestCol then tallestCol = headerOffset end
+            end
+
+            colOffset = colOffset + gCols
+        end
+
+        local totalHeight = PADDING * 2 + tallestCol
+        local totalWidth = colOffset * colWidth
+        overlayFrame:SetSize(totalWidth, totalHeight)
+    else
+        -- ============================================================
+        -- FLAT LAYOUT: distribute all entries across columns
+        -- ============================================================
+        local preparedRows = {}
+        for _, entry in ipairs(entries) do
+            table.insert(preparedRows, PrepareRow(entry))
+        end
+
+        local colWidth = CalcColWidth()
+
+        local totalItems = #preparedRows
+        local effectiveCols = numColumns
+        if effectiveCols > totalItems then effectiveCols = totalItems end
+        if effectiveCols < 1 then effectiveCols = 1 end
+
+        local rowsPerCol = math.ceil(totalItems / effectiveCols)
+
+        for i, row in ipairs(preparedRows) do
+            local itemIdx = i - 1
+            local colIdx = math.floor(itemIdx / rowsPerCol)
+            local rowInCol = itemIdx % rowsPerCol
+
+            local xOff = colIdx * colWidth
+            local yOff = -PADDING - rowInCol * ROW_HEIGHT
+
             row:ClearAllPoints()
             row:SetPoint("TOPLEFT", overlayFrame, "TOPLEFT", xOff, yOff)
             row:SetWidth(colWidth)
             row:Show()
         end
+
+        local totalHeight = PADDING * 2 + rowsPerCol * ROW_HEIGHT
+        local totalWidth = effectiveCols * colWidth
+        overlayFrame:SetSize(totalWidth, totalHeight)
     end
-
-    -- Resize overlay
-    local totalHeight = PADDING * 2 + rowsPerCol * ROW_HEIGHT
-    local totalWidth = effectiveCols * colWidth
-
-    overlayFrame:SetSize(totalWidth, totalHeight)
 
     -- Re-apply opacity and mouse state
     NXR.Overlay.OnOpacityChanged()

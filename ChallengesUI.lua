@@ -544,7 +544,8 @@ local function BuildForm()
 
     local roleOrder = {
         { key = "HEALER",  label = "Healers" },
-        { key = "DAMAGER", label = "DPS" },
+        { key = "MELEE",   label = "Melee DPS" },
+        { key = "RANGED",  label = "Ranged DPS" },
         { key = "TANK",    label = "Tanks" },
     }
 
