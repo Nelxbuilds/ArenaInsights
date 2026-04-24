@@ -1,4 +1,4 @@
-## Interface: 120000, 120001, 120005
+## Interface: 120005
 ## Title: NelxRated
 ## Notes: Personal PvP rating challenge tracker for Solo Shuffle, 2v2, 3v3, and Blitz BG. Track ratings and MMR by spec or class across multiple characters and accounts.
 ## Author: Nelxbuilds

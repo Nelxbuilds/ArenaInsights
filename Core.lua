@@ -65,6 +65,7 @@ local SETTINGS_DEFAULTS = {
     overlayScale          = 1.0,
     overlayColumns        = 1,
     overlayGroupByRole    = false,
+    hideZeroRatingRows    = false,
     chartColor            = "default",
 }
 

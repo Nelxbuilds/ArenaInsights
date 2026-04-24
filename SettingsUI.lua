@@ -12,6 +12,7 @@ local outArenaSlider, outArenaValueText
 local scaleSlider, scaleValueText
 local columnsSlider, columnsValueText
 local groupByRoleCheckbox
+local hideZeroCheckbox
 local bgCheckbox
 local lockCheckbox
 local overlayToggleBtn
@@ -195,6 +196,24 @@ function NXR.CreateSettingsPanel(parent)
     y = y + 34
 
     -- ----------------------------------------------------------------
+    -- Hide zero-rating rows checkbox
+    -- ----------------------------------------------------------------
+    hideZeroCheckbox = CreateFrame("CheckButton", nil, p, "UICheckButtonTemplate")
+    hideZeroCheckbox:SetSize(26, 26)
+    hideZeroCheckbox:SetPoint("TOPLEFT", 8, -y)
+
+    local hideZeroLabel = p:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    hideZeroLabel:SetPoint("LEFT", hideZeroCheckbox, "RIGHT", 4, 0)
+    hideZeroLabel:SetText("Hide unrated rows")
+
+    hideZeroCheckbox:SetScript("OnClick", function(self)
+        NelxRatedDB.settings.hideZeroRatingRows = self:GetChecked()
+        NXR.RefreshOverlay()
+    end)
+
+    y = y + 34
+
+    -- ----------------------------------------------------------------
     -- Show overlay background
     -- ----------------------------------------------------------------
     bgCheckbox = CreateFrame("CheckButton", nil, p, "UICheckButtonTemplate")
@@ -306,6 +325,7 @@ function NXR.CreateSettingsPanel(parent)
         scaleSlider:SetValue(NelxRatedDB.settings.overlayScale or 1.0)
         columnsSlider:SetValue(NelxRatedDB.settings.overlayColumns or 1)
         groupByRoleCheckbox:SetChecked(NelxRatedDB.settings.overlayGroupByRole or false)
+        hideZeroCheckbox:SetChecked(NelxRatedDB.settings.hideZeroRatingRows or false)
         bgCheckbox:SetChecked(NelxRatedDB.settings.showOverlayBackground)
         lockCheckbox:SetChecked(NelxRatedDB.settings.overlayLocked or false)
         if NelxRatedDB.settings.showOverlay then

@@ -647,6 +647,15 @@ function NXR.RefreshOverlay()
 
     -- Build row data
     local entries = BuildRowEntries(challenge, classMode)
+    if NelxRatedDB.settings.hideZeroRatingRows then
+        local filtered = {}
+        for _, entry in ipairs(entries) do
+            if entry.bestMatch ~= nil then
+                filtered[#filtered + 1] = entry
+            end
+        end
+        entries = filtered
+    end
     if #entries == 0 then
         overlayFrame:Hide()
         return
