@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.4.0] -- 2026-04-26
+
+### Added
+- Overlay: challenge title display above spec rows
+- Overlay: opt-in progress bar above challenge rows
+- Overlay: manual spec/class completion marking
+- WoW Settings panel entry for addon discovery
+
+### Fixed
+- Settings tab order, overlay layout, progress bar manual completion interaction
+
 ## [1.3.2] -- 2026-04-25
 
 ### Fixed
