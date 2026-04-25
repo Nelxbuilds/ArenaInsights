@@ -17,4 +17,5 @@ SettingsUI.lua
 ImportExportUI.lua
 HomeUI.lua
 HistoryUI.lua
+WoWOptionsPanel.lua
 MainFrame.lua
