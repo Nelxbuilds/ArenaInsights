@@ -96,6 +96,7 @@ local function InitDB()
     NelxRatedDB.overlayPosition       = NelxRatedDB.overlayPosition or {}
     NelxRatedDB.schemaVersion         = NelxRatedDB.schemaVersion or 0
     NelxRatedDB.deletedChallengeUIDs  = NelxRatedDB.deletedChallengeUIDs or {}
+    NelxRatedDB.syncPartners          = NelxRatedDB.syncPartners or {}
 
     RunMigrations(NelxRatedDB)
     NXR.Debug("InitDB complete — schema", NelxRatedDB.schemaVersion,
@@ -331,6 +332,8 @@ SlashCmdList["NELXRATED"] = function(msg)
         print("  /nxr overlay — Toggle overlay visibility")
         print("  /nxr lock — Lock overlay position")
         print("  /nxr unlock — Unlock overlay position")
+        print("  /nxr sync — Sync with other NelxRated accounts in party")
+        print("  /nxr sync selftest — Test serialize/chunk/parse/merge pipeline locally")
         print("  /nxr debug — Toggle debug logging")
         print("  /nxr help — Show this help")
         return
@@ -355,6 +358,15 @@ SlashCmdList["NELXRATED"] = function(msg)
     if cmd == "unlock" then
         if NXR.Overlay and NXR.Overlay.SetLocked then
             NXR.Overlay.SetLocked(false)
+        end
+        return
+    end
+    if cmd == "sync" then
+        local sub = (msg or ""):lower():match("^%s*%S+%s+(%S+)") or ""
+        if sub == "selftest" then
+            if NXR.SyncSelfTest then NXR.SyncSelfTest() end
+        else
+            if NXR.InitiateSync then NXR.InitiateSync() end
         end
         return
     end

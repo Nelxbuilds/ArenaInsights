@@ -414,6 +414,24 @@ local function MergeSettings(imported)
 end
 
 -- ============================================================================
+-- Sync helpers (consumed by Sync.lua)
+-- ============================================================================
+
+NXR.MergeCharacters = MergeCharacters
+
+function NXR.SerializeCharactersForSync()
+    local lines = { HEADER_V2 }
+    SerializeCharacterLines(lines)
+    return table.concat(lines, "\n")
+end
+
+function NXR.ParseCharactersForSync(text)
+    local data = DeserializeAll(text)
+    if not data then return nil end
+    return data.characters
+end
+
+-- ============================================================================
 -- UI
 -- ============================================================================
 

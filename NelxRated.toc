@@ -15,6 +15,7 @@ ChallengesUI.lua
 CharactersUI.lua
 SettingsUI.lua
 ImportExportUI.lua
+Sync.lua
 HomeUI.lua
 HistoryUI.lua
 WoWOptionsPanel.lua

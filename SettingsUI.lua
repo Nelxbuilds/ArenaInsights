@@ -96,7 +96,7 @@ end
 -- Tab system
 -- ============================================================================
 
-local TAB_NAMES  = { "General", "Overlay", "History" }
+local TAB_NAMES  = { "General", "Overlay", "History", "Import/Export" }
 local tabButtons = {}
 local tabContent = {}
 local activeTab  = 1
@@ -322,6 +322,7 @@ local function BuildGeneralContent(parent)
 
     local y = 8
 
+    -- Account Name
     local accLabel = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     accLabel:SetPoint("TOPLEFT", 8, -y)
     accLabel:SetText("Account Name")
@@ -346,6 +347,63 @@ local function BuildGeneralContent(parent)
         C_Timer.After(2, function() accStatus:SetText("") end)
     end)
 
+    y = y + 36
+
+    -- Divider
+    local divider = f:CreateTexture(nil, "ARTWORK")
+    divider:SetHeight(1)
+    divider:SetPoint("TOPLEFT", f, "TOPLEFT", 8, -y)
+    divider:SetPoint("TOPRIGHT", f, "TOPRIGHT", -8, -y)
+    divider:SetColorTexture(unpack(NXR.COLORS.CRIMSON_DIM))
+    y = y + 14
+
+    -- Party Sync header
+    local syncHeader = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    syncHeader:SetPoint("TOPLEFT", 8, -y)
+    syncHeader:SetText("Party Sync")
+    syncHeader:SetTextColor(0.96, 0.92, 0.90)
+    y = y + 20
+
+    -- Description
+    local syncDesc = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    syncDesc:SetPoint("TOPLEFT", 10, -y)
+    syncDesc:SetWidth(460)
+    syncDesc:SetJustifyH("LEFT")
+    syncDesc:SetWordWrap(true)
+    syncDesc:SetNonSpaceWrap(false)
+    syncDesc:SetTextColor(0.78, 0.75, 0.73)
+    syncDesc:SetText(
+        "Merges character rating data across all NelxRated accounts in your party.\n" ..
+        "Designed for multi-account play — join a party with your alt account, press\n" ..
+        "Sync, and both accounts end up with the combined data. Newer ratings win."
+    )
+    y = y + 52
+
+    -- Sync button
+    local syncBtn = NXR.CreateNXRButton(f, "Sync", 80, 24)
+    syncBtn:SetPoint("TOPLEFT", 10, -y)
+    syncBtn:SetScript("OnClick", function()
+        if NXR.InitiateSync then
+            NXR.InitiateSync()
+        end
+    end)
+    y = y + 32
+
+    -- Status text (updated by NXR.UpdateSyncStatusUI in Sync.lua)
+    local syncStatusText = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    syncStatusText:SetPoint("TOPLEFT", 10, -y)
+    syncStatusText:SetText("")
+    syncStatusText:SetTextColor(0.78, 0.75, 0.73)
+    NXR._syncStatusText = syncStatusText
+
+    return f
+end
+
+local function BuildImportExportContent(parent)
+    local f = CreateFrame("Frame", nil, parent)
+    f:SetPoint("TOPLEFT", 0, 0)
+    f:SetPoint("BOTTOMRIGHT", 0, 0)
+    NXR.CreateImportExportPanel(f)
     return f
 end
 
@@ -384,6 +442,7 @@ function NXR.CreateSettingsPanel(parent)
     tabContent[1] = BuildGeneralContent(contentFrame)
     tabContent[2] = BuildOverlayContent(contentFrame)
     tabContent[3] = BuildHistoryContent(contentFrame)
+    tabContent[4] = BuildImportExportContent(contentFrame)
 
     -- Default to General tab
     SelectTab(1)
