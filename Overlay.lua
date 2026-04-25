@@ -311,7 +311,9 @@ local function FindMatchingCharactersForSpec(specID, challenge)
     if not NelxRatedDB or not NelxRatedDB.characters then return matches end
 
     for charKey, char in pairs(NelxRatedDB.characters) do
-        if char.specID == specID then
+        -- Match current spec OR characters with historical data for this spec
+        local hasHistoricalData = char.specBrackets and char.specBrackets[specID] ~= nil
+        if char.specID == specID or hasHistoricalData then
             local bestRating = 0
             local bestBracket = nil
 

@@ -98,13 +98,13 @@ local function RefreshCharacterList()
                 table.insert(rParts, NXR.BRACKET_NAMES[bi] .. ": " .. data.rating)
             end
         end
-        -- Also check per-spec brackets for current spec
-        if char.specBrackets and char.specID then
-            local sb = char.specBrackets[char.specID]
-            if sb then
+        -- Show per-spec brackets for ALL specs with data (not just current spec)
+        if char.specBrackets then
+            for sid, sb in pairs(char.specBrackets) do
+                local specLabel = NXR.specData and NXR.specData[sid] and NXR.specData[sid].specName or tostring(sid)
                 for _, bi in ipairs(NXR.TRACKED_BRACKETS) do
                     if NXR.PER_SPEC_BRACKETS[bi] and sb[bi] then
-                        table.insert(rParts, NXR.BRACKET_NAMES[bi] .. ": " .. sb[bi].rating)
+                        table.insert(rParts, specLabel .. " " .. NXR.BRACKET_NAMES[bi] .. ": " .. sb[bi].rating)
                     end
                 end
             end
