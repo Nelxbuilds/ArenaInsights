@@ -96,7 +96,7 @@ end
 -- Tab system
 -- ============================================================================
 
-local TAB_NAMES  = { "Overlay", "History", "General" }
+local TAB_NAMES  = { "General", "Overlay", "History" }
 local tabButtons = {}
 local tabContent = {}
 local activeTab  = 1
@@ -164,97 +164,66 @@ end
 -- ============================================================================
 
 local function BuildOverlayContent(parent)
-    local f = CreateFrame("ScrollFrame", nil, parent)
+    local f = CreateFrame("Frame", nil, parent)
     f:SetPoint("TOPLEFT", 0, 0)
     f:SetPoint("BOTTOMRIGHT", 0, 0)
-    f:EnableMouseWheel(true)
-    f:SetScript("OnMouseWheel", function(self, delta)
-        local cur = self:GetVerticalScroll()
-        local max = self:GetVerticalScrollRange()
-        self:SetVerticalScroll(math.max(0, math.min(cur - delta * 40, max)))
-    end)
 
-    local sc = CreateFrame("Frame", nil, f)
-    f:SetScrollChild(sc)
-    sc:SetHeight(1)
-    f:SetScript("OnSizeChanged", function(self, w)
-        sc:SetWidth(w)
-    end)
+    -- Left column: checkboxes + toggle button
+    local leftCol = CreateFrame("Frame", nil, f)
+    leftCol:SetPoint("TOPLEFT", 0, 0)
+    leftCol:SetPoint("BOTTOMLEFT", 0, 0)
+    leftCol:SetWidth(210)
 
-    local y = 8
+    -- Right column: sliders
+    local rightCol = CreateFrame("Frame", nil, f)
+    rightCol:SetPoint("TOPLEFT", leftCol, "TOPRIGHT", 8, 0)
+    rightCol:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", 0, 0)
 
-    arenaSlider, arenaValueText = CreateSliderRow(sc, "Overlay Opacity (In Arena)", y,
-        "opacityInArena", function()
-            if NXR.Overlay and NXR.Overlay.OnOpacityChanged then
-                NXR.Overlay.OnOpacityChanged()
-            end
-        end)
-    y = y + 56
+    -- Left: checkboxes
+    local ly = 8
 
-    outArenaSlider, outArenaValueText = CreateSliderRow(sc, "Overlay Opacity (Out of Arena)", y,
-        "opacityOutOfArena", function()
-            if NXR.Overlay and NXR.Overlay.OnOpacityChanged then
-                NXR.Overlay.OnOpacityChanged()
-            end
-        end)
-    y = y + 56
-
-    scaleSlider, scaleValueText = CreateSliderRow(sc, "Overlay Scale", y,
-        "overlayScale", function()
-            if NXR.Overlay and NXR.Overlay.OnScaleChanged then
-                NXR.Overlay.OnScaleChanged()
-            end
-        end, { min = 0.5, max = 2.0, step = 0.05, default = 1.0 })
-    y = y + 56
-
-    columnsSlider, columnsValueText = CreateSliderRow(sc, "Overlay Columns", y,
-        "overlayColumns", function()
-            NXR.RefreshOverlay()
-        end, { min = 1, max = 10, step = 1, default = 1, format = "%d", formatMultiplier = 1 })
-    y = y + 56
-
-    bgCheckbox = CreateCheckRow(sc, "Show overlay background & border", y,
+    bgCheckbox = CreateCheckRow(leftCol, "Show background & border", ly,
         "showOverlayBackground", function()
             if NXR.Overlay and NXR.Overlay.OnBackgroundChanged then
                 NXR.Overlay.OnBackgroundChanged()
             end
         end)
-    y = y + 34
+    ly = ly + 34
 
-    lockCheckbox = CreateCheckRow(sc, "Lock overlay position", y,
+    lockCheckbox = CreateCheckRow(leftCol, "Lock overlay position", ly,
         "overlayLocked", function()
             if NXR.Overlay and NXR.Overlay.OnLockChanged then
                 NXR.Overlay.OnLockChanged()
             end
         end)
-    y = y + 34
+    ly = ly + 34
 
-    groupByRoleCheckbox = CreateCheckRow(sc, "Group overlay by role", y,
+    groupByRoleCheckbox = CreateCheckRow(leftCol, "Group by role", ly,
         "overlayGroupByRole", function()
             NXR.RefreshOverlay()
         end)
-    y = y + 34
+    ly = ly + 34
 
-    hideZeroCheckbox = CreateCheckRow(sc, "Hide unrated rows", y,
+    hideZeroCheckbox = CreateCheckRow(leftCol, "Hide unrated rows", ly,
         "hideZeroRatingRows", function()
             NXR.RefreshOverlay()
         end)
-    y = y + 34
+    ly = ly + 34
 
-    progressBarCheckbox = CreateCheckRow(sc, "Show progress bar on overlay", y,
+    progressBarCheckbox = CreateCheckRow(leftCol, "Show progress bar", ly,
         "showOverlayProgressBar", function()
             NXR.RefreshOverlay()
         end)
-    y = y + 34
+    ly = ly + 34
 
-    titleCheckbox = CreateCheckRow(sc, "Show challenge title on overlay", y,
+    titleCheckbox = CreateCheckRow(leftCol, "Show challenge title", ly,
         "showOverlayTitle", function()
             NXR.RefreshOverlay()
         end)
-    y = y + 42
+    ly = ly + 42
 
-    overlayToggleBtn = NXR.CreateNXRButton(sc, "Show Overlay", 140, 28)
-    overlayToggleBtn:SetPoint("TOPLEFT", 10, -y)
+    overlayToggleBtn = NXR.CreateNXRButton(leftCol, "Show Overlay", 140, 28)
+    overlayToggleBtn:SetPoint("TOPLEFT", 10, -ly)
     overlayToggleBtn:SetScript("OnClick", function()
         if NXR.Overlay and NXR.Overlay.Toggle then
             NXR.Overlay.Toggle()
@@ -265,9 +234,39 @@ local function BuildOverlayContent(parent)
             overlayToggleBtn.label:SetText("Show Overlay")
         end
     end)
-    y = y + 40
 
-    sc:SetHeight(y)
+    -- Right: sliders
+    local ry = 8
+
+    arenaSlider, arenaValueText = CreateSliderRow(rightCol, "Opacity (In Arena)", ry,
+        "opacityInArena", function()
+            if NXR.Overlay and NXR.Overlay.OnOpacityChanged then
+                NXR.Overlay.OnOpacityChanged()
+            end
+        end)
+    ry = ry + 56
+
+    outArenaSlider, outArenaValueText = CreateSliderRow(rightCol, "Opacity (Out of Arena)", ry,
+        "opacityOutOfArena", function()
+            if NXR.Overlay and NXR.Overlay.OnOpacityChanged then
+                NXR.Overlay.OnOpacityChanged()
+            end
+        end)
+    ry = ry + 56
+
+    scaleSlider, scaleValueText = CreateSliderRow(rightCol, "Scale", ry,
+        "overlayScale", function()
+            if NXR.Overlay and NXR.Overlay.OnScaleChanged then
+                NXR.Overlay.OnScaleChanged()
+            end
+        end, { min = 0.5, max = 2.0, step = 0.05, default = 1.0 })
+    ry = ry + 56
+
+    columnsSlider, columnsValueText = CreateSliderRow(rightCol, "Columns", ry,
+        "overlayColumns", function()
+            NXR.RefreshOverlay()
+        end, { min = 1, max = 10, step = 1, default = 1, format = "%d", formatMultiplier = 1 })
+
     return f
 end
 
@@ -382,11 +381,11 @@ function NXR.CreateSettingsPanel(parent)
     contentFrame:SetPoint("TOPLEFT", 0, TAB_Y - TAB_H - 4)
     contentFrame:SetPoint("BOTTOMRIGHT", 0, 0)
 
-    tabContent[1] = BuildOverlayContent(contentFrame)
-    tabContent[2] = BuildHistoryContent(contentFrame)
-    tabContent[3] = BuildGeneralContent(contentFrame)
+    tabContent[1] = BuildGeneralContent(contentFrame)
+    tabContent[2] = BuildOverlayContent(contentFrame)
+    tabContent[3] = BuildHistoryContent(contentFrame)
 
-    -- Default to Overlay tab
+    -- Default to General tab
     SelectTab(1)
 
     panel:SetScript("OnShow", function()
@@ -407,7 +406,7 @@ function NXR.CreateSettingsPanel(parent)
             overlayToggleBtn.label:SetText("Show Overlay")
         end
         -- History tab state
-        tabContent[2].UpdateChartColorLabel()
+        tabContent[3].UpdateChartColorLabel()
         -- General tab state
         accountInput:SetText(NelxRatedDB.settings.accountName or "")
     end)

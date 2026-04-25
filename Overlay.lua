@@ -491,17 +491,25 @@ local function CalcChallengeProgress(challenge)
     if classMode then
         for classID in pairs(challenge.classes) do
             total = total + 1
-            local matches = FindMatchingCharactersForClass(classID, challenge)
-            if matches[1] and matches[1].rating >= goalRating then
+            if NXR.IsClassCompleted(challenge.id, classID) then
                 completed = completed + 1
+            else
+                local matches = FindMatchingCharactersForClass(classID, challenge)
+                if matches[1] and matches[1].rating >= goalRating then
+                    completed = completed + 1
+                end
             end
         end
     else
         for specID in pairs(challenge.specs) do
             total = total + 1
-            local matches = FindMatchingCharactersForSpec(specID, challenge)
-            if matches[1] and matches[1].rating >= goalRating then
+            if NXR.IsSpecCompleted(challenge.id, specID) then
                 completed = completed + 1
+            else
+                local matches = FindMatchingCharactersForSpec(specID, challenge)
+                if matches[1] and matches[1].rating >= goalRating then
+                    completed = completed + 1
+                end
             end
         end
     end
@@ -928,11 +936,11 @@ function NXR.RefreshOverlay()
 
             -- Header on first column of group
             gd.header:ClearAllPoints()
-            gd.header:SetPoint("TOPLEFT", overlayFrame, "TOPLEFT", colOffset * colWidth + 4, -PADDING - topOffset + 2)
+            gd.header:SetPoint("TOPLEFT", overlayFrame, "TOPLEFT", colOffset * colWidth + 4, -PADDING - topOffset - 6)
             gd.header:Show()
 
             -- Offset rows below header
-            local headerOffset = ROW_HEIGHT
+            local headerOffset = ROW_HEIGHT + 6
 
             for ri, row in ipairs(gd.rows) do
                 local entryIdx = ri - 1
