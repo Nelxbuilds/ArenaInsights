@@ -1,35 +1,53 @@
-# Roadmap — PvP Companion Addon (name TBD)
+# Roadmap — NelxRated
 
-Evolving from NelxRated (challenge tracker) into a full PvP companion: ratings, currencies, comp insights, and gearing guidance — all in one addon.
-
----
-
-## Phase 1 — Foundation: Rename + Currency Merge
-**Goal**: Clean slate with new identity. Absorb NelxRatedCurrency. One addon, one sidebar.
-
-- Rename addon (new name TBD) — all identity strings, DB migration, export compat
-- Merge NelxRatedCurrency into main addon as a Currency tab
-- Retire NelxRatedCurrency as standalone addon
-- Minimap button (from NelxRatedCurrency)
-
-**Epics**: [Epic 10 — Rename & Rebrand](epic-10-rename-rebrand.md), [Epic 11 — Currency Tab](epic-11-currency-tab.md)
+Evolving from NelxRated (challenge tracker) into a full PvP companion: ratings, currencies, comp insights, and gearing guidance.
 
 ---
 
-## Phase 2 — Insights: Comp Tracking & Visualization
-**Goal**: Track what you played against and with. Visualize patterns over time.
+## Rename & Rebrand
 
-- Data capture: record enemy comps, allied comps, bracket, outcome per game
+**Status**: In progress — name TBD
+
+Rename addon with new identity, DB migration, export compatibility.
+
+**Epic**: [Epic 10 — Rename & Rebrand](epic-10-rename-rebrand.md)
+
+---
+
+## Insights: Comp Tracking & MMR
+
+**Status**: Research complete, epic not written
+
+Track what you played against and with. Visualize patterns over time.
+
+- Data capture: record enemy comps, own spec, bracket, outcome, rating delta per match
 - Insights tab in main frame
-- Visualizations: class/spec frequency charts, win rates by comp, trends over time
+- Visualizations: class/spec frequency charts, win rates by comp
 - Filterable by bracket, date range, character
 
-**Epics**: Epic 12 — Comp Data Capture, Epic 13 — Insights UI
+**API availability:**
+
+| Data | Source | Notes |
+|------|--------|-------|
+| Match end trigger | `PVP_MATCH_COMPLETE` | Reliable |
+| Scoreboard data trigger | `UPDATE_BATTLEFIELD_SCORE` | Fires when server transmits final scores |
+| Enemy specs (arenas) | `GetArenaOpponentSpec(1..N)` at `ARENA_PREP_OPPONENT_SPECIALIZATIONS` | Arena only — not Blitz BG |
+| Rating + MMR | `C_PvP.GetScoreInfo(offsetIndex)` | Returns `PVPScoreInfo`: `rating`, `ratingChange`, `prematchMMR`, `mmrChange`, `postmatchMMR` |
+| Rating delta (team) | `GetBattlefieldTeamInfo(faction)` | faction=0 own, faction=1 enemy |
+| Bracket detection | `GetInstanceInfo()` + `GetNumArenaOpponentSpecs()` count | No dedicated API |
+| Blitz BG enemy comp | No arena prep APIs fire | Record result + rating + MMR only; omit enemy comp |
+
+Note: `GetBattlefieldScore()` MMR columns always zero since patch 4.2 — use `C_PvP.GetScoreInfo()` instead.
+
+**Epics**: Epic 12 — Match Data Capture (`core/Insights.lua`, `NelxRatedDB.matches[]`), Epic 13 — Insights UI
 
 ---
 
-## Phase 3 — Gearing Helper
-**Goal**: Guide players from fresh 80 to fully gemmed/enchanted BiS PvP gear.
+## Gearing Helper
+
+**Status**: Not started
+
+Guide players from fresh 80 to fully gemmed/enchanted BiS PvP gear.
 
 - Track current gear: item level, slot by slot
 - Show conquest/honor needed to complete gear set
@@ -41,21 +59,35 @@ Evolving from NelxRated (challenge tracker) into a full PvP companion: ratings, 
 
 ---
 
-## Phase 4 — Extended Stats & Polish
-**Goal**: Deeper historical stats, quality-of-life improvements.
+## Extended Stats & Polish
 
-- MMR trends over time (charts)
+**Status**: Not started
+
+Deeper historical stats and quality-of-life improvements.
+
 - Session stats (games today, win/loss streak)
 - Cross-character aggregate stats
+- Rating trends over time (charts)
 - Performance improvements for large datasets
 
 **Epics**: TBD
 
 ---
 
+## Improvements & Polish
+
+Ongoing. No dedicated epic — tracked as individual stories or bugs.
+
+- UI consistency passes
+- Accessibility / tooltip improvements
+- Bug fixes
+- Performance
+
+---
+
 ## Notes
 
-- Each phase ships as a versioned release
-- Gearing helper (Phase 3) costs are season-dependent — needs maintenance each season
-- Phase 2 data capture must start before UI exists (collect now, visualize later)
-- NelxRatedCurrency users: Phase 1 includes in-game migration notice
+- Each section ships as a versioned release
+- Gearing helper costs are season-dependent — needs maintenance each season
+- Insights data capture (Epic 12) should start before UI exists — collect now, visualize later
+- MMR tracking not feasible via addon API; omit from scope unless Blizzard exposes it
