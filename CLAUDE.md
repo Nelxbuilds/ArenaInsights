@@ -17,17 +17,23 @@ Before using any WoW API not already documented in this file, invoke `/wow-api-r
 
 Addon organized around main modules:
 
-- **Core / Event Handling**: Registers PvP events, extracts rating/MMR data, persists to SavedVariables
-- **Challenge System**: Multi-spec, multi-bracket challenge CRUD with active challenge logic
-- **Overlay**: Movable frame showing spec rows from active challenge with ratings and tooltips
-- **Main Frame**: Custom standalone frame (`/nxr`) with vertical sidebar nav (Home, Challenges, Characters, Settings, Import/Export)
-- **Data Layer**: Character tracking, challenge management, cross-account Import/Export
+- **Core / Event Handling** (`core/Core.lua`): Registers PvP events, extracts rating/MMR data, persists to SavedVariables
+- **Challenge System** (`core/Challenges.lua`): Multi-spec, multi-bracket challenge CRUD with active challenge logic
+- **Overlay** (`ui/Overlay.lua`): Movable frame showing spec rows from active challenge with ratings and tooltips
+- **Main Frame** (`ui/MainFrame.lua`): Custom standalone frame (`/nxr`) with vertical sidebar nav (Home, Challenges, Characters, Settings, Import/Export)
+- **Data Layer** (`core/Currency.lua`, `ui/ImportExportUI.lua`): Character tracking, challenge management, cross-account Import/Export
+- **System** (`system/`): Party sync, tooltip hooks, WoW Settings integration, minimap button
 
 ## File Manifest
 
 Manifest file: `NelxRated.toc`
 Load order top-to-bottom. New files added in dependency order.
-UI files under `UI/`. Logic/data files at root or named modules.
+Three subdirectories: `core/` (data/logic), `ui/` (frames/panels), `system/` (WoW integration). See per-directory CLAUDE.md for details.
+
+**Adding a new file:**
+1. Pick subdir: pure logic → `core/`, frames/panels → `ui/`, WoW subsystem hooks → `system/`
+2. Add path to `NelxRated.toc` in correct dependency position
+3. Add entry to that subdir's `CLAUDE.md` (fn signatures, events, public API on `NXR.*`)
 
 ## Bracket Indices
 
@@ -85,24 +91,29 @@ Bugs tracked in `docs/bugs.md`. One entry per bug: description, file/line, repro
 
 ## Lint Rules
 
-### D1: Opacity/tooltip guard
+### D1: Opacity/tooltip guard — `ui/`
+
 opacity=0 → `EnableMouse(false)` on all interactive overlay frames.
 Flag any path where opacity=0 but mouse input not disabled.
 
-### D2: Import/export merge safety
+### D2: Import/export merge safety — `ui/ImportExportUI.lua`, `system/Sync.lua`
+
 Import must NOT replace existing character entries from other accounts.
 Merge by account key, not overwrite.
 Flag any `NelxRatedDB.characters = importedData` replacement.
 
-### D3: Character key format
+### D3: Character key format — `core/`
+
 Keys in `NelxRatedDB` must be `"Name-Realm"` format.
 Built with `UnitName("player") .. "-" .. GetRealmName()`, not just `UnitName("player")`.
 
-### D4: Rating color threshold logic
+### D4: Rating color threshold logic — `ui/`
+
 Thresholds use `>=` (not `>`): `>= 0.8` orange, `>= 0.9` yellow, `>= 1.0` checkmark icon.
 100% state must show icon texture, not Unicode.
 
-### D5: Best-character selection
+### D5: Best-character selection — `ui/Overlay.lua`, `ui/ChallengesUI.lua`
+
 Overlay cells show only highest-rated character per class/spec slot.
 Verify max-rating selection step exists before populating overlay cells.
 
@@ -144,7 +155,7 @@ local BORDER_W   = 1
 ```
 
 ### UI Rules
-- One file per UI module under `UI/`
+- One file per UI module under `ui/`
 - Every function creating UI returns root frame
 - Every interactive frame needs `OnEnter`/`OnLeave` + tooltip
 - Draggable frames save position to SavedVariables
