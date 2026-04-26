@@ -5,9 +5,9 @@ local ROW_GAP    = 2
 local HEADER_H   = 24
 local HBAR_H     = 14
 
-local COL_CHAR_W     = 160
-local COL_CURRENCY_W = 80
-local COL_ITEM_W     = 120
+local COL_CHAR_W     = 140
+local COL_CURRENCY_W = 68
+local COL_ITEM_W     = 108
 
 local sortKey      = "char"
 local sortAsc      = true
