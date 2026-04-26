@@ -152,7 +152,7 @@ local function Refresh()
     table.sort(keys, function(a, b)
         if sortKey == "char" then
             local va, vb = a:lower(), b:lower()
-            return sortAsc and (va < vb) or (va > vb)
+            if sortAsc then return va < vb else return va > vb end
         end
         local valA, valB = -1, -1
         for _, col in ipairs(visibleCols) do
@@ -162,7 +162,7 @@ local function Refresh()
                 break
             end
         end
-        return sortAsc and (valA < valB) or (valA > valB)
+        if sortAsc then return valA < valB else return valA > valB end
     end)
 
     local yOff = 0
