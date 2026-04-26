@@ -6,7 +6,7 @@ local addonName, NXR = ...
 
 local snapshot         = {}   -- bracketIndex → seasonPlayed captured on instance entry
 local pendingEnemySpecs = {}  -- populated by ARENA_PREP_OPPONENT_SPECIALIZATIONS
-local pendingRecord    = nil  -- partial record held between PVP_MATCH_COMPLETE and UPDATE_BATTLEFIELD_SCORE
+local pendingRecord    = nil  -- partial record held between PVP_MATCH_COMPLETE and PVP_RATED_STATS_UPDATE
 
 NXR.InsightsDebug = false
 
@@ -72,6 +72,7 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
         self:RegisterEvent("ARENA_PREP_OPPONENT_SPECIALIZATIONS")
         self:RegisterEvent("PVP_MATCH_COMPLETE")
         self:RegisterEvent("UPDATE_BATTLEFIELD_SCORE")
+        self:RegisterEvent("PVP_RATED_STATS_UPDATE")
 
     -- ---- I-2a: Bracket snapshot before any zone transition (unrestricted context) ----
     elseif event == "PLAYER_LEAVING_WORLD" then
@@ -94,7 +95,7 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
         end
         NXR.Debug("Insights: enemy specs captured, count=", count)
 
-    -- ---- I-4 Stage 1: Detect bracket, stash partial record ----
+    -- ---- I-4 Stage 1: Stash partial record (API restricted here, defer detection) ----
     elseif event == "PVP_MATCH_COMPLETE" then
         local winner, duration = ...
 
@@ -104,7 +105,7 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
             local _, iType, _, iName = GetInstanceInfo()
             print("[NXR Insights] instance type=" .. tostring(iType) .. " name=" .. tostring(iName))
             for _, bi in ipairs(NXR.TRACKED_BRACKETS) do
-                local info = C_PvP.GetRatedBracketInfo(bi)
+                local info = C_PvP.GetRatedBracketInfo and C_PvP.GetRatedBracketInfo(bi)
                 print("[NXR Insights] bracket " .. bi
                     .. " snapshot=" .. tostring(snapshot[bi])
                     .. " current=" .. (info and tostring(info.seasonPlayed) or "nil"))
@@ -116,40 +117,29 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
             return
         end
 
-        local bracketIndex = DetectBracket()
-        local charKey      = NXR.currentCharKey
+        local charKey = NXR.currentCharKey
         local specID
         local char = NelxRatedDB.characters[charKey]
         if char then specID = char.specID end
 
         pendingRecord = {
-            timestamp    = time(),
-            bracketIndex = bracketIndex,
-            charKey      = charKey,
-            specID       = specID,
-            enemySpecs   = pendingEnemySpecs,
+            timestamp  = time(),
+            charKey    = charKey,
+            specID     = specID,
+            enemySpecs = pendingEnemySpecs,
         }
 
-        -- Consume and clear captured state
         pendingEnemySpecs = {}
-        snapshot = {}
+        -- snapshot kept alive until PVP_RATED_STATS_UPDATE for DetectBracket
 
-        NXR.Debug("Insights: Stage 1 complete — bracket=", tostring(bracketIndex),
-            "charKey=", charKey)
+        NXR.Debug("Insights: Stage 1 complete — charKey=", charKey)
 
-    -- ---- I-4 Stage 2: Read score data, write record ----
+    -- ---- I-4 Stage 2: Accumulate score data (best-effort, may still be restricted) ----
     elseif event == "UPDATE_BATTLEFIELD_SCORE" then
-        if not pendingRecord then return end
+        if not pendingRecord or pendingRecord.scoreLoaded then return end
 
-        -- Retry bracket detection if PVP_MATCH_COMPLETE fired while API was restricted
-        if pendingRecord.bracketIndex == nil then
-            pendingRecord.bracketIndex = DetectBracket()
-            NXR.Debug("Insights: bracket retry on UPDATE_BATTLEFIELD_SCORE —",
-                tostring(pendingRecord.bracketIndex))
-        end
-
-        local playerName = UnitName("player")
-        local scoreEntry = nil
+        local playerName     = UnitName("player")
+        local playerFullName = playerName and (playerName .. "-" .. GetRealmName()) or nil
         local i = 0
 
         while true do
@@ -162,41 +152,71 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
                     .. " rating=" .. tostring(info.rating)
                     .. " ratingChange=" .. tostring(info.ratingChange)
                     .. " prematchMMR=" .. tostring(info.prematchMMR)
-                    .. " mmrChange=" .. tostring(info.mmrChange)
-                    .. " won=" .. tostring(info.won))
+                    .. " mmrChange=" .. tostring(info.mmrChange))
             end
 
-            if info.name == playerName then
-                scoreEntry = info
+            if info.name == playerName or info.name == playerFullName then
+                pendingRecord.rating       = info.rating
+                pendingRecord.ratingChange = info.ratingChange
+                pendingRecord.prematchMMR  = info.prematchMMR
+                pendingRecord.mmrChange    = info.mmrChange
+                pendingRecord.scoreLoaded  = true
+                break
             end
             i = i + 1
         end
 
-        if scoreEntry then
-            pendingRecord.rating       = scoreEntry.rating
-            pendingRecord.ratingChange = scoreEntry.ratingChange
-            pendingRecord.prematchMMR  = scoreEntry.prematchMMR
-            pendingRecord.mmrChange    = scoreEntry.mmrChange
-
-            local rc = scoreEntry.ratingChange
-            if rc == nil then
-                pendingRecord.outcome = "unknown"
-            elseif rc > 0 then
-                pendingRecord.outcome = "win"
-            elseif rc < 0 then
-                pendingRecord.outcome = "loss"
-            else
-                pendingRecord.outcome = "draw"
-            end
-        else
-            pendingRecord.outcome = "unknown"
-            NXR.Debug("Insights: player entry not found in scorecard")
+        if not pendingRecord.scoreLoaded then
+            NXR.Debug("Insights: score not found in UPDATE_BATTLEFIELD_SCORE, will retry")
         end
+
+    -- ---- I-4 Stage 3: Detect bracket + finalize (API confirmed available here) ----
+    elseif event == "PVP_RATED_STATS_UPDATE" then
+        if not pendingRecord then return end
+
+        -- Bracket detection: API available at this event (confirmed by Core.lua usage)
+        pendingRecord.bracketIndex = DetectBracket()
+        NXR.Debug("Insights: bracket detected —", tostring(pendingRecord.bracketIndex))
+
+        -- Retry score data if UPDATE_BATTLEFIELD_SCORE didn't find it
+        if not pendingRecord.scoreLoaded then
+            local playerName     = UnitName("player")
+            local playerFullName = playerName and (playerName .. "-" .. GetRealmName()) or nil
+            local i = 0
+            while true do
+                local info = C_PvP.GetScoreInfo(i)
+                if not info then break end
+                if info.name == playerName or info.name == playerFullName then
+                    pendingRecord.rating       = info.rating
+                    pendingRecord.ratingChange = info.ratingChange
+                    pendingRecord.prematchMMR  = info.prematchMMR
+                    pendingRecord.mmrChange    = info.mmrChange
+                    pendingRecord.scoreLoaded  = true
+                    break
+                end
+                i = i + 1
+            end
+        end
+
+        local rc = pendingRecord.ratingChange
+        if rc == nil then
+            pendingRecord.outcome = "unknown"
+        elseif rc > 0 then
+            pendingRecord.outcome = "win"
+        elseif rc < 0 then
+            pendingRecord.outcome = "loss"
+        else
+            pendingRecord.outcome = "draw"
+        end
+
+        pendingRecord.scoreLoaded = nil  -- don't persist internal flag
 
         NelxRatedDB.matches[#NelxRatedDB.matches + 1] = pendingRecord
         NXR.Debug("Insights: match recorded — bracket=", tostring(pendingRecord.bracketIndex),
             "outcome=", pendingRecord.outcome,
             "rating=", tostring(pendingRecord.rating))
+
         pendingRecord = nil
+        snapshot = {}
     end
 end)
