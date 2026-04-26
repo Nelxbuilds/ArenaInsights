@@ -120,6 +120,7 @@ Verify max-rating selection step exists before populating overlay cells.
 ## Design System
 
 ### Colour Palette
+
 ```lua
 local BG_BASE     = { r=0.04, g=0.04, b=0.06, a=0.95 }  -- near-black iron
 local BG_RAISED   = { r=0.09, g=0.08, b=0.10, a=0.92 }  -- raised panels
@@ -137,6 +138,7 @@ local RATING_YELLOW  = { r=0.95, g=0.80, b=0.20 }       -- >= 90% of goal
 ```
 
 ### Typography
+
 - Titles: `GameFontNormalLarge`
 - Headers: `GameFontNormal`
 - Body: `GameFontNormalSmall`
@@ -144,6 +146,7 @@ local RATING_YELLOW  = { r=0.95, g=0.80, b=0.20 }       -- >= 90% of goal
 - Tiny: `GameFontNormalTiny`
 
 ### Spacing
+
 ```lua
 local PAD_OUTER  = 12
 local PAD_INNER  = 8
@@ -155,6 +158,7 @@ local BORDER_W   = 1
 ```
 
 ### UI Rules
+
 - One file per UI module under `ui/`
 - Every function creating UI returns root frame
 - Every interactive frame needs `OnEnter`/`OnLeave` + tooltip
@@ -171,12 +175,13 @@ Manifest: `NelxRated.toc`
 Version field: `## Version:`
 
 Packaging ignore list:
-  - `.claude`
-  - `.github`
-  - `docs`
-  - `.blocked-paths`
-  - `.gitignore`
-  - `CLAUDE.md`
+
+- `.claude`
+- `.github`
+- `docs`
+- `.blocked-paths`
+- `.gitignore`
+- `CLAUDE.md`
 
 Manual steps before any release:
 1. Verify interface number in-game: `/run print(select(4, GetBuildInfo()))`
@@ -196,6 +201,7 @@ Available plugins (agents): `implement-story`, `lua-linter`, `release-prep`, `re
 Available plugins (skills): `ship`, `update-readme`, `wow-api-research`, `wow-ui-designer`, `bug`
 
 Key skill notes:
+
 - `/update-readme` — syncs README.md from epic docs; runs automatically inside `/ship`
 - `/write-story` — interactive story writer; asks clarifying questions, produces story doc, does NOT write code
 - `/caveman-commit` — ultra-compressed commit message generator; use when committing
