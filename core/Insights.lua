@@ -24,7 +24,7 @@ end
 
 local function TakeSnapshot()
     if not C_PvP.GetRatedBracketInfo then
-        NXR.Debug("Insights: GetRatedBracketInfo unavailable, snapshot skipped")
+        NXR.DebugInsights("Insights: GetRatedBracketInfo unavailable, snapshot skipped")
         return
     end
     for _, bracketIndex in ipairs(NXR.TRACKED_BRACKETS) do
@@ -33,7 +33,7 @@ local function TakeSnapshot()
             snapshot[bracketIndex] = info.seasonPlayed
         end
     end
-    NXR.Debug("Insights: snapshot —",
+    NXR.DebugInsights("Insights: snapshot —",
         "2v2=" .. tostring(snapshot[NXR.BRACKET_2V2]),
         "3v3=" .. tostring(snapshot[NXR.BRACKET_3V3]),
         "blitz=" .. tostring(snapshot[NXR.BRACKET_BLITZ]),
@@ -93,7 +93,7 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
             local specID = GetArenaOpponentSpec(i)
             pendingEnemySpecs[i] = (specID and specID ~= 0) and specID or 0
         end
-        NXR.Debug("Insights: enemy specs captured, count=", count)
+        NXR.DebugInsights("Insights: enemy specs captured, count=", count)
 
     -- ---- I-4 Stage 1: Stash partial record (API restricted here, defer detection) ----
     elseif event == "PVP_MATCH_COMPLETE" then
@@ -113,7 +113,7 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
         end
 
         if not NXR.currentCharKey then
-            NXR.Debug("Insights: no currentCharKey, skipping")
+            NXR.DebugInsights("Insights: no currentCharKey, skipping")
             return
         end
 
@@ -132,7 +132,7 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
         pendingEnemySpecs = {}
         -- snapshot kept alive until PVP_RATED_STATS_UPDATE for DetectBracket
 
-        NXR.Debug("Insights: Stage 1 complete — charKey=", charKey)
+        NXR.DebugInsights("Insights: Stage 1 complete — charKey=", charKey)
 
     -- ---- I-4 Stage 2: Accumulate score data (best-effort, may still be restricted) ----
     elseif event == "UPDATE_BATTLEFIELD_SCORE" then
@@ -167,7 +167,7 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
         end
 
         if not pendingRecord.scoreLoaded then
-            NXR.Debug("Insights: score not found in UPDATE_BATTLEFIELD_SCORE, will retry")
+            NXR.DebugInsights("Insights: score not found in UPDATE_BATTLEFIELD_SCORE, will retry")
         end
 
     -- ---- I-4 Stage 3: Detect bracket + finalize (API confirmed available here) ----
@@ -176,7 +176,7 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
 
         -- Bracket detection: API available at this event (confirmed by Core.lua usage)
         pendingRecord.bracketIndex = DetectBracket()
-        NXR.Debug("Insights: bracket detected —", tostring(pendingRecord.bracketIndex))
+        NXR.DebugInsights("Insights: bracket detected —", tostring(pendingRecord.bracketIndex))
 
         -- Retry score data if UPDATE_BATTLEFIELD_SCORE didn't find it
         if not pendingRecord.scoreLoaded then
@@ -212,7 +212,7 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
         pendingRecord.scoreLoaded = nil  -- don't persist internal flag
 
         NelxRatedDB.matches[#NelxRatedDB.matches + 1] = pendingRecord
-        NXR.Debug("Insights: match recorded — bracket=", tostring(pendingRecord.bracketIndex),
+        NXR.DebugInsights("Insights: match recorded — bracket=", tostring(pendingRecord.bracketIndex),
             "outcome=", pendingRecord.outcome,
             "rating=", tostring(pendingRecord.rating))
 

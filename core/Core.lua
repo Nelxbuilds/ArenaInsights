@@ -45,6 +45,11 @@ function NXR.Debug(...)
     print("|cff888888[NXR]|r", ...)
 end
 
+function NXR.DebugInsights(...)
+    if not NXR.InsightsDebug then return end
+    print("|cff888888[NXR Insights]|r", ...)
+end
+
 function NXR.TableCount(t)
     local n = 0
     if t then for _ in pairs(t) do n = n + 1 end end
