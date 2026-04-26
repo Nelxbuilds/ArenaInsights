@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.6.0] -- 2026-04-27
+
+### Added
+- Currency tab: PvP currency and item ledger (Honor, Conquest, Bloody Tokens, Mark/Flask/Medal of Honor) with per-column visibility toggles and horizontal scroll
+- Minimap button for quick access to main frame
+
+### Fixed
+- Currency tab: invalid sort comparator causing nil crash
+- Currency tab: nil scrollChild guard during frame construction
+- Currency tab: column widths adjusted to fit labels
+
+### Changed
+- Lua files reorganized into core/, ui/, system/ subdirectories
+
 ## [1.5.0] -- 2026-04-26
 
 ### Added
