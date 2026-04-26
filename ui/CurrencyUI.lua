@@ -100,6 +100,7 @@ local function UpdateHBar(totalW)
 end
 
 local function Refresh()
+    if not scrollChild then return end
     for _, row in ipairs(rows) do row:Hide() end
 
     local characters = NelxRatedDB and NelxRatedDB.characters or {}
