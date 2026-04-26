@@ -76,7 +76,7 @@ Nil-safe requirements:
 
 ## Stories and Epics
 
-Epic docs in `docs/epic-*.md`.
+Active epic docs in `docs/epic-*.md`. Delete when complete — source of truth is code, git history preserves the rest.
 Each epic: stories with acceptance criteria checkboxes.
 Completed: `- [x]`. Incomplete: `- [ ]`.
 Release checklist: `docs/curseforge-release-checklist.md`
