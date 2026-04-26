@@ -66,27 +66,26 @@ local function DetectBracketFromDB(charKey)
 
     for _, bi in ipairs(NXR.TRACKED_BRACKETS) do
         local prev = snapshot[bi]
-        if prev == nil then goto continue end
-
-        local data
-        if NXR.PER_SPEC_BRACKETS[bi] then
-            local specID = char.specID
-            if specID and char.specBrackets and char.specBrackets[specID] then
-                data = char.specBrackets[specID][bi]
+        if prev ~= nil then
+            local data
+            if NXR.PER_SPEC_BRACKETS[bi] then
+                local specID = char.specID
+                if specID and char.specBrackets and char.specBrackets[specID] then
+                    data = char.specBrackets[specID][bi]
+                end
+            else
+                if char.brackets then
+                    data = char.brackets[bi]
+                end
             end
-        else
-            if char.brackets then
-                data = char.brackets[bi]
+
+            local current = data and data.rating
+            if current ~= nil and current ~= prev then
+                NXR.DebugInsights("DetectBracketFromDB: bracket", bi,
+                    "changed", prev, "->", current)
+                return bi
             end
         end
-
-        local current = data and data.rating
-        if current ~= nil and current ~= prev then
-            NXR.DebugInsights("DetectBracketFromDB: bracket", bi,
-                "changed", prev, "->", current)
-            return bi
-        end
-        ::continue::
     end
     return nil
 end
