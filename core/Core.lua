@@ -1,4 +1,5 @@
 local addonName, NXR = ...
+_G.NXR = NXR  -- expose for /run and external tooling
 
 -- ============================================================================
 -- Bracket constants
