@@ -23,6 +23,10 @@ end
 -- ============================================================================
 
 local function TakeSnapshot()
+    if not C_PvP.GetRatedBracketInfo then
+        NXR.Debug("Insights: GetRatedBracketInfo unavailable, snapshot skipped")
+        return
+    end
     for _, bracketIndex in ipairs(NXR.TRACKED_BRACKETS) do
         local info = C_PvP.GetRatedBracketInfo(bracketIndex)
         if info and info.seasonPlayed ~= nil then
@@ -37,6 +41,7 @@ local function TakeSnapshot()
 end
 
 local function DetectBracket()
+    if not C_PvP.GetRatedBracketInfo then return nil end
     for _, bracketIndex in ipairs(NXR.TRACKED_BRACKETS) do
         local info = C_PvP.GetRatedBracketInfo(bracketIndex)
         if info and info.seasonPlayed ~= nil then
@@ -62,12 +67,17 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
         local loadedAddon = ...
         if loadedAddon ~= addonName then return end
         self:UnregisterEvent("ADDON_LOADED")
+        self:RegisterEvent("PLAYER_LEAVING_WORLD")
         self:RegisterEvent("PLAYER_ENTERING_WORLD")
         self:RegisterEvent("ARENA_PREP_OPPONENT_SPECIALIZATIONS")
         self:RegisterEvent("PVP_MATCH_COMPLETE")
         self:RegisterEvent("UPDATE_BATTLEFIELD_SCORE")
 
-    -- ---- I-2: Bracket snapshot on arena/pvp entry ----
+    -- ---- I-2a: Bracket snapshot before any zone transition (unrestricted context) ----
+    elseif event == "PLAYER_LEAVING_WORLD" then
+        TakeSnapshot()
+
+    -- ---- I-2b: Bracket snapshot on arena/pvp entry (fallback, may be restricted) ----
     elseif event == "PLAYER_ENTERING_WORLD" then
         local _, instanceType = GetInstanceInfo()
         if instanceType == "arena" or instanceType == "pvp" then
@@ -130,6 +140,13 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
     -- ---- I-4 Stage 2: Read score data, write record ----
     elseif event == "UPDATE_BATTLEFIELD_SCORE" then
         if not pendingRecord then return end
+
+        -- Retry bracket detection if PVP_MATCH_COMPLETE fired while API was restricted
+        if pendingRecord.bracketIndex == nil then
+            pendingRecord.bracketIndex = DetectBracket()
+            NXR.Debug("Insights: bracket retry on UPDATE_BATTLEFIELD_SCORE —",
+                tostring(pendingRecord.bracketIndex))
+        end
 
         local playerName = UnitName("player")
         local scoreEntry = nil
