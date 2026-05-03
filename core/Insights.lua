@@ -119,7 +119,9 @@ local function FindScoreEntry(pendingRec)
             pendingRec.rating       = info.rating
             pendingRec.ratingChange = info.ratingChange
             pendingRec.prematchMMR  = info.prematchMMR
-            pendingRec.mmrChange    = info.mmrChange
+            local pre  = tonumber(info.prematchMMR) or 0
+            local post = tonumber(info.postmatchMMR) or 0
+            pendingRec.mmrChange    = (pre > 0 and post > 0) and (post - pre) or (tonumber(info.mmrChange) or 0)
             -- Solo Shuffle: stats[1].pvpStatValue holds total rounds won
             if info.stats and info.stats[1] and type(info.stats[1].pvpStatValue) == "number" then
                 pendingRec.wonRounds = info.stats[1].pvpStatValue
@@ -193,13 +195,12 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
     -- ---- I-2: DB snapshot before zone transition (no API restriction risk) ----
     elseif event == "PLAYER_LEAVING_WORLD" then
         TakeDBSnapshot(NXR.currentCharKey)
-        -- Defensive: clear SS round state on any world exit (disconnect / reload)
         if ssActive then
-            NXR.DebugInsights("PLAYER_LEAVING_WORLD during SS — resetting round state")
-            ssRounds        = {}
-            ssRoundStart    = nil
-            ssRoundPrevWins = 0
-            ssActive        = false
+            -- SS zones between every round — preserve accumulated ssRounds across zone-outs.
+            -- Only clear per-round timing; ssActive re-armed at next state=3.
+            ssRoundStart = nil
+            ssActive     = false
+            NXR.DebugInsights("PLAYER_LEAVING_WORLD: SS inter-round zone, preserving", #ssRounds, "rounds")
         end
 
     -- ---- I-3: Enemy spec capture ----
