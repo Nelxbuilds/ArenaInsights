@@ -238,8 +238,8 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
             end
         end
 
-        if newState == 3 then
-            -- Enum.PvPMatchState.Engaged — round starting
+        if newState == 2 then
+            -- Enum.PvPMatchState.Engaged (Midnight: 2) — round starting
             ssRoundStart = GetTime()
             if RequestBattlefieldScoreData then RequestBattlefieldScoreData() end
             C_Timer.After(0.2, function()
@@ -247,8 +247,9 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
                 NXR.DebugInsights("Round start wins snapshot:", ssRoundPrevWins)
             end)
 
-        elseif newState == 4 or newState == 5 then
-            -- Enum.PvPMatchState.PostRound / Complete — round ending
+        elseif ssRoundStart ~= nil then
+            -- Any non-Engaged state while a round was active = round ended.
+            -- Avoids hardcoding PostRound value (3? 4?) which varies by build.
             local capturedStart = ssRoundStart
             if not capturedStart then
                 NXR.DebugInsights("state", newState, "but no ssRoundStart — skipping")
