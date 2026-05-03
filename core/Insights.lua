@@ -13,6 +13,7 @@ local ssRounds        = {}    -- accumulated per-round records: { num, outcome, 
 local ssRoundStart    = nil   -- GetTime() at state-3 onset for current round
 local ssRoundPrevWins = 0     -- wins snapshot taken at round start
 local ssActive        = false -- true only inside a confirmed SS match
+local matchBracketHint = nil  -- bracket captured early as fallback for DB-diff detection
 
 NXR.InsightsDebug = false
 
@@ -100,19 +101,21 @@ local function FindScoreEntry(pendingRec)
     if not C_PvP.GetScoreInfo then return end
     local playerName     = UnitName("player")
     local playerFullName = playerName and (playerName .. "-" .. GetRealmName()) or nil
-    local i = 0
-    while true do
+    if RequestBattlefieldScoreData then RequestBattlefieldScoreData() end
+    local n = (GetNumBattlefieldScores and GetNumBattlefieldScores()) or 0
+    for i = 1, n do
         local info = C_PvP.GetScoreInfo(i)
         if not info then break end
         if NXR.InsightsDebug then
             print("[NXR Insights] score[" .. i .. "]"
                 .. " name=" .. tostring(info.name)
+                .. " isSelf=" .. tostring(info.isSelf)
                 .. " rating=" .. tostring(info.rating)
                 .. " ratingChange=" .. tostring(info.ratingChange)
                 .. " prematchMMR=" .. tostring(info.prematchMMR)
                 .. " mmrChange=" .. tostring(info.mmrChange))
         end
-        if info.name == playerName or info.name == playerFullName then
+        if info.isSelf or info.name == playerName or info.name == playerFullName then
             pendingRec.rating       = info.rating
             pendingRec.ratingChange = info.ratingChange
             pendingRec.prematchMMR  = info.prematchMMR
@@ -124,7 +127,6 @@ local function FindScoreEntry(pendingRec)
             pendingRec.scoreLoaded  = true
             return
         end
-        i = i + 1
     end
 end
 
@@ -135,8 +137,8 @@ local function GetMyCurrentWins()
     if not C_PvP or not C_PvP.GetScoreInfo then return 0 end
     local playerName     = UnitName("player")
     local playerFullName = playerName and (playerName .. "-" .. GetRealmName()) or nil
-    local count          = (GetNumBattlefieldScores and GetNumBattlefieldScores()) or 0
-    for i = 0, math.max(count - 1, 11) do
+    local n              = (GetNumBattlefieldScores and GetNumBattlefieldScores()) or 0
+    for i = 1, n do
         local info = C_PvP.GetScoreInfo(i)
         if not info then break end
         if info.isSelf or info.name == playerName or info.name == playerFullName then
@@ -173,10 +175,11 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
     -- ---- SS match start: init per-round state ----
     elseif event == "PVP_MATCH_ACTIVE" then
         local isSS = C_PvP and C_PvP.IsSoloShuffle and C_PvP.IsSoloShuffle()
-        ssActive        = isSS and true or false
-        ssRounds        = {}
-        ssRoundStart    = nil
-        ssRoundPrevWins = 0
+        ssActive           = isSS and true or false
+        matchBracketHint   = isSS and NXR.BRACKET_SOLO_SHUFFLE or nil
+        ssRounds           = {}
+        ssRoundStart       = nil
+        ssRoundPrevWins    = 0
         NXR.DebugInsights("PVP_MATCH_ACTIVE isSS=", tostring(ssActive))
 
     -- ---- I-2: DB snapshot before zone transition (no API restriction risk) ----
@@ -207,7 +210,15 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
 
     -- ---- SS round tracking via match state transitions ----
     elseif event == "PVP_MATCH_STATE_CHANGED" then
-        if not ssActive then return end
+        -- IsSoloShuffle() can return false at PVP_MATCH_ACTIVE time — check live as fallback
+        if not ssActive then
+            if C_PvP and C_PvP.IsSoloShuffle and C_PvP.IsSoloShuffle() then
+                ssActive         = true
+                matchBracketHint = NXR.BRACKET_SOLO_SHUFFLE
+            else
+                return
+            end
+        end
 
         local newState = C_PvP and C_PvP.GetActiveMatchState and C_PvP.GetActiveMatchState()
         newState = tonumber(newState)
@@ -287,10 +298,11 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
         if char then specID = char.specID end
 
         pendingRecord = {
-            timestamp  = time(),
-            charKey    = charKey,
-            specID     = specID,
-            enemySpecs = pendingEnemySpecs,
+            timestamp    = time(),
+            charKey      = charKey,
+            specID       = specID,
+            enemySpecs   = pendingEnemySpecs,
+            bracketHint  = matchBracketHint,
         }
 
         pendingEnemySpecs = {}
@@ -317,8 +329,10 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
                 FindScoreEntry(rec)
             end
 
-            -- Detect bracket by comparing pre-match DB snapshot vs Core.lua's new values
-            rec.bracketIndex = DetectBracketFromDB(rec.charKey)
+            -- Detect bracket by comparing pre-match DB snapshot vs Core.lua's new values;
+            -- fall back to hint captured at match start if DB diff finds no change
+            rec.bracketIndex = DetectBracketFromDB(rec.charKey) or rec.bracketHint
+            rec.bracketHint  = nil
             NXR.DebugInsights("bracket detected —", tostring(rec.bracketIndex))
 
             -- Derive outcome: SS uses wonRounds; all other brackets use ratingChange sign
