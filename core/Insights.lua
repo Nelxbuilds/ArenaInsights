@@ -175,6 +175,14 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
     -- ---- SS match start: init per-round state ----
     elseif event == "PVP_MATCH_ACTIVE" then
         local isSS = C_PvP and C_PvP.IsSoloShuffle and C_PvP.IsSoloShuffle()
+        -- SS fires PVP_MATCH_ACTIVE on every round zone-in; IsSoloShuffle() returns false
+        -- during the zone transition. If we already confirmed this is SS (hint set from a
+        -- prior round's state-change recovery), preserve accumulated rounds and re-arm.
+        if not isSS and matchBracketHint == NXR.BRACKET_SOLO_SHUFFLE then
+            ssActive = true
+            NXR.DebugInsights("PVP_MATCH_ACTIVE: SS round zone-in, preserving state rounds=", #ssRounds)
+            return
+        end
         ssActive           = isSS and true or false
         matchBracketHint   = isSS and NXR.BRACKET_SOLO_SHUFFLE or nil
         ssRounds           = {}
@@ -210,22 +218,24 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
 
     -- ---- SS round tracking via match state transitions ----
     elseif event == "PVP_MATCH_STATE_CHANGED" then
+        local newState = C_PvP and C_PvP.GetActiveMatchState and C_PvP.GetActiveMatchState()
+        newState = tonumber(newState)
+        if not newState then return end
+
+        local liveSS = C_PvP and C_PvP.IsSoloShuffle and C_PvP.IsSoloShuffle()
+        NXR.DebugInsights("PVP_MATCH_STATE_CHANGED state=", newState,
+            "ssActive=", tostring(ssActive), "liveSS=", tostring(liveSS),
+            "rounds so far=", #ssRounds)
+
         -- IsSoloShuffle() can return false at PVP_MATCH_ACTIVE time — check live as fallback
         if not ssActive then
-            if C_PvP and C_PvP.IsSoloShuffle and C_PvP.IsSoloShuffle() then
+            if liveSS then
                 ssActive         = true
                 matchBracketHint = NXR.BRACKET_SOLO_SHUFFLE
             else
                 return
             end
         end
-
-        local newState = C_PvP and C_PvP.GetActiveMatchState and C_PvP.GetActiveMatchState()
-        newState = tonumber(newState)
-        if not newState then return end
-
-        NXR.DebugInsights("PVP_MATCH_STATE_CHANGED state=", newState,
-            "rounds so far=", #ssRounds)
 
         if newState == 3 then
             -- Enum.PvPMatchState.Engaged — round starting
