@@ -25,6 +25,35 @@ function NXR.GetMatches()
     return NelxRatedDB.matches or {}
 end
 
+-- Only callable with InsightsDebug=true.
+-- Removes records with no bracket or no rating.
+-- For SS records: clears shuffle.rounds if captured rounds < 6 (keeps match-level data).
+function NXR.PurgeCorruptMatches()
+    if not NXR.InsightsDebug then
+        print("[NXR] PurgeCorruptMatches requires InsightsDebug=true")
+        return
+    end
+    local matches = NelxRatedDB.matches
+    if not matches then print("[NXR] No match data."); return end
+
+    local kept, removed, fixed = {}, 0, 0
+    for _, r in ipairs(matches) do
+        if not r.bracketIndex or not r.rating then
+            removed = removed + 1
+        else
+            if r.shuffle and r.shuffle.rounds and #r.shuffle.rounds < 6 then
+                r.shuffle.rounds = {}
+                fixed = fixed + 1
+            end
+            kept[#kept + 1] = r
+        end
+    end
+
+    NelxRatedDB.matches = kept
+    print(("[NXR] Purge complete — removed %d, fixed %d SS round tables, kept %d"):format(
+        removed, fixed, #kept))
+end
+
 -- ============================================================================
 -- Internal helpers
 -- ============================================================================
