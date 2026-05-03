@@ -414,25 +414,32 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
                 end
             end
 
-            -- Attach per-round data for SS matches.
-            -- capturedRounds holds table references — round 6's outcome timer can still
-            -- mutate roundEntry.outcome in-place after this record is written to DB.
+            -- SS shuffle data: trust scoreboard totals (reliable), only include
+            -- rounds[] breakdown when state-change tracking captured all 6
+            -- (per-round states don't fire reliably in Midnight 12.x).
             if rec.bracketIndex == NXR.BRACKET_SOLO_SHUFFLE then
-                local capturedRounds = {}
-                for i = 1, #ssRounds do
-                    capturedRounds[i] = ssRounds[i]
-                end
+                local won   = rec.wonRounds or 0
+                local total = 6
                 rec.shuffle = {
-                    wonRounds   = rec.wonRounds or 0,
-                    totalRounds = 6,
-                    rounds      = capturedRounds,
+                    wonRounds   = won,
+                    lostRounds  = total - won,
+                    totalRounds = total,
                 }
+                if #ssRounds == total then
+                    local capturedRounds = {}
+                    for i = 1, total do
+                        capturedRounds[i] = ssRounds[i]
+                    end
+                    rec.shuffle.rounds = capturedRounds
+                    NXR.DebugInsights("shuffle: full per-round capture (", total, "rounds)")
+                else
+                    NXR.DebugInsights("shuffle: partial capture (", #ssRounds, "/", total,
+                        ") — omitting rounds[], totals only")
+                end
                 ssRounds        = {}
                 ssRoundStart    = nil
                 ssRoundPrevWins = 0
                 ssActive        = false
-                NXR.DebugInsights("shuffle table attached wonRounds=", tostring(rec.wonRounds),
-                    "rounds captured=", #capturedRounds)
             end
 
             rec.scoreLoaded = nil  -- don't persist internal flag
