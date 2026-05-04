@@ -172,82 +172,200 @@ local function DetectBracketFromDB(charKey)
     return nil
 end
 
+-- Lazy-built lookup: classToken + lower(specName) -> specID
+-- C_PvP.GetScoreInfo().talentSpec is a localized spec NAME string, not an ID.
+local specLookup
+local function BuildSpecLookup()
+    specLookup = {}
+    local numClasses = (GetNumClasses and GetNumClasses()) or 0
+    for ci = 1, numClasses do
+        local _, classToken, classID = GetClassInfo(ci)
+        if classToken and classID then
+            local numSpecs = 0
+            if C_SpecializationInfo and C_SpecializationInfo.GetNumSpecializationsForClassID then
+                numSpecs = C_SpecializationInfo.GetNumSpecializationsForClassID(classID) or 0
+            end
+            for si = 1, numSpecs do
+                if GetSpecializationInfoForClassID then
+                    local specID, specName = GetSpecializationInfoForClassID(classID, si)
+                    if specID and specName then
+                        specLookup[classToken:upper() .. "_" .. specName:lower()] = specID
+                    end
+                end
+            end
+        end
+    end
+end
+
+local function ResolveSpecID(classToken, talentSpecName)
+    if not classToken or not talentSpecName or talentSpecName == "" then return nil end
+    if not specLookup then BuildSpecLookup() end
+    return specLookup[classToken:upper() .. "_" .. tostring(talentSpecName):lower()]
+end
+
+local function IsSecret(v)
+    return v ~= nil and issecretvalue and issecretvalue(v)
+end
+
+-- Safe split: name "X-Realm" -> "X","Realm". Tainted/secret values guarded.
+local function SplitName(full)
+    if not full or IsSecret(full) then return nil, nil end
+    local ok, n, r = pcall(function()
+        local nm, rl = full:match("^(.+)-(.+)$")
+        return nm, rl
+    end)
+    if not ok then return nil, nil end
+    return n or full, r
+end
+
 -- Pull rating, MMR, specs, and ally/enemy split entirely from scoreboard.
--- Replaces ARENA_PREP-time spec capture and DB-diff bracket detection for
--- arena/Blitz. Returns true on success (self row found and parsed).
+-- Mirrors the working ArenaHistoryAnalytics approach: combine C_PvP.GetScoreInfo
+-- with legacy GetBattlefieldScore for faction; resolve specID from talentSpec name;
+-- fallback MMR to GetBattlefieldTeamInfo for arena 2v2/3v3.
+-- Returns true on success (self row found and parsed).
 local function CaptureFromScoreboard(rec)
     if not C_PvP or not C_PvP.GetScoreInfo then return false end
     if RequestBattlefieldScoreData then RequestBattlefieldScoreData() end
     local n = (GetNumBattlefieldScores and GetNumBattlefieldScores()) or 0
     if n == 0 then return false end
 
+    local _, playerRealm = UnitFullName("player")
     local playerName     = UnitName("player")
-    local playerFullName = playerName and (playerName .. "-" .. GetRealmName()) or nil
-    local myGUID         = UnitGUID and UnitGUID("player")
+    local playerFull     = (playerName and playerRealm and playerRealm ~= "")
+        and (playerName .. "-" .. playerRealm) or playerName
 
     local entries  = {}
-    local selfInfo
+    local selfRow
+
     for i = 1, n do
         local info = C_PvP.GetScoreInfo(i)
-        if not info then break end
-        entries[#entries + 1] = info
-        if NXR.InsightsDebug then
-            print("[NXR Insights] score[" .. i .. "]"
-                .. " name=" .. tostring(info.name)
-                .. " isSelf=" .. tostring(info.isSelf)
-                .. " faction=" .. tostring(info.faction)
-                .. " talentSpec=" .. tostring(info.talentSpec)
-                .. " rating=" .. tostring(info.rating)
-                .. " ratingChange=" .. tostring(info.ratingChange)
-                .. " prematchMMR=" .. tostring(info.prematchMMR)
-                .. " postmatchMMR=" .. tostring(info.postmatchMMR)
-                .. " mmrChange=" .. tostring(info.mmrChange))
+        local bfName, bfKB, _, bfDeaths, _, bfFac, _, _, bfClass, bfDmg, bfHeal = GetBattlefieldScore(i)
+        local rawName    = (info and info.name) or bfName
+        if rawName then
+            -- Append player's realm to bare names (cross-realm matchup data has full name)
+            local name = rawName
+            if not IsSecret(name) and not name:find("-", 1, true) and playerRealm and playerRealm ~= "" then
+                name = name .. "-" .. playerRealm
+            end
+            local shortName, realm = SplitName(name)
+            local classToken = (info and info.classToken) or bfClass or ""
+            local talentSpec = info and info.talentSpec
+            local specID     = ResolveSpecID(classToken, talentSpec)
+            local faction    = tonumber((info and info.faction) or bfFac) or -1
+            local rating       = tonumber(info and info.rating) or 0
+            local ratingChange = tonumber(info and info.ratingChange) or 0
+            local preMMR       = tonumber(info and info.prematchMMR) or 0
+            local postMMR      = tonumber(info and info.postmatchMMR) or 0
+            local mmrChange    = (preMMR > 0 and postMMR > 0) and (postMMR - preMMR)
+                or (tonumber(info and info.mmrChange) or 0)
+
+            local isSelf = (info and info.isSelf)
+                or (shortName and shortName == playerName)
+                or (name == playerFull)
+
+            if NXR.InsightsDebug then
+                print("[NXR Insights] score[" .. i .. "]"
+                    .. " name=" .. tostring(name)
+                    .. " classToken=" .. tostring(classToken)
+                    .. " talentSpec=" .. tostring(talentSpec)
+                    .. " specID=" .. tostring(specID)
+                    .. " faction=" .. tostring(faction)
+                    .. " isSelf=" .. tostring(isSelf)
+                    .. " rating=" .. tostring(rating)
+                    .. " ratingChange=" .. tostring(ratingChange)
+                    .. " prematchMMR=" .. tostring(preMMR)
+                    .. " postmatchMMR=" .. tostring(postMMR))
+            end
+
+            local row = {
+                name        = shortName or name,
+                realm       = realm,
+                charKey     = (shortName and realm) and (shortName .. "-" .. realm) or nil,
+                classToken  = classToken,
+                specID      = specID,
+                faction     = faction,
+                isSelf      = isSelf,
+                rating      = rating,
+                ratingChange= ratingChange,
+                prematchMMR = preMMR,
+                mmrChange   = mmrChange,
+            }
+            -- SS: stats[1].pvpStatValue is round-win count
+            if info and info.stats and info.stats[1]
+                and type(info.stats[1].pvpStatValue) == "number" then
+                row.roundsWon = info.stats[1].pvpStatValue
+            end
+            entries[#entries + 1] = row
+            if isSelf then selfRow = row end
         end
-        if not selfInfo then
-            if info.isSelf
-                or (myGUID and info.guid == myGUID)
-                or info.name == playerName
-                or info.name == playerFullName
-            then
-                selfInfo = info
+    end
+
+    if not selfRow then return false end
+
+    rec.rating       = selfRow.rating
+    rec.ratingChange = selfRow.ratingChange
+    rec.prematchMMR  = selfRow.prematchMMR
+    rec.mmrChange    = selfRow.mmrChange
+    if selfRow.roundsWon ~= nil then rec.wonRounds = selfRow.roundsWon end
+
+    -- Partition by faction (arena team index 0/1).
+    local myFac = selfRow.faction
+    local allies, enemies = {}, {}
+    for _, row in ipairs(entries) do
+        if not row.isSelf then
+            if myFac ~= -1 and row.faction == myFac then
+                allies[#allies + 1] = row
+            elseif myFac ~= -1 and row.faction ~= -1 then
+                enemies[#enemies + 1] = row
             end
         end
     end
 
-    if not selfInfo then return false end
-
-    rec.rating       = selfInfo.rating
-    rec.ratingChange = selfInfo.ratingChange
-    rec.prematchMMR  = selfInfo.prematchMMR
-    local pre  = tonumber(selfInfo.prematchMMR) or 0
-    local post = tonumber(selfInfo.postmatchMMR) or 0
-    rec.mmrChange    = (pre > 0 and post > 0) and (post - pre) or (tonumber(selfInfo.mmrChange) or 0)
-
-    -- Solo Shuffle: stats[1].pvpStatValue holds total rounds won
-    if selfInfo.stats and selfInfo.stats[1] and type(selfInfo.stats[1].pvpStatValue) == "number" then
-        rec.wonRounds = selfInfo.stats[1].pvpStatValue
+    -- MMR fallback for arena 2v2/3v3: per-player prematchMMR is often 0;
+    -- GetBattlefieldTeamInfo returns team-level MMR.
+    if (rec.prematchMMR == nil or rec.prematchMMR == 0)
+        and GetBattlefieldTeamInfo
+        and GetBattlefieldArenaFaction
+    then
+        local myArenaFac = tonumber(GetBattlefieldArenaFaction()) or 0
+        local _, _, _, myMMR  = GetBattlefieldTeamInfo(myArenaFac)
+        myMMR = tonumber(myMMR)
+        if myMMR and myMMR > 0 then
+            rec.prematchMMR = myMMR
+        end
     end
 
-    -- Partition allies/enemies by arena team index (info.faction is 0/1 for arena).
-    -- Skip self. Also derive bracket-size hint from opponent count.
-    local myFaction = selfInfo.faction
-    local allySpecs, enemySpecs = {}, {}
-    if myFaction ~= nil then
-        for _, info in ipairs(entries) do
-            if info ~= selfInfo then
-                local sid = tonumber(info.talentSpec) or 0
-                if info.faction == myFaction then
-                    allySpecs[#allySpecs + 1] = sid
-                else
-                    enemySpecs[#enemySpecs + 1] = sid
-                end
-            end
+    -- Build legacy spec-id arrays + new player-info arrays.
+    -- Only overwrite existing rec.* if scoreboard partition yielded entries
+    -- (preserves ARENA_PREP fallback when scoreboard partition fails).
+    if #allies > 0 then
+        local allySpecs, allyPlayers = {}, {}
+        for _, row in ipairs(allies) do
+            allySpecs[#allySpecs + 1] = row.specID or 0
+            allyPlayers[#allyPlayers + 1] = {
+                name = row.name, realm = row.realm, charKey = row.charKey,
+                classToken = row.classToken, specID = row.specID,
+                prematchMMR = row.prematchMMR, mmrChange = row.mmrChange,
+                rating = row.rating, ratingChange = row.ratingChange,
+            }
         end
-        -- Only overwrite if scoreboard yielded data; ARENA_PREP capture stays
-        -- as fallback when scoreboard partition fails.
-        if #enemySpecs > 0 then rec.enemySpecs = enemySpecs end
-        if #allySpecs  > 0 then rec.allySpecs  = allySpecs  end
-        rec.opponentCount = #enemySpecs
+        rec.allySpecs   = allySpecs
+        rec.allyPlayers = allyPlayers
+    end
+    if #enemies > 0 then
+        local enemySpecs, enemyPlayers = {}, {}
+        for _, row in ipairs(enemies) do
+            enemySpecs[#enemySpecs + 1] = row.specID or 0
+            enemyPlayers[#enemyPlayers + 1] = {
+                name = row.name, realm = row.realm, charKey = row.charKey,
+                classToken = row.classToken, specID = row.specID,
+                prematchMMR = row.prematchMMR, mmrChange = row.mmrChange,
+                rating = row.rating, ratingChange = row.ratingChange,
+            }
+        end
+        rec.enemySpecs   = enemySpecs
+        rec.enemyPlayers = enemyPlayers
+        rec.opponentCount = #enemies
     end
 
     rec.scoreLoaded = true
@@ -479,11 +597,12 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
         local rec = pendingRecord
         pendingRecord = nil  -- clear now; timer callback captures rec
 
-        C_Timer.After(0, function()
-            -- Retry score data if still missing
-            if not rec.scoreLoaded then
-                CaptureFromScoreboard(rec)
-            end
+        -- Delay finalize ~1.5s: per-player scoreboard MMR fields and faction
+        -- partitioning aren't reliably populated immediately after
+        -- PVP_RATED_STATS_UPDATE. ArenaHistoryAnalytics uses the same delay.
+        C_Timer.After(1.5, function()
+            -- Final scoreboard read (always re-capture; scoreboard now stable)
+            CaptureFromScoreboard(rec)
 
             -- Bracket detection priority:
             --   1. Scoreboard opponent count (2 = 2v2, 3 = 3v3) — most reliable for arena
