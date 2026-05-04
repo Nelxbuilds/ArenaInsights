@@ -24,6 +24,7 @@ ui/SettingsUI.lua
 ui/ImportExportUI.lua
 ui/HomeUI.lua
 ui/HistoryUI.lua
+ui/InsightsUI.lua
 ui/MainFrame.lua
 system/Sync.lua
 system/Tooltip.lua

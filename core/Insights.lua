@@ -4,8 +4,9 @@ local addonName, NXR = ...
 -- Module-local state
 -- ============================================================================
 
-local snapshot         = {}   -- bracketIndex → rating from NelxRatedDB before match
+local snapshot          = {}   -- bracketIndex → rating from NelxRatedDB before match
 local pendingEnemySpecs = {}  -- populated by ARENA_PREP_OPPONENT_SPECIALIZATIONS
+local pendingAllySpecs  = {}  -- teammate specs captured at ARENA_PREP (best-effort, inspect cache)
 local pendingRecord    = nil  -- partial record held between PVP_MATCH_COMPLETE and PVP_RATED_STATS_UPDATE
 
 -- Solo Shuffle per-round tracking
@@ -241,6 +242,16 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
             pendingEnemySpecs[i] = (specID and specID ~= 0) and specID or 0
         end
         NXR.DebugInsights("enemy specs captured, count=", count)
+        -- Ally specs: best-effort — inspect cache may not be populated at prep time
+        pendingAllySpecs = {}
+        for i = 1, 4 do
+            local tok = "party" .. i
+            if UnitExists(tok) then
+                local sid = GetInspectSpecialization and GetInspectSpecialization(tok)
+                pendingAllySpecs[#pendingAllySpecs + 1] = (sid and sid ~= 0) and sid or nil
+            end
+        end
+        NXR.DebugInsights("ally specs captured, count=", #pendingAllySpecs)
         -- Refresh snapshot in case PLAYER_LEAVING_WORLD missed the char
         if not snapshot[NXR.BRACKET_SOLO_SHUFFLE] and not snapshot[NXR.BRACKET_2V2] then
             TakeDBSnapshot(NXR.currentCharKey)
@@ -343,10 +354,12 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
             charKey      = charKey,
             specID       = specID,
             enemySpecs   = pendingEnemySpecs,
+            allySpecs    = pendingAllySpecs,
             bracketHint  = matchBracketHint,
         }
 
         pendingEnemySpecs = {}
+        pendingAllySpecs  = {}
         NXR.DebugInsights("Stage 1 complete — charKey=", charKey)
 
     -- ---- I-4 Stage 2: Accumulate score data (best-effort) ----
