@@ -401,22 +401,27 @@ local function AutoSelectBracketForChar(charKey)
 
     for _, bi in ipairs(BRACKET_PRIORITY) do
         if NXR.PER_SPEC_BRACKETS[bi] then
+            local bestSpec, bestCount = nil, 0
             for histKey, arr in pairs(char.ratingHistory) do
                 if type(histKey) == "string" then
                     local specStr, bracketStr = strsplit(":", histKey)
-                    if tonumber(bracketStr) == bi and #arr > 0 then
-                        filterBracketIndex = bi
-                        filterSpecID = tonumber(specStr)
-                        if specButton then
-                            local specInfo = NXR.specData and NXR.specData[filterSpecID]
-                            specButton.label:SetText(specInfo and specInfo.specName or "Unknown")
-                        end
-                        if bracketButton then
-                            bracketButton.label:SetText(NXR.BRACKET_NAMES[bi] or "Select")
-                        end
-                        return
+                    if tonumber(bracketStr) == bi and #arr > bestCount then
+                        bestSpec = tonumber(specStr)
+                        bestCount = #arr
                     end
                 end
+            end
+            if bestSpec then
+                filterBracketIndex = bi
+                filterSpecID = bestSpec
+                if specButton then
+                    local specInfo = NXR.specData and NXR.specData[filterSpecID]
+                    specButton.label:SetText(specInfo and specInfo.specName or "Unknown")
+                end
+                if bracketButton then
+                    bracketButton.label:SetText(NXR.BRACKET_NAMES[bi] or "Select")
+                end
+                return
             end
         else
             local arr = char.ratingHistory[bi]
