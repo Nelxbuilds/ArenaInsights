@@ -172,39 +172,86 @@ local function DetectBracketFromDB(charKey)
     return nil
 end
 
-local function FindScoreEntry(pendingRec)
-    if not C_PvP.GetScoreInfo then return end
-    local playerName     = UnitName("player")
-    local playerFullName = playerName and (playerName .. "-" .. GetRealmName()) or nil
+-- Pull rating, MMR, specs, and ally/enemy split entirely from scoreboard.
+-- Replaces ARENA_PREP-time spec capture and DB-diff bracket detection for
+-- arena/Blitz. Returns true on success (self row found and parsed).
+local function CaptureFromScoreboard(rec)
+    if not C_PvP or not C_PvP.GetScoreInfo then return false end
     if RequestBattlefieldScoreData then RequestBattlefieldScoreData() end
     local n = (GetNumBattlefieldScores and GetNumBattlefieldScores()) or 0
+    if n == 0 then return false end
+
+    local playerName     = UnitName("player")
+    local playerFullName = playerName and (playerName .. "-" .. GetRealmName()) or nil
+    local myGUID         = UnitGUID and UnitGUID("player")
+
+    local entries  = {}
+    local selfInfo
     for i = 1, n do
         local info = C_PvP.GetScoreInfo(i)
         if not info then break end
+        entries[#entries + 1] = info
         if NXR.InsightsDebug then
             print("[NXR Insights] score[" .. i .. "]"
                 .. " name=" .. tostring(info.name)
                 .. " isSelf=" .. tostring(info.isSelf)
+                .. " faction=" .. tostring(info.faction)
+                .. " talentSpec=" .. tostring(info.talentSpec)
                 .. " rating=" .. tostring(info.rating)
                 .. " ratingChange=" .. tostring(info.ratingChange)
                 .. " prematchMMR=" .. tostring(info.prematchMMR)
+                .. " postmatchMMR=" .. tostring(info.postmatchMMR)
                 .. " mmrChange=" .. tostring(info.mmrChange))
         end
-        if info.isSelf or info.name == playerName or info.name == playerFullName then
-            pendingRec.rating       = info.rating
-            pendingRec.ratingChange = info.ratingChange
-            pendingRec.prematchMMR  = info.prematchMMR
-            local pre  = tonumber(info.prematchMMR) or 0
-            local post = tonumber(info.postmatchMMR) or 0
-            pendingRec.mmrChange    = (pre > 0 and post > 0) and (post - pre) or (tonumber(info.mmrChange) or 0)
-            -- Solo Shuffle: stats[1].pvpStatValue holds total rounds won
-            if info.stats and info.stats[1] and type(info.stats[1].pvpStatValue) == "number" then
-                pendingRec.wonRounds = info.stats[1].pvpStatValue
+        if not selfInfo then
+            if info.isSelf
+                or (myGUID and info.guid == myGUID)
+                or info.name == playerName
+                or info.name == playerFullName
+            then
+                selfInfo = info
             end
-            pendingRec.scoreLoaded  = true
-            return
         end
     end
+
+    if not selfInfo then return false end
+
+    rec.rating       = selfInfo.rating
+    rec.ratingChange = selfInfo.ratingChange
+    rec.prematchMMR  = selfInfo.prematchMMR
+    local pre  = tonumber(selfInfo.prematchMMR) or 0
+    local post = tonumber(selfInfo.postmatchMMR) or 0
+    rec.mmrChange    = (pre > 0 and post > 0) and (post - pre) or (tonumber(selfInfo.mmrChange) or 0)
+
+    -- Solo Shuffle: stats[1].pvpStatValue holds total rounds won
+    if selfInfo.stats and selfInfo.stats[1] and type(selfInfo.stats[1].pvpStatValue) == "number" then
+        rec.wonRounds = selfInfo.stats[1].pvpStatValue
+    end
+
+    -- Partition allies/enemies by arena team index (info.faction is 0/1 for arena).
+    -- Skip self. Also derive bracket-size hint from opponent count.
+    local myFaction = selfInfo.faction
+    local allySpecs, enemySpecs = {}, {}
+    if myFaction ~= nil then
+        for _, info in ipairs(entries) do
+            if info ~= selfInfo then
+                local sid = tonumber(info.talentSpec) or 0
+                if info.faction == myFaction then
+                    allySpecs[#allySpecs + 1] = sid
+                else
+                    enemySpecs[#enemySpecs + 1] = sid
+                end
+            end
+        end
+        -- Only overwrite if scoreboard yielded data; ARENA_PREP capture stays
+        -- as fallback when scoreboard partition fails.
+        if #enemySpecs > 0 then rec.enemySpecs = enemySpecs end
+        if #allySpecs  > 0 then rec.allySpecs  = allySpecs  end
+        rec.opponentCount = #enemySpecs
+    end
+
+    rec.scoreLoaded = true
+    return true
 end
 
 -- Read the player's current Solo Shuffle round-win count from the scoreboard.
@@ -420,7 +467,7 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
     -- ---- I-4 Stage 2: Accumulate score data (best-effort) ----
     elseif event == "UPDATE_BATTLEFIELD_SCORE" then
         if not pendingRecord or pendingRecord.scoreLoaded then return end
-        FindScoreEntry(pendingRecord)
+        CaptureFromScoreboard(pendingRecord)
         if not pendingRecord.scoreLoaded then
             NXR.DebugInsights("score not found in UPDATE_BATTLEFIELD_SCORE, will retry")
         end
@@ -435,16 +482,33 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
         C_Timer.After(0, function()
             -- Retry score data if still missing
             if not rec.scoreLoaded then
-                FindScoreEntry(rec)
+                CaptureFromScoreboard(rec)
             end
 
-            -- Detect bracket by comparing pre-match DB snapshot vs Core.lua's new values;
-            -- fall back to hint captured at match start if DB diff finds no change.
-            -- Refresh hint at finalize as last resort if neither source resolved earlier.
-            rec.bracketIndex = DetectBracketFromDB(rec.charKey)
+            -- Bracket detection priority:
+            --   1. Scoreboard opponent count (2 = 2v2, 3 = 3v3) — most reliable for arena
+            --   2. SS / Blitz boolean checks (don't rely on opponent count)
+            --   3. DB rating diff
+            --   4. ARENA_PREP-time hint
+            --   5. Live-API DetectActiveBracket() at finalize
+            local function bracketFromScoreboard()
+                if C_PvP and C_PvP.IsSoloShuffle and C_PvP.IsSoloShuffle() then
+                    return NXR.BRACKET_SOLO_SHUFFLE
+                end
+                if C_PvP and C_PvP.IsRatedSoloRBG and C_PvP.IsRatedSoloRBG() then
+                    return NXR.BRACKET_BLITZ
+                end
+                if rec.opponentCount == 2 then return NXR.BRACKET_2V2 end
+                if rec.opponentCount == 3 then return NXR.BRACKET_3V3 end
+                return nil
+            end
+
+            rec.bracketIndex = bracketFromScoreboard()
+                or DetectBracketFromDB(rec.charKey)
                 or rec.bracketHint
                 or DetectActiveBracket()
-            rec.bracketHint  = nil
+            rec.bracketHint   = nil
+            rec.opponentCount = nil
             NXR.DebugInsights("bracket detected —", tostring(rec.bracketIndex))
 
             -- Authoritative rating + ratingChange from DB diff: scoreboard sometimes
