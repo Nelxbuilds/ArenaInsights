@@ -636,9 +636,10 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
                 local curRating = GetDBRating(rec.charKey, rec.bracketIndex)
                 local prev      = snapshot[rec.bracketIndex]
                 if curRating then
-                    if not rec.rating or rec.rating == 0 then
-                        rec.rating = curRating
-                    end
+                    -- DB has authoritative post-match rating (written by Core from
+                    -- C_PvP.GetRatedBracketInfo on PVP_RATED_STATS_UPDATE). Scoreboard
+                    -- rating field returns stale data in Midnight 12.x — overwrite.
+                    rec.rating = curRating
                     if prev then
                         local diff = curRating - prev
                         if diff ~= 0 and (rec.ratingChange == nil or rec.ratingChange == 0) then
