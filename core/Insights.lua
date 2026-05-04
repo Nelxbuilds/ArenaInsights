@@ -59,6 +59,34 @@ end
 -- Internal helpers
 -- ============================================================================
 
+-- Identify the bracket of the currently active rated match using live PvP API.
+-- Primary: C_PvP.GetActiveMatchBracket() (returns bracket index directly).
+-- Fallbacks: SS / Blitz boolean checks; arena teamSize from GetBattlefieldStatus.
+-- Returns nil if no active rated match identifiable.
+local function DetectActiveBracket()
+    if C_PvP and C_PvP.GetActiveMatchBracket then
+        local bi = C_PvP.GetActiveMatchBracket()
+        if bi ~= nil then return bi end
+    end
+    if C_PvP and C_PvP.IsSoloShuffle and C_PvP.IsSoloShuffle() then
+        return NXR.BRACKET_SOLO_SHUFFLE
+    end
+    if C_PvP and C_PvP.IsRatedSoloRBG and C_PvP.IsRatedSoloRBG() then
+        return NXR.BRACKET_BLITZ
+    end
+    if IsActiveBattlefieldArena and IsActiveBattlefieldArena() then
+        local maxId = (GetMaxBattlefieldID and GetMaxBattlefieldID()) or 10
+        for i = 1, maxId do
+            local status, _, teamSize = GetBattlefieldStatus(i)
+            if status == "active" then
+                if teamSize == 2 then return NXR.BRACKET_2V2 end
+                if teamSize == 3 then return NXR.BRACKET_3V3 end
+            end
+        end
+    end
+    return nil
+end
+
 -- Read current saved ratings from NelxRatedDB into snapshot.
 -- No WoW PvP API calls — safe at any time, including during zone transitions.
 local function TakeDBSnapshot(charKey)
@@ -216,7 +244,7 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
             return
         end
         ssActive           = isSS and true or false
-        matchBracketHint   = isSS and NXR.BRACKET_SOLO_SHUFFLE or nil
+        matchBracketHint   = DetectActiveBracket() or (isSS and NXR.BRACKET_SOLO_SHUFFLE or nil)
         ssRounds           = {}
         ssRoundStart       = nil
         ssRoundPrevWins    = 0
@@ -348,6 +376,10 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
         local specID
         local char = NelxRatedDB.characters[charKey]
         if char then specID = char.specID end
+
+        -- Refresh hint at completion in case PVP_MATCH_ACTIVE detection missed
+        -- (e.g. C_PvP.IsSoloShuffle returning false during zone transition).
+        matchBracketHint = matchBracketHint or DetectActiveBracket()
 
         pendingRecord = {
             timestamp    = time(),

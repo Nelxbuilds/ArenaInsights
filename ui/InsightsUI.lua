@@ -721,7 +721,7 @@ RefreshRows = function()
         row.hoverColor = hoverColor
         row.hlTex:SetColorTexture(unpack(baseColor))
 
-        local bName = NXR.BRACKET_NAMES[rec.bracketIndex] or ("?" .. tostring(rec.bracketIndex))
+        local bName = NXR.BRACKET_NAMES[rec.bracketIndex] or "Unknown"
         row.bracketText:SetText(bName)
         row.bracketText:SetTextColor(0.85, 0.85, 0.85)
 
