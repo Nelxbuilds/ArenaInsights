@@ -11,7 +11,7 @@ CRITICAL: ui/MainFrame.lua MUST be last in ui/ TOC order — it calls NXR.Create
 - NXR.CreateNXRInput(parent, width, height) → EditBox
 - NXR.ToggleMainFrame() — lazily creates main window on first call
 - NXR.SelectTab(tabName) — show tab; opens main window if hidden
-- Tab names: "Home", "History", "Challenges", "Characters", "Currency", "Settings"
+- Tab names: "Home", "Insights", "History", "Challenges", "Characters", "Currency", "Settings"
 
 ## Overlay.lua
 - Independent floating frame — not a tab in the main window
