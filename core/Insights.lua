@@ -60,14 +60,10 @@ end
 -- ============================================================================
 
 -- Identify the bracket of the currently active rated match using live PvP API.
--- Primary: C_PvP.GetActiveMatchBracket() (returns bracket index directly).
--- Fallbacks: SS / Blitz boolean checks; arena teamSize from GetBattlefieldStatus.
+-- Priority: SS/Blitz boolean checks, then arena opponent count (most authoritative
+-- for 2v2 vs 3v3), then GetBattlefieldStatus.teamSize as last resort.
 -- Returns nil if no active rated match identifiable.
 local function DetectActiveBracket()
-    if C_PvP and C_PvP.GetActiveMatchBracket then
-        local bi = C_PvP.GetActiveMatchBracket()
-        if bi ~= nil then return bi end
-    end
     if C_PvP and C_PvP.IsSoloShuffle and C_PvP.IsSoloShuffle() then
         return NXR.BRACKET_SOLO_SHUFFLE
     end
@@ -75,6 +71,9 @@ local function DetectActiveBracket()
         return NXR.BRACKET_BLITZ
     end
     if IsActiveBattlefieldArena and IsActiveBattlefieldArena() then
+        local opp = (GetNumArenaOpponents and GetNumArenaOpponents()) or 0
+        if opp == 2 then return NXR.BRACKET_2V2 end
+        if opp == 3 then return NXR.BRACKET_3V3 end
         local maxId = (GetMaxBattlefieldID and GetMaxBattlefieldID()) or 10
         for i = 1, maxId do
             local status, _, teamSize = GetBattlefieldStatus(i)
@@ -85,6 +84,24 @@ local function DetectActiveBracket()
         end
     end
     return nil
+end
+
+-- Read current rating from DB for a given char/bracket.
+local function GetDBRating(charKey, bi)
+    local char = NelxRatedDB
+        and NelxRatedDB.characters
+        and NelxRatedDB.characters[charKey]
+    if not char then return nil end
+    local data
+    if NXR.PER_SPEC_BRACKETS[bi] then
+        local specID = char.specID
+        if specID and char.specBrackets and char.specBrackets[specID] then
+            data = char.specBrackets[specID][bi]
+        end
+    elseif char.brackets then
+        data = char.brackets[bi]
+    end
+    return data and data.rating
 end
 
 -- Read current saved ratings from NelxRatedDB into snapshot.
@@ -270,6 +287,12 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
             pendingEnemySpecs[i] = (specID and specID ~= 0) and specID or 0
         end
         NXR.DebugInsights("enemy specs captured, count=", count)
+        -- Authoritative bracket signal for arena: opponent count maps directly to size
+        if count == 2 then
+            matchBracketHint = NXR.BRACKET_2V2
+        elseif count == 3 then
+            matchBracketHint = NXR.BRACKET_3V3
+        end
         -- Ally specs: best-effort — inspect cache may not be populated at prep time
         pendingAllySpecs = {}
         for i = 1, 4 do
@@ -416,10 +439,32 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
             end
 
             -- Detect bracket by comparing pre-match DB snapshot vs Core.lua's new values;
-            -- fall back to hint captured at match start if DB diff finds no change
-            rec.bracketIndex = DetectBracketFromDB(rec.charKey) or rec.bracketHint
+            -- fall back to hint captured at match start if DB diff finds no change.
+            -- Refresh hint at finalize as last resort if neither source resolved earlier.
+            rec.bracketIndex = DetectBracketFromDB(rec.charKey)
+                or rec.bracketHint
+                or DetectActiveBracket()
             rec.bracketHint  = nil
             NXR.DebugInsights("bracket detected —", tostring(rec.bracketIndex))
+
+            -- Authoritative rating + ratingChange from DB diff: scoreboard sometimes
+            -- returns 0/nil ratingChange (mislabels losses as draws). DB has ground truth.
+            if rec.bracketIndex then
+                local curRating = GetDBRating(rec.charKey, rec.bracketIndex)
+                local prev      = snapshot[rec.bracketIndex]
+                if curRating then
+                    if not rec.rating or rec.rating == 0 then
+                        rec.rating = curRating
+                    end
+                    if prev then
+                        local diff = curRating - prev
+                        if diff ~= 0 and (rec.ratingChange == nil or rec.ratingChange == 0) then
+                            rec.ratingChange = diff
+                            NXR.DebugInsights("ratingChange overridden from DB diff:", diff)
+                        end
+                    end
+                end
+            end
 
             -- Derive outcome: SS uses wonRounds; all other brackets use ratingChange sign
             if rec.bracketIndex == NXR.BRACKET_SOLO_SHUFFLE then
