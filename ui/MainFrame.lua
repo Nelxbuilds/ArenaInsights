@@ -13,6 +13,13 @@ NXR.NXR_BACKDROP = {
 NXR.COLORS.BG_BASE   = { 0.06, 0.06, 0.06, 0.95 }
 NXR.COLORS.BG_RAISED = { 0.10, 0.10, 0.10, 0.95 }
 
+-- Applies a spec icon texture with the standard crop that removes the built-in
+-- circular border, producing a flat appearance consistent with classicon atlas icons.
+function NXR.SetSpecIcon(tex, icon)
+    tex:SetTexture(icon)
+    tex:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+end
+
 function NXR.CreateNXRButton(parent, text, width, height)
     local btn = CreateFrame("Button", nil, parent, "BackdropTemplate")
     btn:SetSize(width or 120, height or 28)

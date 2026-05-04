@@ -20,10 +20,24 @@ local DROPDOWN_WIDTH      = 240
 -- Column x-offsets within each row (from row left edge)
 local COL_DATE    = 0
 local COL_BRACKET = 100
-local COL_RESULT  = 195
-local COL_DELTA   = 260
-local COL_RATING  = 330
-local COL_TEAM    = 410
+local COL_DELTA   = 200
+local COL_RATING  = 270
+local COL_MMR     = 340
+local COL_TEAM    = 415
+
+-- Row background colors per outcome — subtle tints, not eye-burning
+local OUTCOME_BASE = {
+    win     = { 0.04, 0.12, 0.04, 0.80 },
+    loss    = { 0.14, 0.04, 0.04, 0.80 },
+    draw    = { 0.12, 0.09, 0.02, 0.80 },
+    unknown = { 0.04, 0.04, 0.04, 0.60 },
+}
+local OUTCOME_HOVER = {
+    win     = { 0.06, 0.18, 0.06, 0.90 },
+    loss    = { 0.20, 0.06, 0.06, 0.90 },
+    draw    = { 0.18, 0.13, 0.03, 0.90 },
+    unknown = { 0.10, 0.10, 0.10, 0.75 },
+}
 
 -- ============================================================================
 -- Filter state
@@ -468,7 +482,7 @@ local function CreateRow(parent)
 
     local hlTex = row:CreateTexture(nil, "BACKGROUND")
     hlTex:SetAllPoints()
-    hlTex:SetColorTexture(0.14, 0.06, 0.06, 0)
+    hlTex:SetColorTexture(0, 0, 0, 0)
     row.hlTex = hlTex
 
     local sep = row:CreateTexture(nil, "BORDER")
@@ -484,13 +498,8 @@ local function CreateRow(parent)
 
     row.bracketText = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     row.bracketText:SetPoint("LEFT", COL_BRACKET + PAD, 0)
-    row.bracketText:SetWidth(COL_RESULT - COL_BRACKET - 4)
+    row.bracketText:SetWidth(COL_DELTA - COL_BRACKET - 4)
     row.bracketText:SetJustifyH("LEFT")
-
-    row.resultText = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    row.resultText:SetPoint("LEFT", COL_RESULT + PAD, 0)
-    row.resultText:SetWidth(COL_DELTA - COL_RESULT - 4)
-    row.resultText:SetJustifyH("LEFT")
 
     row.deltaText = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     row.deltaText:SetPoint("LEFT", COL_DELTA + PAD, 0)
@@ -499,15 +508,19 @@ local function CreateRow(parent)
 
     row.ratingText = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     row.ratingText:SetPoint("LEFT", COL_RATING + PAD, 0)
-    row.ratingText:SetWidth(COL_TEAM - COL_RATING - 4)
+    row.ratingText:SetWidth(COL_MMR - COL_RATING - 4)
     row.ratingText:SetJustifyH("LEFT")
+
+    row.mmrText = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    row.mmrText:SetPoint("LEFT", COL_MMR + PAD, 0)
+    row.mmrText:SetWidth(COL_TEAM - COL_MMR - 4)
+    row.mmrText:SetJustifyH("LEFT")
 
     -- Team icons: 3 my-team slots + vs label + 5 enemy slots (enough for SS 1+5 or 3v3 3+3)
     row.myIcons = {}
     for i = 1, 3 do
         local ico = row:CreateTexture(nil, "OVERLAY")
         ico:SetSize(ICON_SZ, ICON_SZ)
-        ico:SetTexCoord(0.07, 0.93, 0.07, 0.93)
         ico:SetPoint("LEFT", row, "LEFT", COL_TEAM + PAD + (i - 1) * ICON_STEP, 0)
         ico:Hide()
         row.myIcons[i] = ico
@@ -522,17 +535,20 @@ local function CreateRow(parent)
     for i = 1, 5 do
         local ico = row:CreateTexture(nil, "OVERLAY")
         ico:SetSize(ICON_SZ, ICON_SZ)
-        ico:SetTexCoord(0.07, 0.93, 0.07, 0.93)
         ico:Hide()
         row.enemyIcons[i] = ico
     end
 
     row:SetScript("OnEnter", function(self)
-        self.hlTex:SetColorTexture(0.14, 0.06, 0.06, 0.7)
+        if self.hoverColor then
+            self.hlTex:SetColorTexture(unpack(self.hoverColor))
+        end
         if self.matchData then ShowMatchTooltip(self, self.matchData) end
     end)
     row:SetScript("OnLeave", function(self)
-        self.hlTex:SetColorTexture(0.14, 0.06, 0.06, 0)
+        if self.baseColor then
+            self.hlTex:SetColorTexture(unpack(self.baseColor))
+        end
         GameTooltip:Hide()
     end)
 
@@ -577,8 +593,7 @@ local function PopulateTeamIcons(row, rec)
                 local tex = i <= 3 and row.myIcons[i] or row.enemyIcons[i - 3]
                 tex:ClearAllPoints()
                 tex:SetPoint("LEFT", row, "LEFT", COL_TEAM + PAD + (i - 1) * ICON_STEP, 0)
-                tex:SetTexture(icon)
-                tex:SetVertexColor(1, 1, 1)
+                NXR.SetSpecIcon(tex, icon)
                 tex:Show()
             end
         end
@@ -606,8 +621,7 @@ local function PopulateTeamIcons(row, rec)
         for i, sid in ipairs(myTeam) do
             local icon = GetSpecIcon(sid)
             if icon then
-                row.myIcons[i]:SetTexture(icon)
-                row.myIcons[i]:SetVertexColor(1, 1, 1)
+                NXR.SetSpecIcon(row.myIcons[i], icon)
                 row.myIcons[i]:Show()
             end
         end
@@ -623,8 +637,7 @@ local function PopulateTeamIcons(row, rec)
                 if icon then
                     row.enemyIcons[i]:ClearAllPoints()
                     row.enemyIcons[i]:SetPoint("LEFT", row, "LEFT", vsX + VS_W + (i - 1) * ICON_STEP, 0)
-                    row.enemyIcons[i]:SetTexture(icon)
-                    row.enemyIcons[i]:SetVertexColor(0.7, 0.7, 0.7)
+                    NXR.SetSpecIcon(row.enemyIcons[i], icon)
                     row.enemyIcons[i]:Show()
                 end
             end
@@ -634,8 +647,7 @@ local function PopulateTeamIcons(row, rec)
                 if icon then
                     row.enemyIcons[i]:ClearAllPoints()
                     row.enemyIcons[i]:SetPoint("LEFT", row, "LEFT", COL_TEAM + PAD + (i - 1) * ICON_STEP, 0)
-                    row.enemyIcons[i]:SetTexture(icon)
-                    row.enemyIcons[i]:SetVertexColor(0.7, 0.7, 0.7)
+                    NXR.SetSpecIcon(row.enemyIcons[i], icon)
                     row.enemyIcons[i]:Show()
                 end
             end
@@ -702,24 +714,16 @@ RefreshRows = function()
         row.dateText:SetText(date("%b %d  %H:%M", rec.timestamp or 0))
         row.dateText:SetTextColor(0.65, 0.65, 0.65)
 
+        local out = rec.outcome or "unknown"
+        local baseColor  = OUTCOME_BASE[out]  or OUTCOME_BASE.unknown
+        local hoverColor = OUTCOME_HOVER[out] or OUTCOME_HOVER.unknown
+        row.baseColor  = baseColor
+        row.hoverColor = hoverColor
+        row.hlTex:SetColorTexture(unpack(baseColor))
+
         local bName = NXR.BRACKET_NAMES[rec.bracketIndex] or ("?" .. tostring(rec.bracketIndex))
         row.bracketText:SetText(bName)
         row.bracketText:SetTextColor(0.85, 0.85, 0.85)
-
-        local out = rec.outcome or "unknown"
-        if out == "win" then
-            row.resultText:SetText("WIN")
-            row.resultText:SetTextColor(0.1, 0.88, 0.1)
-        elseif out == "loss" then
-            row.resultText:SetText("LOSS")
-            row.resultText:SetTextColor(0.88, 0.1, 0.1)
-        elseif out == "draw" then
-            row.resultText:SetText("DRAW")
-            row.resultText:SetTextColor(0.95, 0.80, 0.20)
-        else
-            row.resultText:SetText("?")
-            row.resultText:SetTextColor(0.45, 0.45, 0.45)
-        end
 
         local d = rec.ratingChange
         if d == nil then
@@ -738,6 +742,15 @@ RefreshRows = function()
 
         row.ratingText:SetText(rec.rating and tostring(rec.rating) or "?")
         row.ratingText:SetTextColor(1, 1, 1)
+
+        local preMMR = rec.prematchMMR or 0
+        if preMMR > 0 then
+            row.mmrText:SetText(tostring(preMMR + (rec.mmrChange or 0)))
+            row.mmrText:SetTextColor(0.75, 0.75, 0.75)
+        else
+            row.mmrText:SetText("?")
+            row.mmrText:SetTextColor(0.35, 0.35, 0.35)
+        end
 
         PopulateTeamIcons(row, rec)
 
@@ -811,9 +824,9 @@ function NXR.CreateInsightsPanel(parent)
     end
     MkHeader("Date",    COL_DATE)
     MkHeader("Bracket", COL_BRACKET)
-    MkHeader("Result",  COL_RESULT)
-    MkHeader("Chg",     COL_DELTA)
+    MkHeader("Change",  COL_DELTA)
     MkHeader("Rating",  COL_RATING)
+    MkHeader("MMR",     COL_MMR)
     MkHeader("Team",    COL_TEAM)
 
     local hlineTop = PAD + FILTER_H + GAP + 2 + HEADER_H
