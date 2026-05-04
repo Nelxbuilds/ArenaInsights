@@ -169,7 +169,7 @@ local BORDER_W   = 1
 - `opacity=0` → `EnableMouse(false)` on all interactive overlay frames
 - Rating colours: `>=0.8` orange, `>=0.9` yellow, `>=1.0` checkmark icon (not Unicode)
 - All frames anonymous (nil name) unless needed for slash commands
-- **No Unicode characters anywhere** — no `\226\...`, `\206\...`, `\194\...` byte sequences, no em-dash, delta, star, arrow, or similar glyphs. WoW fonts vary and many glyphs render as boxes. Use ASCII text, WoW color escape codes (`|cff...|r`), and atlas escapes (`|A:...|a`, `|T...|t`) only.
+- **No Unicode characters anywhere** — no `\226\...`, `\206\...`, `\194\...` byte sequences, no em-dash, delta, star, arrow, or similar glyphs. WoW fonts vary and many glyphs render as boxes. Use ASCII text, WoW color escape codes (`|cff...|r`), and atlas escapes (`|A:...|a`, `|T...|t`) only. Verified exception: `\226\137\165` (≥) renders correctly in all WoW fonts — permitted.
 - **Visual correctness check** — before marking any UI task done, verify: dark background on scroll/content areas (no white frames), hover effects use texture not BackdropTemplate, all text is ASCII-safe, layout columns don't overlap, interactive elements have tooltips.
 
 ## Release

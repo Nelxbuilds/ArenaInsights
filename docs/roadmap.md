@@ -83,6 +83,16 @@ Ongoing. No dedicated epic — tracked as individual stories or bugs.
 - Bug fixes
 - Performance
 
+### TODO: Fix spec icon style in ChallengesUI
+
+Spec icons in Insights (team column) and ChallengesUI come from the same source: `GetSpecializationInfoByID(specID)` → `icon` texture ID. The difference is that Insights applies `SetTexCoord(0.07, 0.93, 0.07, 0.93)` which crops the built-in circular border/shadow, making them look flat and consistent with the flat `classicon-<class>` atlas icons. ChallengesUI does not apply this crop → icons render with their border → look embossed/3D → inconsistent with class icons.
+
+Fix: replace bare `SetTexture(icon)` with `NXR.SetSpecIcon(tex, icon)` (defined in `ui/MainFrame.lua`) at both usages in ChallengesUI:
+- `ui/ChallengesUI.lua` line ~199: list row icons (`row.icons[idx]:SetTexture(sd.icon)`)
+- `ui/ChallengesUI.lua` line ~613: form spec picker (`ic:SetTexture(s.icon)`)
+
+Note: line ~154 uses `\226\137\165` (≥) — verified working in WoW fonts, leave as-is.
+
 ---
 
 ## Notes
