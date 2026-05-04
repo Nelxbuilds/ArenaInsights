@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.7.1] -- 2026-05-04
+
+### Fixed
+- Insights: bracket misdetected as 2v2 when playing 3v3; first-of-season and zero-rating-change matches showed "Unknown"
+- Insights: losses with 0 ratingChange recorded as "draw"; now derived from authoritative scoreboard signals
+- Insights: MMR shown as "?" for arena 2v2/3v3; falls back to GetBattlefieldTeamInfo team MMR when per-player prematchMMR unavailable
+- Insights: ally/enemy specs and team display missing; talentSpec is a localized name string, now resolved to specID via classToken+name lookup
+- Insights: bare names without realm; player's realm appended for charKey resolution
+
+### Added
+- Insights: per-player charKey (name-realm) captured for each ally/enemy in match record (`enemyPlayers[]` / `allyPlayers[]` arrays alongside existing `enemySpecs` / `allySpecs`)
+
 ## [1.7.0] -- 2026-05-04
 
 ### Added
