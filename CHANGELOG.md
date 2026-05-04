@@ -1,5 +1,27 @@
 # Changelog
 
+## [1.7.0] -- 2026-05-04
+
+### Added
+- Match Insights panel: per-match history log with outcome colors, MMR column, spec icons, character filter, team column
+- SS per-round tracking and outcome detection
+- NXR.DebugInsights() for isolated insights logging
+- NXR.PurgeCorruptMatches() for debug cleanup
+
+### Fixed
+- Scroll background uses opaque texture (BackdropTemplate alpha didn't cover)
+- SS round state numbers corrected for Midnight 12.x
+- SS rounds preserved across inter-round zones and zone-in
+- Score lookup and SS round tracking
+- Bracket detection uses DB-based approach instead of seasonPlayed API snapshot
+- Insights deferred to PVP_RATED_STATS_UPDATE for bracket detection and finalization
+- C_PvP.GetRatedBracketInfo guarded in restricted PvP context
+- History tab selects most-played spec on auto-select
+
+### Changed
+- Insights UI overhauled: char filter, team column, white bg fixed, ASCII-safe text
+- NXR namespace exposed as global for /run access
+
 ## [1.6.0] -- 2026-04-27
 
 ### Added

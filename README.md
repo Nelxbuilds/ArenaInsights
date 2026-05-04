@@ -2,13 +2,14 @@
 
 Personal PvP rating challenge tracker for World of Warcraft (Midnight 12.x).
 
-Track your arena and battleground ratings across multiple characters and accounts with customizable challenges, a movable in-game overlay, and a rating history graph.
+Track your arena and battleground ratings across multiple characters and accounts with customizable challenges, a movable in-game overlay, a rating history graph, and per-match insights.
 
 ## Features
 
 - **Rating Tracking** — Automatically captures ratings and MMR for Solo Shuffle, 2v2, 3v3, and Blitz Battleground
 - **Challenge System** — Set rating goals by spec or class, track progress across brackets; first challenge auto-activates
 - **Overlay** — Movable frame showing challenge title, color-coded spec rows (orange at 80%, yellow at 90%, checkmark at 100%), opt-in progress bar, manual spec/class completion marking, multi-column layout, role grouping, and gold indicator for your currently logged-in spec
+- **Match Insights** — Per-match history log with outcome colors, MMR delta, spec icons, character filter, and team breakdown
 - **Rating History** — Graph visualization of rating progression per character/spec/bracket with goal line overlay and class color option
 - **Multi-Character** — Track all your characters in one place, see your best-rated character per spec
 - **Party Sync** — One-button bidirectional sync with other NelxRated accounts in your party; merges character rating data without overwriting existing entries
@@ -32,6 +33,7 @@ Track your arena and battleground ratings across multiple characters and account
 | Tab | Description |
 |-----|-------------|
 | Home | Overview of active challenge progress |
+| Insights | Per-match history log with outcome, MMR delta, and team details |
 | History | Rating graph per character/spec/bracket with filters |
 | Challenges | Create, edit, and activate rating challenges |
 | Characters | View all tracked characters and their ratings |
