@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.7.2] -- 2026-05-04
+
+### Fixed
+- Insights: match rating column showed previous match's post-rating instead of current. Scoreboard `info.rating` returns stale data in Midnight 12.x; now overridden with authoritative DB rating from `C_PvP.GetRatedBracketInfo`.
+
 ## [1.7.1] -- 2026-05-04
 
 ### Fixed
