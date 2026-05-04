@@ -823,17 +823,12 @@ function NXR.CreateInsightsPanel(parent)
     hline:SetPoint("TOPRIGHT", -PAD, -hlineTop)
     hline:SetColorTexture(0.18, 0.18, 0.18, 0.8)
 
-    -- Explicit dark background behind scroll area (prevents frame showing default white)
+    -- Explicit dark background behind scroll area — texture is more reliable than BackdropTemplate
     local scrollTop = hlineTop + 2
-    local scrollBg = CreateFrame("Frame", nil, parent, "BackdropTemplate")
-    scrollBg:SetBackdrop({
-        bgFile   = "Interface\\Buttons\\WHITE8x8",
-        edgeFile = "Interface\\Buttons\\WHITE8x8",
-        edgeSize = 0,
-    })
-    scrollBg:SetBackdropColor(0.04, 0.04, 0.04, 0.5)
-    scrollBg:SetPoint("TOPLEFT", PAD, -scrollTop)
-    scrollBg:SetPoint("BOTTOMRIGHT", -PAD, PAD)
+    local scrollBgTex = parent:CreateTexture(nil, "BACKGROUND")
+    scrollBgTex:SetColorTexture(0.04, 0.04, 0.04, 1.0)
+    scrollBgTex:SetPoint("TOPLEFT", PAD, -scrollTop)
+    scrollBgTex:SetPoint("BOTTOMRIGHT", -PAD, PAD)
 
     -- Scroll frame
     scrollFrame = CreateFrame("ScrollFrame", nil, parent)
