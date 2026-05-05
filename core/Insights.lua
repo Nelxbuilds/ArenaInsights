@@ -569,13 +569,25 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
         -- (e.g. C_PvP.IsSoloShuffle returning false during zone transition).
         matchBracketHint = matchBracketHint or DetectActiveBracket()
 
+        -- Derive outcome directly from team index: 0=purple, 1=gold.
+        -- GetBattlefieldArenaFaction() returns which team the player is on.
+        -- No draws in 2v2/3v3; this field is ignored for SS (wonRounds used instead).
+        local directOutcome
+        if type(winner) == "number" then
+            local myTeam = GetBattlefieldArenaFaction()
+            if type(myTeam) == "number" then
+                directOutcome = (winner == myTeam) and "win" or "loss"
+            end
+        end
+
         pendingRecord = {
-            timestamp    = time(),
-            charKey      = charKey,
-            specID       = specID,
-            enemySpecs   = pendingEnemySpecs,
-            allySpecs    = pendingAllySpecs,
-            bracketHint  = matchBracketHint,
+            timestamp     = time(),
+            charKey       = charKey,
+            specID        = specID,
+            enemySpecs    = pendingEnemySpecs,
+            allySpecs     = pendingAllySpecs,
+            bracketHint   = matchBracketHint,
+            directOutcome = directOutcome,
         }
 
         pendingEnemySpecs = {}
@@ -650,7 +662,10 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
                 end
             end
 
-            -- Derive outcome: SS uses wonRounds; all other brackets use ratingChange sign
+            -- Derive outcome:
+            --   SS  → wonRounds (>3 win, <3 loss, ==3 draw), fallback to ratingChange
+            --   2v2/3v3/Blitz → directOutcome from PVP_MATCH_COMPLETE winner arg,
+            --                   fallback to ratingChange sign
             if rec.bracketIndex == NXR.BRACKET_SOLO_SHUFFLE then
                 local wr = rec.wonRounds
                 if type(wr) == "number" then
@@ -662,7 +677,6 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
                         rec.outcome = "draw"
                     end
                 else
-                    -- wonRounds unavailable — fall back to ratingChange sign
                     NXR.DebugInsights("SS outcome fallback to ratingChange (wonRounds nil)")
                     local rc = rec.ratingChange
                     if rc == nil then
@@ -675,18 +689,21 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
                         rec.outcome = "draw"
                     end
                 end
+            elseif rec.directOutcome then
+                rec.outcome = rec.directOutcome
+                NXR.DebugInsights("outcome from winner arg:", rec.outcome)
             else
+                NXR.DebugInsights("outcome fallback to ratingChange sign")
                 local rc = rec.ratingChange
                 if rc == nil then
                     rec.outcome = "unknown"
                 elseif rc > 0 then
                     rec.outcome = "win"
-                elseif rc < 0 then
-                    rec.outcome = "loss"
                 else
-                    rec.outcome = "draw"
+                    rec.outcome = "loss"
                 end
             end
+            rec.directOutcome = nil
 
             -- SS shuffle data: trust scoreboard totals (reliable), only include
             -- rounds[] breakdown when state-change tracking captured all 6
