@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.7.3] -- 2026-05-06
+
+### Fixed
+- Insights: use PVP_MATCH_COMPLETE winner arg for correct 2v2/3v3 outcome detection
+
 ## [1.7.2] -- 2026-05-04
 
 ### Fixed

@@ -2,7 +2,7 @@
 ## Title: NelxRated
 ## Notes: Personal PvP rating challenge tracker for Solo Shuffle, 2v2, 3v3, and Blitz BG. Track ratings and MMR by spec or class across multiple characters and accounts.
 ## Author: Nelxbuilds
-## Version: 1.7.2
+## Version: 1.7.3
 ## X-Website: https://github.com/Nelxbuilds/NelxRated
 ## X-BugReport: https://github.com/Nelxbuilds/NelxRated/issues
 ## X-Curse-Project-ID: 1510660
