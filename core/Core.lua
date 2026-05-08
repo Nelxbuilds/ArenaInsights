@@ -295,13 +295,13 @@ end
 
 StaticPopupDialogs["ARENAINSIGHTS_MIGRATION"] = {
     text = "|cffE6D200ArenaInsights|r was renamed from |cffFFFFFFNelxRated|r.\nYour old data can be recovered in one step:\n\n1. Exit the game completely\n2. Go to: WTF/Account/<Name>/SavedVariables/\n3. Rename |cffFFFFFFNelxRated.lua|r to |cffFFFFFFArenaInsights.lua|r\n4. Restart and your data will migrate automatically.\n\nIf you have no old data to recover, click Skip.",
-    button1 = "Done - Reload now",
+    button1 = "Understood",
     button2 = "Skip",
     timeout = 0,
     whileDead = true,
     hideOnEscape = false,
     OnAccept = function()
-        C_UI.Reload()
+        -- closes popup; shows again next login as a reminder until migration is done
     end,
     OnCancel = function()
         if ArenaInsightsDB and ArenaInsightsDB.settings then
