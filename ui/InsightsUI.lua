@@ -735,7 +735,7 @@ local function RefreshStats()
                 blk.statsText:SetTextColor(0.35, 0.35, 0.35)
                 blk.wrText:SetText("")
             else
-                blk.statsText:SetFormattedText("|cff22cc22%dW|r   |cffccaa22%dD|r   |cffcc2222%dL|r", w, d, l)
+                blk.statsText:SetFormattedText("|cff22cc22%d|r   |cffccaa22%d|r   |cffcc2222%d|r", w, d, l)
                 blk.wrText:SetFormattedText("%d%%", wr)
             end
 
