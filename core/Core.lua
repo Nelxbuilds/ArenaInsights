@@ -80,6 +80,7 @@ local SETTINGS_DEFAULTS = {
     minimapPosition          = {},
     hiddenCurrencies         = {},
     hiddenItems              = {},
+    insightsBracketFilter    = {},
 }
 
 local CURRENT_SCHEMA = 2

@@ -1023,6 +1023,9 @@ function AI.CreateInsightsPanel(parent)
             expandedIndex = nil
             UpdateBracketToggles()
             RefreshRows()
+            local saved = {}
+            for k, v in pairs(filterBrackets) do saved[k] = v end
+            ArenaInsightsDB.settings.insightsBracketFilter = saved
         end)
         btn:SetScript("OnEnter", function(self)
             GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
@@ -1153,6 +1156,14 @@ function AI.CreateInsightsPanel(parent)
     emptyLabel:Hide()
 
     parent:SetScript("OnShow", function()
+        -- Restore saved bracket filter (first open only; preserve in-session changes)
+        if next(filterBrackets) == nil then
+            local saved = ArenaInsightsDB.settings.insightsBracketFilter
+            if saved then
+                for k, v in pairs(saved) do filterBrackets[k] = v end
+                UpdateBracketToggles()
+            end
+        end
         if insightsCharKey == nil and AI.currentCharKey then
             local char = ArenaInsightsDB.characters[AI.currentCharKey]
             if char then
