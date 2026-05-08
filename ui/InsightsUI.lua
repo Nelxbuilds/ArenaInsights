@@ -319,6 +319,7 @@ end
 
 local function FormatStat(n)
     if n == nil then return "-" end
+    if n == 0   then return "0" end  -- tostring(-0.0) returns "-0" in Lua
     if n >= 1000000 then return string.format("%.1fM", n / 1000000) end
     if n >= 1000    then return string.format("%.0fk", n / 1000) end
     return tostring(n)
