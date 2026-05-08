@@ -25,6 +25,8 @@ local COL_RATING  = 240
 local COL_MMR     = 305
 local COL_TEAM    = 370
 
+local BRACKET_SHORT = { [7] = "Shuffle", [4] = "Blitz", [1] = "2v2", [2] = "3v3" }
+
 -- Row background colors per outcome — subtle tints, not eye-burning
 local OUTCOME_BASE = {
     win     = { 0.04, 0.12, 0.04, 0.80 },
@@ -721,7 +723,7 @@ RefreshRows = function()
         row.hoverColor = hoverColor
         row.hlTex:SetColorTexture(unpack(baseColor))
 
-        local bName = NXR.BRACKET_NAMES[rec.bracketIndex] or "Unknown"
+        local bName = BRACKET_SHORT[rec.bracketIndex] or NXR.BRACKET_NAMES[rec.bracketIndex] or "Unknown"
         row.bracketText:SetText(bName)
         row.bracketText:SetTextColor(0.85, 0.85, 0.85)
 
