@@ -733,8 +733,10 @@ local function RefreshStats()
             if total == 0 then
                 blk.statsText:SetText("No data")
                 blk.statsText:SetTextColor(0.35, 0.35, 0.35)
+                blk.wrText:SetText("")
             else
-                blk.statsText:SetFormattedText("|cff22cc22%dW|r  |cffccaa22%dD|r  |cffcc2222%dL|r  %d%%", w, d, l, wr)
+                blk.statsText:SetFormattedText("|cff22cc22%dW|r   |cffccaa22%dD|r   |cffcc2222%dL|r", w, d, l)
+                blk.wrText:SetFormattedText("%d%%", wr)
             end
 
             blk:SetAlpha((not anyFilter or filterBrackets[bi]) and 1.0 or 0.25)
@@ -993,6 +995,12 @@ function AI.CreateInsightsPanel(parent)
         blk.nameText:SetPoint("TOPLEFT", 0, -2)
         blk.nameText:SetText(AI.BRACKET_NAMES[bi])
         blk.nameText:SetTextColor(0.55, 0.55, 0.55)
+
+        blk.wrText = blk:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        blk.wrText:SetPoint("TOPRIGHT", 0, -2)
+        blk.wrText:SetJustifyH("RIGHT")
+        blk.wrText:SetText("")
+        blk.wrText:SetTextColor(0.78, 0.75, 0.73)
 
         blk.statsText = blk:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
         blk.statsText:SetPoint("TOPLEFT", 0, -18)
