@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.7.4] -- 2026-05-08
+
+### Fixed
+- Tighten middle columns in Insights to prevent team icons clipping
+- Abbreviate bracket names in Insights rows (Solo Shuffle -> Shuffle, Blitz BG -> Blitz)
+
 ## [1.7.3] -- 2026-05-06
 
 ### Fixed
