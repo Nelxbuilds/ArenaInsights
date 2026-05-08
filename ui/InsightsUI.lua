@@ -718,29 +718,28 @@ local function RefreshStats()
     local anyFilter = next(filterBrackets) ~= nil
     for _, bi in ipairs(AI.TRACKED_BRACKETS) do
         local blk = bracketStatBlocks[bi]
-        if not blk then goto continue end
-
-        local w, d, l = 0, 0, 0
-        for _, rec in ipairs(AI.GetMatches()) do
-            if (not insightsCharKey or rec.charKey == insightsCharKey) and rec.bracketIndex == bi then
-                if     rec.outcome == "win"  then w = w + 1
-                elseif rec.outcome == "draw" then d = d + 1
-                elseif rec.outcome == "loss" then l = l + 1
+        if blk then
+            local w, d, l = 0, 0, 0
+            for _, rec in ipairs(AI.GetMatches()) do
+                if (not insightsCharKey or rec.charKey == insightsCharKey) and rec.bracketIndex == bi then
+                    if     rec.outcome == "win"  then w = w + 1
+                    elseif rec.outcome == "draw" then d = d + 1
+                    elseif rec.outcome == "loss" then l = l + 1
+                    end
                 end
             end
-        end
-        local total = w + d + l
-        local wr = total > 0 and math.floor(w / total * 100 + 0.5) or 0
+            local total = w + d + l
+            local wr = total > 0 and math.floor(w / total * 100 + 0.5) or 0
 
-        if total == 0 then
-            blk.statsText:SetText("No data")
-            blk.statsText:SetTextColor(0.35, 0.35, 0.35)
-        else
-            blk.statsText:SetFormattedText("|cff22cc22%dW|r  |cffccaa22%dD|r  |cffcc2222%dL|r  %d%%", w, d, l, wr)
-        end
+            if total == 0 then
+                blk.statsText:SetText("No data")
+                blk.statsText:SetTextColor(0.35, 0.35, 0.35)
+            else
+                blk.statsText:SetFormattedText("|cff22cc22%dW|r  |cffccaa22%dD|r  |cffcc2222%dL|r  %d%%", w, d, l, wr)
+            end
 
-        blk:SetAlpha((not anyFilter or filterBrackets[bi]) and 1.0 or 0.25)
-        ::continue::
+            blk:SetAlpha((not anyFilter or filterBrackets[bi]) and 1.0 or 0.25)
+        end
     end
 end
 
