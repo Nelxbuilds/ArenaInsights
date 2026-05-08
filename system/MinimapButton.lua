@@ -17,7 +17,7 @@ minimapFrame:SetScript("OnEvent", function(self, event)
 
     local dataObject = LDB:NewDataObject("ArenaInsights", {
         type  = "launcher",
-        icon  = "Interface\\AddOns\\NelxRated\\images\\logo",
+        icon  = "Interface\\AddOns\\ArenaInsights\\images\\logo",
         label = "ArenaInsights",
 
         OnClick = function(_, button)

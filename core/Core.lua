@@ -293,10 +293,19 @@ end
 -- Event handling
 -- ============================================================================
 
+StaticPopupDialogs["ARENAINSIGHTS_MIGRATION"] = {
+    text = "|cffE6D200ArenaInsights|r found unread data from the old |cffFFFFFFNelxRated|r addon.\n\nTo recover your data:\n\n1. Exit the game completely\n2. Navigate to:\n   WTF/Account/<Name>/SavedVariables/\n3. Rename |cffFFFFFFNelxRated.lua|r  ->  |cffFFFFFFArenaInsights.lua|r\n4. Restart the game\n\nAfter that, your data will be migrated automatically.\nThis message will not appear again once done.",
+    button1 = "OK",
+    timeout = 0,
+    whileDead = true,
+    hideOnEscape = true,
+}
+
 local pvpStatsTimer = nil
 
 local eventFrame = CreateFrame("Frame")
 eventFrame:RegisterEvent("ADDON_LOADED")
+eventFrame:RegisterEvent("PLAYER_LOGIN")
 eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
 eventFrame:RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED")
 eventFrame:RegisterEvent("PVP_RATED_STATS_UPDATE")
@@ -322,6 +331,11 @@ eventFrame:SetScript("OnEvent", function(self, event, ...)
                 AI.TableCount(AI.specData), "| active challenge:",
                 AI.GetActiveChallenge and AI.GetActiveChallenge() and AI.GetActiveChallenge().name or "none")
             self:UnregisterEvent("ADDON_LOADED")
+        end
+
+    elseif event == "PLAYER_LOGIN" then
+        if NelxRatedDB then
+            StaticPopup_Show("ARENAINSIGHTS_MIGRATION")
         end
 
     elseif event == "PLAYER_ENTERING_WORLD" then
