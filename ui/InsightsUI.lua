@@ -10,7 +10,7 @@ local ICON_SZ   = 14
 local ICON_STEP = 16   -- icon size + 2px gap
 
 local FILTER_H      = 28
-local STATS_BAR_H   = 36
+local STATS_BAR_H   = 50
 local HEADER_H      = 20
 local GAP           = 4
 
@@ -433,28 +433,30 @@ local function CreateRow(parent)
     sep:SetPoint("BOTTOMRIGHT", 0, 0)
     sep:SetColorTexture(0.14, 0.14, 0.14, 0.7)
 
+    local hY = -(ROW_H / 2)  -- y offset to keep items centered in the header strip
+
     row.dateText = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    row.dateText:SetPoint("LEFT", COL_DATE + PAD, 0)
+    row.dateText:SetPoint("LEFT", row, "TOPLEFT", COL_DATE + PAD, hY)
     row.dateText:SetWidth(COL_BRACKET - COL_DATE - 4)
     row.dateText:SetJustifyH("LEFT")
 
     row.bracketText = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    row.bracketText:SetPoint("LEFT", COL_BRACKET + PAD, 0)
+    row.bracketText:SetPoint("LEFT", row, "TOPLEFT", COL_BRACKET + PAD, hY)
     row.bracketText:SetWidth(COL_DELTA - COL_BRACKET - 4)
     row.bracketText:SetJustifyH("LEFT")
 
     row.deltaText = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    row.deltaText:SetPoint("LEFT", COL_DELTA + PAD, 0)
+    row.deltaText:SetPoint("LEFT", row, "TOPLEFT", COL_DELTA + PAD, hY)
     row.deltaText:SetWidth(COL_RATING - COL_DELTA - 4)
     row.deltaText:SetJustifyH("LEFT")
 
     row.ratingText = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    row.ratingText:SetPoint("LEFT", COL_RATING + PAD, 0)
+    row.ratingText:SetPoint("LEFT", row, "TOPLEFT", COL_RATING + PAD, hY)
     row.ratingText:SetWidth(COL_MMR - COL_RATING - 4)
     row.ratingText:SetJustifyH("LEFT")
 
     row.mmrText = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    row.mmrText:SetPoint("LEFT", COL_MMR + PAD, 0)
+    row.mmrText:SetPoint("LEFT", row, "TOPLEFT", COL_MMR + PAD, hY)
     row.mmrText:SetWidth(COL_TEAM - COL_MMR - 4)
     row.mmrText:SetJustifyH("LEFT")
 
@@ -463,7 +465,7 @@ local function CreateRow(parent)
     for i = 1, 3 do
         local ico = row:CreateTexture(nil, "OVERLAY")
         ico:SetSize(ICON_SZ, ICON_SZ)
-        ico:SetPoint("LEFT", row, "LEFT", COL_TEAM + PAD + (i - 1) * ICON_STEP, 0)
+        ico:SetPoint("LEFT", row, "TOPLEFT", COL_TEAM + PAD + (i - 1) * ICON_STEP, hY)
         ico:Hide()
         row.myIcons[i] = ico
     end
@@ -483,7 +485,7 @@ local function CreateRow(parent)
 
     -- Expand indicator (far right of header row)
     row.expandIndicator = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    row.expandIndicator:SetPoint("RIGHT", -PAD, 0)
+    row.expandIndicator:SetPoint("RIGHT", row, "TOPRIGHT", -PAD, hY)
     row.expandIndicator:SetText("+")
     row.expandIndicator:SetTextColor(0.40, 0.40, 0.40)
 
@@ -656,14 +658,14 @@ local function PopulateTeamIcons(row, rec)
         if myCount > 0 and #enemies > 0 then
             local vsX = COL_TEAM + PAD + myCount * ICON_STEP + 2
             row.vsLabel:ClearAllPoints()
-            row.vsLabel:SetPoint("LEFT", row, "LEFT", vsX, 0)
+            row.vsLabel:SetPoint("LEFT", row, "TOPLEFT", vsX, -(ROW_H / 2))
             row.vsLabel:Show()
 
             for i, sid in ipairs(enemies) do
                 local icon = GetSpecIcon(sid)
                 if icon then
                     row.enemyIcons[i]:ClearAllPoints()
-                    row.enemyIcons[i]:SetPoint("LEFT", row, "LEFT", vsX + VS_W + (i - 1) * ICON_STEP, 0)
+                    row.enemyIcons[i]:SetPoint("LEFT", row, "TOPLEFT", vsX + VS_W + (i - 1) * ICON_STEP, -(ROW_H / 2))
                     AI.SetSpecIcon(row.enemyIcons[i], icon)
                     row.enemyIcons[i]:Show()
                 end
@@ -673,7 +675,7 @@ local function PopulateTeamIcons(row, rec)
                 local icon = GetSpecIcon(sid)
                 if icon then
                     row.enemyIcons[i]:ClearAllPoints()
-                    row.enemyIcons[i]:SetPoint("LEFT", row, "LEFT", COL_TEAM + PAD + (i - 1) * ICON_STEP, 0)
+                    row.enemyIcons[i]:SetPoint("LEFT", row, "TOPLEFT", COL_TEAM + PAD + (i - 1) * ICON_STEP, -(ROW_H / 2))
                     AI.SetSpecIcon(row.enemyIcons[i], icon)
                     row.enemyIcons[i]:Show()
                 end
@@ -731,11 +733,15 @@ local function RefreshStats()
             local wr = total > 0 and math.floor(w / total * 100 + 0.5) or 0
 
             if total == 0 then
-                blk.statsText:SetText("No data")
-                blk.statsText:SetTextColor(0.35, 0.35, 0.35)
+                blk.winText:SetText("--")
+                blk.winText:SetTextColor(0.35, 0.35, 0.35)
+                blk.drawText:SetText("")
+                blk.lossText:SetText("")
                 blk.wrText:SetText("")
             else
-                blk.statsText:SetFormattedText("|cff22cc22%d|r   |cffccaa22%d|r   |cffcc2222%d|r", w, d, l)
+                blk.winText:SetFormattedText("|cff22cc22%d|r", w)
+                blk.drawText:SetFormattedText("|cffccaa22%d|r", d)
+                blk.lossText:SetFormattedText("|cffcc2222%d|r", l)
                 blk.wrText:SetFormattedText("%d%%", wr)
             end
 
@@ -997,15 +1003,34 @@ function AI.CreateInsightsPanel(parent)
         blk.nameText:SetTextColor(0.55, 0.55, 0.55)
 
         blk.wrText = blk:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-        blk.wrText:SetPoint("TOPRIGHT", 0, -2)
+        blk.wrText:SetPoint("TOPRIGHT", -6, -2)
         blk.wrText:SetJustifyH("RIGHT")
         blk.wrText:SetText("")
         blk.wrText:SetTextColor(0.78, 0.75, 0.73)
 
-        blk.statsText = blk:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-        blk.statsText:SetPoint("TOPLEFT", 0, -18)
-        blk.statsText:SetText("--")
-        blk.statsText:SetTextColor(0.45, 0.45, 0.45)
+        -- Row 2: column headers (positions set in OnSizeChanged)
+        blk.winHdr = blk:CreateFontString(nil, "OVERLAY", "GameFontNormalTiny")
+        blk.winHdr:SetText("Win")
+        blk.winHdr:SetTextColor(0.38, 0.38, 0.38)
+
+        blk.drawHdr = blk:CreateFontString(nil, "OVERLAY", "GameFontNormalTiny")
+        blk.drawHdr:SetText("Draw")
+        blk.drawHdr:SetTextColor(0.38, 0.38, 0.38)
+
+        blk.lossHdr = blk:CreateFontString(nil, "OVERLAY", "GameFontNormalTiny")
+        blk.lossHdr:SetText("Loss")
+        blk.lossHdr:SetTextColor(0.38, 0.38, 0.38)
+
+        -- Row 3: data (positions set in OnSizeChanged)
+        blk.winText = blk:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        blk.winText:SetText("--")
+        blk.winText:SetTextColor(0.35, 0.35, 0.35)
+
+        blk.drawText = blk:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        blk.drawText:SetText("")
+
+        blk.lossText = blk:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        blk.lossText:SetText("")
 
         bracketStatBlocks[bi] = blk
     end
@@ -1017,6 +1042,15 @@ function AI.CreateInsightsPanel(parent)
             blk:ClearAllPoints()
             blk:SetPoint("TOPLEFT", self, "TOPLEFT", (i - 1) * bw, 0)
             blk:SetWidth(bw)
+            local cw = math.floor(bw / 3)
+            local cols = { {blk.winHdr, blk.winText}, {blk.drawHdr, blk.drawText}, {blk.lossHdr, blk.lossText} }
+            for c, pair in ipairs(cols) do
+                local x = (c - 1) * cw
+                pair[1]:ClearAllPoints()
+                pair[1]:SetPoint("TOPLEFT", blk, "TOPLEFT", x, -18)
+                pair[2]:ClearAllPoints()
+                pair[2]:SetPoint("TOPLEFT", blk, "TOPLEFT", x, -32)
+            end
         end
     end)
 

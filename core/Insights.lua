@@ -543,8 +543,9 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
                     if RequestBattlefieldScoreData then RequestBattlefieldScoreData() end
                     C_Timer.After(0.2, function()
                         local newWins = GetMyCurrentWins()
-                        roundEntry.outcome  = newWins > prevWins and "win" or "loss"
-                        ssRoundPrevWins     = newWins
+                        local ok, won = pcall(function() return newWins > prevWins end)
+                        roundEntry.outcome = ok and (won and "win" or "loss") or "unknown"
+                        ssRoundPrevWins    = newWins
                         AI.DebugInsights("Round", roundNum, "outcome:", roundEntry.outcome,
                             "wins:", prevWins, "->", newWins)
                     end)
