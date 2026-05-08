@@ -289,6 +289,9 @@ local function CaptureFromScoreboard(rec)
                 ratingChange= ratingChange,
                 prematchMMR = preMMR,
                 mmrChange   = mmrChange,
+                damageDone  = tonumber(info and info.damageDone)  or nil,
+                healingDone = tonumber(info and info.healingDone) or nil,
+                killingBlows = tonumber(info and info.killingBlows) or nil,
             }
             -- SS: stats[1].pvpStatValue is round-win count
             if info and info.stats and info.stats[1]
@@ -307,13 +310,22 @@ local function CaptureFromScoreboard(rec)
     rec.prematchMMR  = selfRow.prematchMMR
     rec.mmrChange    = selfRow.mmrChange
     if selfRow.roundsWon ~= nil then rec.wonRounds = selfRow.roundsWon end
+    if selfRow.damageDone  then rec.damageDone  = selfRow.damageDone  end
+    if selfRow.healingDone then rec.healingDone = selfRow.healingDone end
+    if selfRow.killingBlows then rec.killingBlows = selfRow.killingBlows end
 
     -- Partition by faction (arena team index 0/1).
+    -- SS has no stable teams — faction reflects last-round assignment only,
+    -- so skip faction gating and treat all 5 other players as participants.
+    local isSS = (rec.bracketHint == AI.BRACKET_SOLO_SHUFFLE)
+        or (C_PvP and C_PvP.IsSoloShuffle and C_PvP.IsSoloShuffle())
     local myFac = selfRow.faction
     local allies, enemies = {}, {}
     for _, row in ipairs(entries) do
         if not row.isSelf then
-            if myFac ~= -1 and row.faction == myFac then
+            if isSS then
+                enemies[#enemies + 1] = row
+            elseif myFac ~= -1 and row.faction == myFac then
                 allies[#allies + 1] = row
             elseif myFac ~= -1 and row.faction ~= -1 then
                 enemies[#enemies + 1] = row
@@ -347,6 +359,8 @@ local function CaptureFromScoreboard(rec)
                 classToken = row.classToken, specID = row.specID,
                 prematchMMR = row.prematchMMR, mmrChange = row.mmrChange,
                 rating = row.rating, ratingChange = row.ratingChange,
+                damageDone = row.damageDone, healingDone = row.healingDone,
+                killingBlows = row.killingBlows,
             }
         end
         rec.allySpecs   = allySpecs
@@ -361,6 +375,8 @@ local function CaptureFromScoreboard(rec)
                 classToken = row.classToken, specID = row.specID,
                 prematchMMR = row.prematchMMR, mmrChange = row.mmrChange,
                 rating = row.rating, ratingChange = row.ratingChange,
+                damageDone = row.damageDone, healingDone = row.healingDone,
+                killingBlows = row.killingBlows,
             }
         end
         rec.enemySpecs   = enemySpecs
