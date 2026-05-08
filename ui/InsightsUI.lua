@@ -1027,13 +1027,6 @@ function AI.CreateInsightsPanel(parent)
             for k, v in pairs(filterBrackets) do saved[k] = v end
             ArenaInsightsDB.settings.insightsBracketFilter = saved
         end)
-        btn:SetScript("OnEnter", function(self)
-            GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
-            GameTooltip:SetText(AI.BRACKET_NAMES[bi])
-            GameTooltip:Show()
-        end)
-        btn:SetScript("OnLeave", function() GameTooltip:Hide() end)
-
         bracketToggleBtns[bi] = btn
         toggleX = toggleX + toggleW + toggleGap
     end
@@ -1047,6 +1040,9 @@ function AI.CreateInsightsPanel(parent)
     statsBar:SetHeight(STATS_BAR_H)
     statsBar:SetPoint("TOPLEFT", PAD, -(PAD + FILTER_H + GAP))
     statsBar:SetPoint("TOPRIGHT", -PAD, -(PAD + FILTER_H + GAP))
+
+    -- Custom stats tooltip (avoids GameTooltip reskinning by other addons)
+    local statsTip = nil  -- created after loop; closures below capture the upvalue
 
     for i, bi in ipairs(AI.TRACKED_BRACKETS) do
         local blk = CreateFrame("Frame", nil, statsBar)
@@ -1067,18 +1063,50 @@ function AI.CreateInsightsPanel(parent)
         blk:EnableMouse(true)
         blk:SetScript("OnEnter", function(self)
             local s = self.statData
-            GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
-            GameTooltip:AddLine(s.bracketName, 0.96, 0.92, 0.90)
-            GameTooltip:AddLine(" ")
-            GameTooltip:AddDoubleLine("Win",  tostring(s.w), 0.38, 0.38, 0.38, 0.22, 0.80, 0.22)
-            GameTooltip:AddDoubleLine("Draw", tostring(s.d), 0.38, 0.38, 0.38, 0.80, 0.67, 0.13)
-            GameTooltip:AddDoubleLine("Loss", tostring(s.l), 0.38, 0.38, 0.38, 0.80, 0.13, 0.13)
-            GameTooltip:Show()
+            statsTip.title:SetText(s.bracketName)
+            statsTip.winVal:SetText(tostring(s.w))
+            statsTip.drawVal:SetText(tostring(s.d))
+            statsTip.lossVal:SetText(tostring(s.l))
+            statsTip:ClearAllPoints()
+            statsTip:SetPoint("TOP", self, "BOTTOM", 0, -4)
+            statsTip:Show()
         end)
-        blk:SetScript("OnLeave", function() GameTooltip:Hide() end)
+        blk:SetScript("OnLeave", function() statsTip:Hide() end)
 
         bracketStatBlocks[bi] = blk
     end
+
+    -- Build the custom stats tooltip frame
+    statsTip = CreateFrame("Frame", nil, parent)
+    statsTip:SetSize(120, 68)
+    statsTip:SetFrameStrata("TOOLTIP")
+    statsTip:Hide()
+    local tipBg = statsTip:CreateTexture(nil, "BACKGROUND")
+    tipBg:SetAllPoints()
+    tipBg:SetColorTexture(0.07, 0.06, 0.08, 0.97)
+    local tipEdge = CreateFrame("Frame", nil, statsTip, "BackdropTemplate")
+    tipEdge:SetAllPoints()
+    tipEdge:SetBackdrop({ edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1 })
+    tipEdge:SetBackdropBorderColor(unpack(AI.COLORS.CRIMSON_DIM))
+
+    statsTip.title = statsTip:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    statsTip.title:SetPoint("TOPLEFT", 8, -7)
+    statsTip.title:SetTextColor(0.96, 0.92, 0.90)
+
+    local function TipRow(label, color, yOff)
+        local lbl = statsTip:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        lbl:SetPoint("TOPLEFT", 8, yOff)
+        lbl:SetText(label)
+        lbl:SetTextColor(0.45, 0.45, 0.45)
+        local val = statsTip:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        val:SetPoint("TOPRIGHT", -8, yOff)
+        val:SetJustifyH("RIGHT")
+        val:SetTextColor(unpack(color))
+        return val
+    end
+    statsTip.winVal  = TipRow("Win",  { 0.22, 0.80, 0.22 }, -24)
+    statsTip.drawVal = TipRow("Draw", { 0.80, 0.67, 0.13 }, -38)
+    statsTip.lossVal = TipRow("Loss", { 0.80, 0.13, 0.13 }, -52)
 
     statsBar:SetScript("OnSizeChanged", function(self, w)
         local bw = w / 4
