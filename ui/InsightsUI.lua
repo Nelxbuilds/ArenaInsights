@@ -9,9 +9,10 @@ local PAD       = 8
 local ICON_SZ   = 14
 local ICON_STEP = 16   -- icon size + 2px gap
 
-local FILTER_H  = 28
-local HEADER_H  = 20
-local GAP       = 4
+local FILTER_H      = 28
+local STATS_BAR_H   = 36
+local HEADER_H      = 20
+local GAP           = 4
 
 local ENTRY_HEIGHT        = 22
 local MAX_VISIBLE_ENTRIES = 12
@@ -57,11 +58,7 @@ local OUTCOME_HOVER = {
 -- ============================================================================
 
 local insightsCharKey = nil   -- nil = show all chars
-local filterBracket   = "All"
-local filterOutcome   = "All"
-
-local BRACKET_OPTIONS = { "All", "Solo Shuffle", "2v2", "3v3", "Blitz BG" }
-local OUTCOME_OPTIONS = { "All", "Win", "Loss", "Draw" }
+local filterBrackets  = {}    -- [bracketIndex]=true; empty set = show all
 
 -- ============================================================================
 -- Module state
@@ -76,12 +73,12 @@ local emptyLabel     = nil
 local filteredList   = {}
 local expandedIndex  = nil
 
--- Dropdown state
+-- Dropdown / filter UI state
 local charDropdown, charDropdownEntries, charDropdownData, charDropdownOffset
-local bracketDropdown, bracketDropdownEntries
-local outcomeDropdown, outcomeDropdownEntries
 local ddClickCatcher
-local charButton, bracketButton, outcomeButton
+local charButton
+local bracketToggleBtns = {}
+local bracketStatBlocks = {}
 
 -- Forward declarations
 local RefreshRows
@@ -181,10 +178,8 @@ end
 -- ============================================================================
 
 local function HideAllDropdowns()
-    if charDropdown    then charDropdown:Hide() end
-    if bracketDropdown then bracketDropdown:Hide() end
-    if outcomeDropdown then outcomeDropdown:Hide() end
-    if ddClickCatcher  then ddClickCatcher:Hide() end
+    if charDropdown   then charDropdown:Hide() end
+    if ddClickCatcher then ddClickCatcher:Hide() end
 end
 
 local function EnsureClickCatcher(strata, level)
@@ -298,97 +293,20 @@ local function ShowCharDropdown(btn)
     charDropdown:Show()
 end
 
--- Simple (non-scrollable) dropdown for bracket/outcome
-
-local function GetOrCreateSimpleEntry(pool, parent, index)
-    if pool[index] then return pool[index] end
-
-    local btn = CreateFrame("Button", nil, parent)
-    btn:SetHeight(ENTRY_HEIGHT)
-    btn:SetPoint("TOPLEFT", 2, -(index - 1) * ENTRY_HEIGHT - 2)
-    btn:SetPoint("RIGHT", parent, "RIGHT", -2, 0)
-
-    local hl = btn:CreateTexture(nil, "HIGHLIGHT")
-    hl:SetAllPoints()
-    hl:SetColorTexture(AI.COLORS.CRIMSON_DIM[1], AI.COLORS.CRIMSON_DIM[2], AI.COLORS.CRIMSON_DIM[3], 0.3)
-
-    btn.label = btn:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    btn.label:SetPoint("LEFT", 6, 0)
-    btn.label:SetPoint("RIGHT", -6, 0)
-    btn.label:SetJustifyH("LEFT")
-    btn.label:SetWordWrap(false)
-
-    pool[index] = btn
-    return btn
-end
-
-local function CreateSimpleDropdown(parent)
-    local dd = CreateFrame("Frame", nil, parent, "BackdropTemplate")
-    dd:SetBackdrop({
-        bgFile   = "Interface\\Buttons\\WHITE8x8",
-        edgeFile = "Interface\\Buttons\\WHITE8x8",
-        edgeSize = 1,
-    })
-    dd:SetBackdropColor(0.08, 0.08, 0.08, 0.95)
-    dd:SetBackdropBorderColor(unpack(AI.COLORS.CRIMSON_DIM))
-    dd:SetFrameStrata("TOOLTIP")
-    return dd
-end
-
-local function ShowSimpleDropdown(dropdown, entries, btn, items, onClick)
-    HideAllDropdowns()
-    dropdown:SetSize(btn:GetWidth(), #items * ENTRY_HEIGHT + 4)
-    dropdown:ClearAllPoints()
-    dropdown:SetPoint("TOPLEFT", btn, "BOTTOMLEFT", 0, -2)
-
-    if entries then
-        for _, e in pairs(entries) do e:Hide() end
+local function UpdateBracketToggles()
+    local anyActive = next(filterBrackets) ~= nil
+    for bi, btn in pairs(bracketToggleBtns) do
+        if filterBrackets[bi] then
+            btn:SetBackdropColor(0.7, 0.1, 0.1, 0.8)
+            btn:SetBackdropBorderColor(0.9, 0.15, 0.15, 1)
+            btn.label:SetTextColor(1, 1, 1)
+        else
+            btn:SetBackdropColor(0.15, 0.15, 0.15, 0.8)
+            btn:SetBackdropBorderColor(0.3, 0.3, 0.3, 0.5)
+            local dim = anyActive and 0.4 or 0.7
+            btn.label:SetTextColor(dim, dim, dim)
+        end
     end
-
-    for i, item in ipairs(items) do
-        local entry = GetOrCreateSimpleEntry(entries, dropdown, i)
-        entry.label:SetText(item.display)
-        entry:SetScript("OnClick", function()
-            onClick(item)
-            HideAllDropdowns()
-        end)
-        entry:Show()
-    end
-
-    EnsureClickCatcher(dropdown:GetFrameStrata(), dropdown:GetFrameLevel())
-    dropdown:Show()
-end
-
-local function ShowBracketDropdown(btn)
-    if bracketDropdown and bracketDropdown:IsShown() then HideAllDropdowns(); return end
-    if not bracketDropdownEntries then bracketDropdownEntries = {} end
-    if not bracketDropdown then bracketDropdown = CreateSimpleDropdown(btn:GetParent()) end
-    local items = {}
-    for _, opt in ipairs(BRACKET_OPTIONS) do
-        items[#items + 1] = { display = opt, value = opt }
-    end
-    ShowSimpleDropdown(bracketDropdown, bracketDropdownEntries, btn, items, function(item)
-        filterBracket = item.value
-        expandedIndex = nil
-        bracketButton.label:SetText("Bracket: " .. item.value)
-        RefreshRows()
-    end)
-end
-
-local function ShowOutcomeDropdown(btn)
-    if outcomeDropdown and outcomeDropdown:IsShown() then HideAllDropdowns(); return end
-    if not outcomeDropdownEntries then outcomeDropdownEntries = {} end
-    if not outcomeDropdown then outcomeDropdown = CreateSimpleDropdown(btn:GetParent()) end
-    local items = {}
-    for _, opt in ipairs(OUTCOME_OPTIONS) do
-        items[#items + 1] = { display = opt, value = opt }
-    end
-    ShowSimpleDropdown(outcomeDropdown, outcomeDropdownEntries, btn, items, function(item)
-        filterOutcome = item.value
-        expandedIndex = nil
-        outcomeButton.label:SetText("Outcome: " .. item.value)
-        RefreshRows()
-    end)
 end
 
 -- ============================================================================
@@ -780,14 +698,8 @@ local function BuildFilteredList()
             pass = false
         end
 
-        if pass and filterBracket ~= "All" then
-            if AI.BRACKET_NAMES[rec.bracketIndex] ~= filterBracket then
-                pass = false
-            end
-        end
-
-        if pass and filterOutcome ~= "All" then
-            if rec.outcome ~= filterOutcome:lower() then
+        if pass and next(filterBrackets) then
+            if not filterBrackets[rec.bracketIndex] then
                 pass = false
             end
         end
@@ -802,8 +714,39 @@ end
 -- Refresh
 -- ============================================================================
 
+local function RefreshStats()
+    local anyFilter = next(filterBrackets) ~= nil
+    for _, bi in ipairs(AI.TRACKED_BRACKETS) do
+        local blk = bracketStatBlocks[bi]
+        if not blk then goto continue end
+
+        local w, d, l = 0, 0, 0
+        for _, rec in ipairs(AI.GetMatches()) do
+            if (not insightsCharKey or rec.charKey == insightsCharKey) and rec.bracketIndex == bi then
+                if     rec.outcome == "win"  then w = w + 1
+                elseif rec.outcome == "draw" then d = d + 1
+                elseif rec.outcome == "loss" then l = l + 1
+                end
+            end
+        end
+        local total = w + d + l
+        local wr = total > 0 and math.floor(w / total * 100 + 0.5) or 0
+
+        if total == 0 then
+            blk.statsText:SetText("No data")
+            blk.statsText:SetTextColor(0.35, 0.35, 0.35)
+        else
+            blk.statsText:SetFormattedText("|cff22cc22%dW|r  |cffccaa22%dD|r  |cffcc2222%dL|r  %d%%", w, d, l, wr)
+        end
+
+        blk:SetAlpha((not anyFilter or filterBrackets[bi]) and 1.0 or 0.25)
+        ::continue::
+    end
+end
+
 RefreshRows = function()
     BuildFilteredList()
+    RefreshStats()
     local count = #filteredList
 
     if countLabel then
@@ -985,11 +928,12 @@ function AI.CreateInsightsPanel(parent)
     filterBar:SetPoint("TOPLEFT", PAD, -PAD)
     filterBar:SetPoint("TOPRIGHT", -PAD, -PAD)
 
-    local charBtnW   = 170
-    local filterBtnW = 115
-    local btnGap     = 6
+    local charBtnW  = 170
+    local toggleW   = 62
+    local toggleH   = FILTER_H - 4
+    local toggleGap = 4
 
-    charButton = AI.CreateAIButton(filterBar, "All Characters", charBtnW, FILTER_H - 4)
+    charButton = AI.CreateAIButton(filterBar, "All Characters", charBtnW, toggleH)
     charButton:SetPoint("LEFT", 0, 0)
     charButton.label:ClearAllPoints()
     charButton.label:SetPoint("LEFT", 4, 0)
@@ -998,30 +942,90 @@ function AI.CreateInsightsPanel(parent)
     charButton.label:SetWordWrap(false)
     charButton:SetScript("OnClick", function(self) ShowCharDropdown(self) end)
 
-    bracketButton = AI.CreateAIButton(filterBar, "Bracket: All", filterBtnW, FILTER_H - 4)
-    bracketButton:SetPoint("LEFT", charBtnW + btnGap, 0)
-    bracketButton:SetScript("OnClick", function(self) ShowBracketDropdown(self) end)
+    local toggleX = charBtnW + 6
+    for _, bi in ipairs(AI.TRACKED_BRACKETS) do
+        local btn = CreateFrame("Button", nil, filterBar, "BackdropTemplate")
+        btn:SetSize(toggleW, toggleH)
+        btn:SetPoint("LEFT", toggleX, 0)
+        btn:SetBackdrop({
+            bgFile   = "Interface\\Buttons\\WHITE8x8",
+            edgeFile = "Interface\\Buttons\\WHITE8x8",
+            edgeSize = 1,
+        })
+        btn:SetBackdropColor(0.15, 0.15, 0.15, 0.8)
+        btn:SetBackdropBorderColor(0.3, 0.3, 0.3, 0.5)
 
-    outcomeButton = AI.CreateAIButton(filterBar, "Outcome: All", filterBtnW, FILTER_H - 4)
-    outcomeButton:SetPoint("LEFT", charBtnW + filterBtnW + btnGap * 2, 0)
-    outcomeButton:SetScript("OnClick", function(self) ShowOutcomeDropdown(self) end)
+        btn.label = btn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        btn.label:SetPoint("CENTER")
+        btn.label:SetText(BRACKET_SHORT[bi] or AI.BRACKET_NAMES[bi])
+        btn.label:SetTextColor(0.7, 0.7, 0.7)
+
+        btn:SetScript("OnClick", function()
+            filterBrackets[bi] = not filterBrackets[bi] or nil
+            expandedIndex = nil
+            UpdateBracketToggles()
+            RefreshRows()
+        end)
+        btn:SetScript("OnEnter", function(self)
+            GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
+            GameTooltip:SetText(AI.BRACKET_NAMES[bi])
+            GameTooltip:Show()
+        end)
+        btn:SetScript("OnLeave", function() GameTooltip:Hide() end)
+
+        bracketToggleBtns[bi] = btn
+        toggleX = toggleX + toggleW + toggleGap
+    end
 
     countLabel = filterBar:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     countLabel:SetPoint("RIGHT", filterBar, "RIGHT", 0, 0)
     countLabel:SetTextColor(0.45, 0.45, 0.45)
 
-    -- Separator under filter bar
+    -- Stats bar (W/D/L per bracket, below filter bar)
+    local statsBar = CreateFrame("Frame", nil, parent)
+    statsBar:SetHeight(STATS_BAR_H)
+    statsBar:SetPoint("TOPLEFT", PAD, -(PAD + FILTER_H + GAP))
+    statsBar:SetPoint("TOPRIGHT", -PAD, -(PAD + FILTER_H + GAP))
+
+    for i, bi in ipairs(AI.TRACKED_BRACKETS) do
+        local blk = CreateFrame("Frame", nil, statsBar)
+        blk:SetHeight(STATS_BAR_H)
+
+        blk.nameText = blk:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        blk.nameText:SetPoint("TOPLEFT", 0, -2)
+        blk.nameText:SetText(AI.BRACKET_NAMES[bi])
+        blk.nameText:SetTextColor(0.55, 0.55, 0.55)
+
+        blk.statsText = blk:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        blk.statsText:SetPoint("TOPLEFT", 0, -18)
+        blk.statsText:SetText("--")
+        blk.statsText:SetTextColor(0.45, 0.45, 0.45)
+
+        bracketStatBlocks[bi] = blk
+    end
+
+    statsBar:SetScript("OnSizeChanged", function(self, w)
+        local bw = w / 4
+        for i, bi in ipairs(AI.TRACKED_BRACKETS) do
+            local blk = bracketStatBlocks[bi]
+            blk:ClearAllPoints()
+            blk:SetPoint("TOPLEFT", self, "TOPLEFT", (i - 1) * bw, 0)
+            blk:SetWidth(bw)
+        end
+    end)
+
+    -- Separator under stats bar
     local sep1 = parent:CreateTexture(nil, "BORDER")
     sep1:SetHeight(1)
-    sep1:SetPoint("TOPLEFT", PAD, -(PAD + FILTER_H + GAP))
-    sep1:SetPoint("TOPRIGHT", -PAD, -(PAD + FILTER_H + GAP))
+    sep1:SetPoint("TOPLEFT", PAD, -(PAD + FILTER_H + GAP + STATS_BAR_H + GAP))
+    sep1:SetPoint("TOPRIGHT", -PAD, -(PAD + FILTER_H + GAP + STATS_BAR_H + GAP))
     sep1:SetColorTexture(unpack(AI.COLORS.CRIMSON_DIM))
 
     -- Column headers
     local headerRow = CreateFrame("Frame", nil, parent)
     headerRow:SetHeight(HEADER_H)
-    headerRow:SetPoint("TOPLEFT", PAD, -(PAD + FILTER_H + GAP + 2))
-    headerRow:SetPoint("TOPRIGHT", -PAD, -(PAD + FILTER_H + GAP + 2))
+    headerRow:SetPoint("TOPLEFT", PAD, -(PAD + FILTER_H + GAP + STATS_BAR_H + GAP + 2))
+    headerRow:SetPoint("TOPRIGHT", -PAD, -(PAD + FILTER_H + GAP + STATS_BAR_H + GAP + 2))
 
     local function MkHeader(text, xOff)
         local fs = headerRow:CreateFontString(nil, "OVERLAY", "GameFontNormalTiny")
@@ -1036,7 +1040,7 @@ function AI.CreateInsightsPanel(parent)
     MkHeader("MMR",     COL_MMR)
     MkHeader("Team",    COL_TEAM)
 
-    local hlineTop = PAD + FILTER_H + GAP + 2 + HEADER_H
+    local hlineTop = PAD + FILTER_H + GAP + STATS_BAR_H + GAP + 2 + HEADER_H
     local hline = parent:CreateTexture(nil, "BORDER")
     hline:SetHeight(1)
     hline:SetPoint("TOPLEFT", PAD, -hlineTop)
