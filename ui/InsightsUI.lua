@@ -435,7 +435,7 @@ local function PopulateDetailPlayers(detail)
             local bv = (sk == "dmg"  and (b.damageDone   or 0))
                     or (sk == "heal" and (b.healingDone   or 0))
                     or (sk == "kb"   and (b.killingBlows  or 0)) or 0
-            return dir == "desc" and av > bv or av < bv
+            if dir == "desc" then return av > bv else return av < bv end
         end)
     end
 
