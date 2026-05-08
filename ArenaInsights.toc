@@ -2,7 +2,7 @@
 ## Title: ArenaInsights
 ## Notes: Personal PvP rating challenge tracker for Solo Shuffle, 2v2, 3v3, and Blitz BG. Track ratings and MMR by spec or class across multiple characters and accounts.
 ## Author: Nelxbuilds
-## Version: 1.7.4
+## Version: 2.0.0
 ## X-Website: https://github.com/Nelxbuilds/ArenaInsights
 ## X-BugReport: https://github.com/Nelxbuilds/ArenaInsights/issues
 ## X-Curse-Project-ID: 1510660

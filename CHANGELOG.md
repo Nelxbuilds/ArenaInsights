@@ -1,5 +1,18 @@
 # Changelog
 
+## [2.0.0] -- 2026-05-08
+
+### Added
+- Rename addon NelxRated → ArenaInsights
+
+### Fixed
+- Add migration popup for NelxRated data and fix minimap icon path
+- NelxRatedDB data not carried over to ArenaInsightsDB
+- Show popup every login until dismissed or migrated
+- Change button wording and fix reload behavior
+- Store dismissal flag at top-level ArenaInsightsDB key
+- Cache dismissal flag into AI namespace to survive reload
+
 ## [1.7.4] -- 2026-05-08
 
 ### Fixed
