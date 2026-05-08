@@ -428,6 +428,7 @@ local function PopulateDetailPlayers(detail)
     if sk then
         local dir = detail.sortDir or "desc"
         table.sort(sorted, function(a, b)
+            if not a or not b then return b == nil end
             local av = (sk == "dmg"  and (a.damageDone   or 0))
                     or (sk == "heal" and (a.healingDone   or 0))
                     or (sk == "kb"   and (a.killingBlows  or 0)) or 0
