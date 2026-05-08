@@ -20,10 +20,10 @@ local DROPDOWN_WIDTH      = 240
 -- Column x-offsets within each row (from row left edge)
 local COL_DATE    = 0
 local COL_BRACKET = 100
-local COL_DELTA   = 200
-local COL_RATING  = 270
-local COL_MMR     = 340
-local COL_TEAM    = 415
+local COL_DELTA   = 180
+local COL_RATING  = 240
+local COL_MMR     = 305
+local COL_TEAM    = 370
 
 -- Row background colors per outcome — subtle tints, not eye-burning
 local OUTCOME_BASE = {
