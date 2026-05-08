@@ -491,7 +491,6 @@ local function CreateRow(parent)
     row.detail = CreateFrame("Frame", nil, row)
     row.detail:SetPoint("TOPLEFT", PAD, -ROW_H)
     row.detail:SetPoint("RIGHT", -PAD, 0)
-    row.detail:SetHeight(DETAIL_H_STATS)
     row.detail:Hide()
 
     local detailBg = row.detail:CreateTexture(nil, "BACKGROUND")
