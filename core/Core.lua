@@ -304,9 +304,7 @@ StaticPopupDialogs["ARENAINSIGHTS_MIGRATION"] = {
         -- closes popup; shows again next login as a reminder until migration is done
     end,
     OnCancel = function()
-        if ArenaInsightsDB and ArenaInsightsDB.settings then
-            ArenaInsightsDB.settings.migrationDismissed = true
-        end
+        ArenaInsightsDB.migrationDismissed = true
     end,
 }
 
@@ -333,8 +331,7 @@ eventFrame:SetScript("OnEvent", function(self, event, ...)
                 ArenaInsightsDB = NelxRatedDB
                 NelxRatedDB = nil
                 -- Mark migration done so the popup never shows again
-                ArenaInsightsDB.settings = ArenaInsightsDB.settings or {}
-                ArenaInsightsDB.settings.migrationDismissed = true
+                ArenaInsightsDB.migrationDismissed = true
             end
             InitDB()
             if AI.BuildSpecData then AI.BuildSpecData() end
@@ -346,7 +343,7 @@ eventFrame:SetScript("OnEvent", function(self, event, ...)
         end
 
     elseif event == "PLAYER_LOGIN" then
-        if not (ArenaInsightsDB.settings and ArenaInsightsDB.settings.migrationDismissed) then
+        if not ArenaInsightsDB.migrationDismissed then
             StaticPopup_Show("ARENAINSIGHTS_MIGRATION")
         end
 
