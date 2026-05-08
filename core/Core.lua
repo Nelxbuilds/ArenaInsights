@@ -307,7 +307,11 @@ eventFrame:SetScript("OnEvent", function(self, event, ...)
         if loadedAddon == addonName then
             -- Silent SavedVariables migration: NelxRatedDB -> ArenaInsightsDB
             -- Must run before InitDB() so existing user data is preserved.
-            if NelxRatedDB and not ArenaInsightsDB then
+            -- Guard: check for actual character data, not just table existence —
+            -- WoW pre-initializes ArenaInsightsDB from the file before ADDON_LOADED,
+            -- so "not ArenaInsightsDB" is always false even when the table is empty.
+            local hasData = ArenaInsightsDB and ArenaInsightsDB.characters and next(ArenaInsightsDB.characters)
+            if NelxRatedDB and not hasData then
                 ArenaInsightsDB = NelxRatedDB
                 NelxRatedDB = nil
             end
