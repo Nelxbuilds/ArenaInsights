@@ -294,11 +294,20 @@ end
 -- ============================================================================
 
 StaticPopupDialogs["ARENAINSIGHTS_MIGRATION"] = {
-    text = "|cffE6D200ArenaInsights|r found unread data from the old |cffFFFFFFNelxRated|r addon.\n\nTo recover your data:\n\n1. Exit the game completely\n2. Navigate to:\n   WTF/Account/<Name>/SavedVariables/\n3. Rename |cffFFFFFFNelxRated.lua|r  ->  |cffFFFFFFArenaInsights.lua|r\n4. Restart the game\n\nAfter that, your data will be migrated automatically.\nThis message will not appear again once done.",
-    button1 = "OK",
+    text = "|cffE6D200ArenaInsights|r was renamed from |cffFFFFFFNelxRated|r.\nYour old data can be recovered in one step:\n\n1. Exit the game completely\n2. Go to: WTF/Account/<Name>/SavedVariables/\n3. Rename |cffFFFFFFNelxRated.lua|r to |cffFFFFFFArenaInsights.lua|r\n4. Restart and your data will migrate automatically.\n\nIf you have no old data to recover, click Skip.",
+    button1 = "Done - Reload now",
+    button2 = "Skip",
     timeout = 0,
     whileDead = true,
-    hideOnEscape = true,
+    hideOnEscape = false,
+    OnAccept = function()
+        C_UI.Reload()
+    end,
+    OnCancel = function()
+        if ArenaInsightsDB and ArenaInsightsDB.settings then
+            ArenaInsightsDB.settings.migrationDismissed = true
+        end
+    end,
 }
 
 local pvpStatsTimer = nil
@@ -323,6 +332,9 @@ eventFrame:SetScript("OnEvent", function(self, event, ...)
             if NelxRatedDB and not hasData then
                 ArenaInsightsDB = NelxRatedDB
                 NelxRatedDB = nil
+                -- Mark migration done so the popup never shows again
+                ArenaInsightsDB.settings = ArenaInsightsDB.settings or {}
+                ArenaInsightsDB.settings.migrationDismissed = true
             end
             InitDB()
             if AI.BuildSpecData then AI.BuildSpecData() end
@@ -334,7 +346,7 @@ eventFrame:SetScript("OnEvent", function(self, event, ...)
         end
 
     elseif event == "PLAYER_LOGIN" then
-        if NelxRatedDB then
+        if not (ArenaInsightsDB.settings and ArenaInsightsDB.settings.migrationDismissed) then
             StaticPopup_Show("ARENAINSIGHTS_MIGRATION")
         end
 
