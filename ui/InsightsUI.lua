@@ -495,10 +495,6 @@ local function CreateRow(parent)
     row.detail:SetPoint("RIGHT", -PAD, 0)
     row.detail:Hide()
 
-    local detailBg = row.detail:CreateTexture(nil, "BACKGROUND")
-    detailBg:SetAllPoints()
-    detailBg:SetColorTexture(0.02, 0.02, 0.02, 0.6)
-
     -- Column header labels
     local hdrDmg = row.detail:CreateFontString(nil, "OVERLAY", "GameFontNormalTiny")
     hdrDmg:SetPoint("TOPLEFT", PLINE_DMG_X, -DETAIL_PAD_V)
@@ -621,7 +617,7 @@ local function PopulateTeamIcons(row, rec)
             if icon then
                 local tex = i <= 3 and row.myIcons[i] or row.enemyIcons[i - 3]
                 tex:ClearAllPoints()
-                tex:SetPoint("LEFT", row, "LEFT", COL_TEAM + PAD + (i - 1) * ICON_STEP, 0)
+                tex:SetPoint("LEFT", row, "TOPLEFT", COL_TEAM + PAD + (i - 1) * ICON_STEP, -(ROW_H / 2))
                 AI.SetSpecIcon(tex, icon)
                 tex:Show()
             end
