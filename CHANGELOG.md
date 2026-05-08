@@ -1,5 +1,26 @@
 # Changelog
 
+## [2.1.0] -- 2026-05-09
+
+### Added
+- Insights: bracket filter toggles replacing outcome filter, with stats bar (win rate, W/D/L)
+- Insights: expandable rows with all-player stats and full team breakdown
+- Insights: sortable detail columns and compact stats chips
+- Insights: win rate % on title row, W/D/L on second row
+- Insights: custom stats tooltips
+- Insights: persist bracket filter selection across sessions
+- How-To tab in main frame
+
+### Fixed
+- Insights: guard nil entries in player sort comparator
+- Insights: fix sort comparator operator precedence
+- Insights: normalize -0.0 to "0" in FormatStat
+- Insights: SS icon anchor, remove detail background overlay
+- Insights: drop W/D/L letter suffixes (color conveys outcome)
+- Insights: remove undefined DETAIL_H_STATS causing SetHeight nil crash
+- Insights: replace goto/label with if-block for Lua 5.1 compatibility
+- Insights: prevWins taint guard in stats bar
+
 ## [2.0.0] -- 2026-05-08
 
 ### Added

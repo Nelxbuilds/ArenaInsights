@@ -9,7 +9,7 @@ Track your arena and battleground ratings across multiple characters and account
 - **Rating Tracking** — Automatically captures ratings and MMR for Solo Shuffle, 2v2, 3v3, and Blitz Battleground
 - **Challenge System** — Set rating goals by spec or class, track progress across brackets; first challenge auto-activates
 - **Overlay** — Movable frame showing challenge title, color-coded spec rows (orange at 80%, yellow at 90%, checkmark at 100%), opt-in progress bar, manual spec/class completion marking, multi-column layout, role grouping, and gold indicator for your currently logged-in spec
-- **Match Insights** — Per-match history log with outcome colors, MMR delta, spec icons, character filter, and team breakdown
+- **Match Insights** — Per-match history log with outcome colors, MMR delta, spec icons, bracket filter toggles (persisted), stats bar (win rate, W/D/L), sortable columns, expandable rows with full team breakdown, and stats tooltips
 - **Rating History** — Graph visualization of rating progression per character/spec/bracket with goal line overlay and class color option
 - **Multi-Character** — Track all your characters in one place, see your best-rated character per spec
 - **Party Sync** — One-button bidirectional sync with other ArenaInsights accounts in your party; merges character rating data without overwriting existing entries
@@ -32,13 +32,13 @@ Track your arena and battleground ratings across multiple characters and account
 
 | Tab | Description |
 |-----|-------------|
-| Home | Overview of active challenge progress |
-| Insights | Per-match history log with outcome, MMR delta, and team details |
+| Insights | Per-match history with stats bar, bracket filters, sortable columns, and team details |
 | History | Rating graph per character/spec/bracket with filters |
 | Challenges | Create, edit, and activate rating challenges |
 | Characters | View all tracked characters and their ratings |
-| Settings | Opacity, scale, chart color, overlay options |
 | Currency | PvP currency and item ledger across characters (Honor, Conquest, etc.) |
+| Settings | Opacity, scale, chart color, overlay options |
+| How-To | In-game usage guide and tips |
 | Import/Export | Share rating data across WoW accounts |
 
 ## Installation
