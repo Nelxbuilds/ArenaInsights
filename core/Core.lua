@@ -305,6 +305,7 @@ StaticPopupDialogs["ARENAINSIGHTS_MIGRATION"] = {
     end,
     OnCancel = function()
         ArenaInsightsDB.migrationDismissed = true
+        AI.migrationDismissed = true
     end,
 }
 
@@ -332,8 +333,12 @@ eventFrame:SetScript("OnEvent", function(self, event, ...)
                 NelxRatedDB = nil
                 -- Mark migration done so the popup never shows again
                 ArenaInsightsDB.migrationDismissed = true
+                AI.migrationDismissed = true
             end
             InitDB()
+            -- Cache dismissal flag into AI namespace at load time so PLAYER_LOGIN
+            -- reads a value that is definitely post-InitDB and post-file-load.
+            AI.migrationDismissed = ArenaInsightsDB.migrationDismissed or false
             if AI.BuildSpecData then AI.BuildSpecData() end
             if AI.InitChallenges then AI.InitChallenges() end
             AI.Debug("ADDON_LOADED complete — specs loaded:",
@@ -343,7 +348,7 @@ eventFrame:SetScript("OnEvent", function(self, event, ...)
         end
 
     elseif event == "PLAYER_LOGIN" then
-        if not ArenaInsightsDB.migrationDismissed then
+        if not AI.migrationDismissed then
             StaticPopup_Show("ARENAINSIGHTS_MIGRATION")
         end
 
