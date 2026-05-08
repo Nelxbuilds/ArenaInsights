@@ -10,7 +10,7 @@ local ICON_SZ   = 14
 local ICON_STEP = 16   -- icon size + 2px gap
 
 local FILTER_H      = 28
-local STATS_BAR_H   = 50
+local STATS_BAR_H   = 22
 local HEADER_H      = 20
 local GAP           = 4
 
@@ -414,6 +414,65 @@ local function ShowMatchTooltip(anchor, rec)
 end
 
 -- ============================================================================
+-- Detail player sort/render
+-- ============================================================================
+
+local function PopulateDetailPlayers(detail)
+    local players = detail.playerData
+    if not players then return end
+
+    local sorted = {}
+    for _, p in ipairs(players) do sorted[#sorted + 1] = p end
+
+    local sk = detail.sortKey
+    if sk then
+        local dir = detail.sortDir or "desc"
+        table.sort(sorted, function(a, b)
+            local av = (sk == "dmg"  and (a.damageDone   or 0))
+                    or (sk == "heal" and (a.healingDone   or 0))
+                    or (sk == "kb"   and (a.killingBlows  or 0)) or 0
+            local bv = (sk == "dmg"  and (b.damageDone   or 0))
+                    or (sk == "heal" and (b.healingDone   or 0))
+                    or (sk == "kb"   and (b.killingBlows  or 0)) or 0
+            return dir == "desc" and av > bv or av < bv
+        end)
+    end
+
+    local count = math.min(#sorted, 6)
+    for li = 1, 6 do
+        local pl = detail.playerLines[li]
+        if li <= count then
+            local p = sorted[li]
+            local icon = GetSpecIcon(p.specID)
+            if icon then AI.SetSpecIcon(pl.icon, icon) pl.icon:Show()
+            else pl.icon:Hide() end
+            if p.isSelf then
+                pl.nameText:SetText(p.name or "You")
+                pl.nameText:SetTextColor(unpack(AI.COLORS.GOLD))
+            else
+                pl.nameText:SetText(p.name or "?")
+                pl.nameText:SetTextColor(0.70, 0.70, 0.70)
+            end
+            pl.dmgText:SetText(FormatStat(p.damageDone))
+            pl.healText:SetText(FormatStat(p.healingDone))
+            pl.kbText:SetText(FormatStat(p.killingBlows))
+            pl.dmgText:SetTextColor( sk == "dmg"  and 0.92 or 0.65, sk == "dmg"  and 0.92 or 0.65, sk == "dmg"  and 0.92 or 0.65)
+            pl.healText:SetTextColor(sk == "heal" and 0.92 or 0.65, sk == "heal" and 0.92 or 0.65, sk == "heal" and 0.92 or 0.65)
+            pl.kbText:SetTextColor(  sk == "kb"   and 0.92 or 0.65, sk == "kb"   and 0.92 or 0.65, sk == "kb"   and 0.92 or 0.65)
+        else
+            pl.icon:Hide()
+            pl.nameText:SetText("") pl.dmgText:SetText("") pl.healText:SetText("") pl.kbText:SetText("")
+        end
+    end
+
+    if detail.hdrDmg then
+        detail.hdrDmg:SetTextColor( sk == "dmg"  and 0.96 or 0.38, sk == "dmg"  and 0.92 or 0.38, sk == "dmg"  and 0.90 or 0.38)
+        detail.hdrHeal:SetTextColor(sk == "heal" and 0.96 or 0.38, sk == "heal" and 0.92 or 0.38, sk == "heal" and 0.90 or 0.38)
+        detail.hdrKB:SetTextColor(  sk == "kb"   and 0.96 or 0.38, sk == "kb"   and 0.92 or 0.38, sk == "kb"   and 0.90 or 0.38)
+    end
+end
+
+-- ============================================================================
 -- Row pool
 -- ============================================================================
 
@@ -495,21 +554,49 @@ local function CreateRow(parent)
     row.detail:SetPoint("RIGHT", -PAD, 0)
     row.detail:Hide()
 
-    -- Column header labels
-    local hdrDmg = row.detail:CreateFontString(nil, "OVERLAY", "GameFontNormalTiny")
-    hdrDmg:SetPoint("TOPLEFT", PLINE_DMG_X, -DETAIL_PAD_V)
-    hdrDmg:SetText("DMG")
-    hdrDmg:SetTextColor(0.38, 0.38, 0.38)
+    -- Column header labels (stored on detail for sort highlighting)
+    row.detail.hdrDmg = row.detail:CreateFontString(nil, "OVERLAY", "GameFontNormalTiny")
+    row.detail.hdrDmg:SetPoint("TOPLEFT", PLINE_DMG_X, -DETAIL_PAD_V)
+    row.detail.hdrDmg:SetText("DMG")
+    row.detail.hdrDmg:SetTextColor(0.38, 0.38, 0.38)
 
-    local hdrHeal = row.detail:CreateFontString(nil, "OVERLAY", "GameFontNormalTiny")
-    hdrHeal:SetPoint("TOPLEFT", PLINE_HEAL_X, -DETAIL_PAD_V)
-    hdrHeal:SetText("HEAL")
-    hdrHeal:SetTextColor(0.38, 0.38, 0.38)
+    row.detail.hdrHeal = row.detail:CreateFontString(nil, "OVERLAY", "GameFontNormalTiny")
+    row.detail.hdrHeal:SetPoint("TOPLEFT", PLINE_HEAL_X, -DETAIL_PAD_V)
+    row.detail.hdrHeal:SetText("HEAL")
+    row.detail.hdrHeal:SetTextColor(0.38, 0.38, 0.38)
 
-    local hdrKB = row.detail:CreateFontString(nil, "OVERLAY", "GameFontNormalTiny")
-    hdrKB:SetPoint("TOPLEFT", PLINE_KB_X, -DETAIL_PAD_V)
-    hdrKB:SetText("KB")
-    hdrKB:SetTextColor(0.38, 0.38, 0.38)
+    row.detail.hdrKB = row.detail:CreateFontString(nil, "OVERLAY", "GameFontNormalTiny")
+    row.detail.hdrKB:SetPoint("TOPLEFT", PLINE_KB_X, -DETAIL_PAD_V)
+    row.detail.hdrKB:SetText("KB")
+    row.detail.hdrKB:SetTextColor(0.38, 0.38, 0.38)
+
+    -- Clickable sort zones over each column header
+    row.detail.sortKey = nil
+    row.detail.sortDir = "desc"
+    local function MkSortBtn(x, w, key)
+        local btn = CreateFrame("Frame", nil, row.detail)
+        btn:SetPoint("TOPLEFT", x - 2, 0)
+        btn:SetSize(w, DETAIL_PAD_V + DETAIL_HDR_H)
+        btn:EnableMouse(true)
+        btn:SetScript("OnMouseDown", function()
+            if row.detail.sortKey == key then
+                row.detail.sortDir = row.detail.sortDir == "desc" and "asc" or "desc"
+            else
+                row.detail.sortKey = key
+                row.detail.sortDir = "desc"
+            end
+            PopulateDetailPlayers(row.detail)
+        end)
+    end
+    MkSortBtn(PLINE_DMG_X,  PLINE_HEAL_X - PLINE_DMG_X,  "dmg")
+    MkSortBtn(PLINE_HEAL_X, PLINE_KB_X   - PLINE_HEAL_X, "heal")
+    MkSortBtn(PLINE_KB_X,   50,                           "kb")
+
+    -- Absorb clicks on the detail area so they don't collapse the row
+    row.detail:EnableMouse(true)
+    row.detail:SetScript("OnMouseDown", function() end)
+    row.detail:SetScript("OnEnter", function() GameTooltip:Hide() end)
+    row.detail:SetScript("OnLeave", function() GameTooltip:Hide() end)
 
     -- Pre-create 6 player lines (max for SS / 3v3)
     row.detail.playerLines = {}
@@ -728,17 +815,16 @@ local function RefreshStats()
             local total = w + d + l
             local wr = total > 0 and math.floor(w / total * 100 + 0.5) or 0
 
+            blk.statData.w     = w
+            blk.statData.d     = d
+            blk.statData.l     = l
+            blk.statData.total = total
             if total == 0 then
-                blk.winText:SetText("--")
-                blk.winText:SetTextColor(0.35, 0.35, 0.35)
-                blk.drawText:SetText("")
-                blk.lossText:SetText("")
-                blk.wrText:SetText("")
+                blk.wrText:SetText("--")
+                blk.wrText:SetTextColor(0.48, 0.45, 0.43)
             else
-                blk.winText:SetFormattedText("|cff22cc22%d|r", w)
-                blk.drawText:SetFormattedText("|cffccaa22%d|r", d)
-                blk.lossText:SetFormattedText("|cffcc2222%d|r", l)
                 blk.wrText:SetFormattedText("%d%%", wr)
+                blk.wrText:SetTextColor(0.96, 0.92, 0.90)
             end
 
             blk:SetAlpha((not anyFilter or filterBrackets[bi]) and 1.0 or 0.25)
@@ -821,10 +907,11 @@ RefreshRows = function()
             -- Build ordered player list: self, then allies (2v2/3v3), then enemies
             local players = {}
             players[1] = {
-                specID      = rec.specID,
-                isSelf      = true,
-                damageDone  = rec.damageDone,
-                healingDone = rec.healingDone,
+                specID       = rec.specID,
+                isSelf       = true,
+                name         = rec.charKey and rec.charKey:match("^(.+)-") or "You",
+                damageDone   = rec.damageDone,
+                healingDone  = rec.healingDone,
                 killingBlows = rec.killingBlows,
             }
             if not isSS then
@@ -836,42 +923,9 @@ RefreshRows = function()
                 players[#players + 1] = p
             end
 
+            row.detail.playerData = players
+            PopulateDetailPlayers(row.detail)
             local playerCount = math.min(#players, 6)
-
-            for li = 1, 6 do
-                local pl = row.detail.playerLines[li]
-                if li <= playerCount then
-                    local p = players[li]
-                    local icon = GetSpecIcon(p.specID)
-                    if icon then
-                        AI.SetSpecIcon(pl.icon, icon)
-                        pl.icon:Show()
-                    else
-                        pl.icon:Hide()
-                    end
-                    local nameStr
-                    if p.isSelf then
-                        nameStr = rec.charKey and rec.charKey:match("^(.+)-") or "You"
-                        pl.nameText:SetTextColor(unpack(AI.COLORS.GOLD))
-                    else
-                        nameStr = p.name or "?"
-                        pl.nameText:SetTextColor(0.70, 0.70, 0.70)
-                    end
-                    pl.nameText:SetText(nameStr)
-                    pl.dmgText:SetText(FormatStat(p.damageDone))
-                    pl.healText:SetText(FormatStat(p.healingDone))
-                    pl.kbText:SetText(FormatStat(p.killingBlows))
-                    pl.dmgText:SetTextColor(0.65, 0.65, 0.65)
-                    pl.healText:SetTextColor(0.65, 0.65, 0.65)
-                    pl.kbText:SetTextColor(0.65, 0.65, 0.65)
-                else
-                    pl.icon:Hide()
-                    pl.nameText:SetText("")
-                    pl.dmgText:SetText("")
-                    pl.healText:SetText("")
-                    pl.kbText:SetText("")
-                end
-            end
 
             -- SS rounds line below player list
             local sh = rec.shuffle
@@ -994,39 +1048,29 @@ function AI.CreateInsightsPanel(parent)
         blk:SetHeight(STATS_BAR_H)
 
         blk.nameText = blk:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-        blk.nameText:SetPoint("TOPLEFT", 0, -2)
-        blk.nameText:SetText(AI.BRACKET_NAMES[bi])
+        blk.nameText:SetPoint("TOPLEFT", 2, -4)
+        blk.nameText:SetText(BRACKET_SHORT[bi] or AI.BRACKET_NAMES[bi])
         blk.nameText:SetTextColor(0.55, 0.55, 0.55)
 
         blk.wrText = blk:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-        blk.wrText:SetPoint("TOPRIGHT", -6, -2)
+        blk.wrText:SetPoint("TOPRIGHT", -8, -4)
         blk.wrText:SetJustifyH("RIGHT")
-        blk.wrText:SetText("")
-        blk.wrText:SetTextColor(0.78, 0.75, 0.73)
+        blk.wrText:SetText("--")
+        blk.wrText:SetTextColor(0.48, 0.45, 0.43)
 
-        -- Row 2: column headers (positions set in OnSizeChanged)
-        blk.winHdr = blk:CreateFontString(nil, "OVERLAY", "GameFontNormalTiny")
-        blk.winHdr:SetText("Win")
-        blk.winHdr:SetTextColor(0.38, 0.38, 0.38)
-
-        blk.drawHdr = blk:CreateFontString(nil, "OVERLAY", "GameFontNormalTiny")
-        blk.drawHdr:SetText("Draw")
-        blk.drawHdr:SetTextColor(0.38, 0.38, 0.38)
-
-        blk.lossHdr = blk:CreateFontString(nil, "OVERLAY", "GameFontNormalTiny")
-        blk.lossHdr:SetText("Loss")
-        blk.lossHdr:SetTextColor(0.38, 0.38, 0.38)
-
-        -- Row 3: data (positions set in OnSizeChanged)
-        blk.winText = blk:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-        blk.winText:SetText("--")
-        blk.winText:SetTextColor(0.35, 0.35, 0.35)
-
-        blk.drawText = blk:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-        blk.drawText:SetText("")
-
-        blk.lossText = blk:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-        blk.lossText:SetText("")
+        blk.statData = { w = 0, d = 0, l = 0, total = 0, bracketName = AI.BRACKET_NAMES[bi] }
+        blk:EnableMouse(true)
+        blk:SetScript("OnEnter", function(self)
+            local s = self.statData
+            GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
+            GameTooltip:AddLine(s.bracketName, 0.96, 0.92, 0.90)
+            GameTooltip:AddLine(" ")
+            GameTooltip:AddDoubleLine("Win",  tostring(s.w), 0.38, 0.38, 0.38, 0.22, 0.80, 0.22)
+            GameTooltip:AddDoubleLine("Draw", tostring(s.d), 0.38, 0.38, 0.38, 0.80, 0.67, 0.13)
+            GameTooltip:AddDoubleLine("Loss", tostring(s.l), 0.38, 0.38, 0.38, 0.80, 0.13, 0.13)
+            GameTooltip:Show()
+        end)
+        blk:SetScript("OnLeave", function() GameTooltip:Hide() end)
 
         bracketStatBlocks[bi] = blk
     end
@@ -1038,15 +1082,6 @@ function AI.CreateInsightsPanel(parent)
             blk:ClearAllPoints()
             blk:SetPoint("TOPLEFT", self, "TOPLEFT", (i - 1) * bw, 0)
             blk:SetWidth(bw)
-            local cw = math.floor(bw / 3)
-            local cols = { {blk.winHdr, blk.winText}, {blk.drawHdr, blk.drawText}, {blk.lossHdr, blk.lossText} }
-            for c, pair in ipairs(cols) do
-                local x = (c - 1) * cw
-                pair[1]:ClearAllPoints()
-                pair[1]:SetPoint("TOPLEFT", blk, "TOPLEFT", x, -18)
-                pair[2]:ClearAllPoints()
-                pair[2]:SetPoint("TOPLEFT", blk, "TOPLEFT", x, -32)
-            end
         end
     end)
 
