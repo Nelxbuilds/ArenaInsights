@@ -1,4 +1,4 @@
-local addonName, NXR = ...
+local addonName, AI = ...
 
 -- ============================================================================
 -- Layout constants
@@ -81,7 +81,7 @@ local RefreshCharDropdownEntries
 
 local function GetSpecIcon(specID)
     if not specID or specID == 0 then return nil end
-    local sd = NXR.specData and NXR.specData[specID]
+    local sd = AI.specData and AI.specData[specID]
     if sd and sd.icon then return sd.icon end
     local _, _, _, icon = GetSpecializationInfoByID(specID)
     return icon
@@ -89,7 +89,7 @@ end
 
 local function GetSpecName(specID)
     if not specID or specID == 0 then return "Unknown" end
-    local sd = NXR.specData and NXR.specData[specID]
+    local sd = AI.specData and AI.specData[specID]
     if sd then return sd.specName or "Unknown" end
     local _, name = GetSpecializationInfoByID(specID)
     return name or "Unknown"
@@ -101,18 +101,18 @@ end
 
 local function BuildSortedCharList()
     local hasMatches = {}
-    for _, rec in ipairs(NXR.GetMatches()) do
+    for _, rec in ipairs(AI.GetMatches()) do
         if rec.charKey then hasMatches[rec.charKey] = true end
     end
 
     local classSortIndex = {}
-    for i, classID in ipairs(NXR.sortedClassIDs) do
-        local cd = NXR.classData[classID]
+    for i, classID in ipairs(AI.sortedClassIDs) do
+        local cd = AI.classData[classID]
         if cd then classSortIndex[cd.classFileName] = i end
     end
 
     local list = {}
-    for key, char in pairs(NelxRatedDB.characters) do
+    for key, char in pairs(ArenaInsightsDB.characters) do
         if hasMatches[key] then
             list[#list + 1] = { key = key, char = char }
         end
@@ -204,7 +204,7 @@ local function GetOrCreateCharEntry(parent, index)
 
     local hl = btn:CreateTexture(nil, "HIGHLIGHT")
     hl:SetAllPoints()
-    hl:SetColorTexture(NXR.COLORS.CRIMSON_DIM[1], NXR.COLORS.CRIMSON_DIM[2], NXR.COLORS.CRIMSON_DIM[3], 0.3)
+    hl:SetColorTexture(AI.COLORS.CRIMSON_DIM[1], AI.COLORS.CRIMSON_DIM[2], AI.COLORS.CRIMSON_DIM[3], 0.3)
 
     btn.label = btn:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     btn.label:SetPoint("LEFT", 6, 0)
@@ -269,7 +269,7 @@ local function ShowCharDropdown(btn)
             edgeSize = 1,
         })
         charDropdown:SetBackdropColor(0.08, 0.08, 0.08, 0.95)
-        charDropdown:SetBackdropBorderColor(unpack(NXR.COLORS.CRIMSON_DIM))
+        charDropdown:SetBackdropBorderColor(unpack(AI.COLORS.CRIMSON_DIM))
         charDropdown:SetFrameStrata("TOOLTIP")
         charDropdown:SetClipsChildren(true)
     end
@@ -297,7 +297,7 @@ local function GetOrCreateSimpleEntry(pool, parent, index)
 
     local hl = btn:CreateTexture(nil, "HIGHLIGHT")
     hl:SetAllPoints()
-    hl:SetColorTexture(NXR.COLORS.CRIMSON_DIM[1], NXR.COLORS.CRIMSON_DIM[2], NXR.COLORS.CRIMSON_DIM[3], 0.3)
+    hl:SetColorTexture(AI.COLORS.CRIMSON_DIM[1], AI.COLORS.CRIMSON_DIM[2], AI.COLORS.CRIMSON_DIM[3], 0.3)
 
     btn.label = btn:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     btn.label:SetPoint("LEFT", 6, 0)
@@ -317,7 +317,7 @@ local function CreateSimpleDropdown(parent)
         edgeSize = 1,
     })
     dd:SetBackdropColor(0.08, 0.08, 0.08, 0.95)
-    dd:SetBackdropBorderColor(unpack(NXR.COLORS.CRIMSON_DIM))
+    dd:SetBackdropBorderColor(unpack(AI.COLORS.CRIMSON_DIM))
     dd:SetFrameStrata("TOOLTIP")
     return dd
 end
@@ -388,8 +388,8 @@ local function ShowMatchTooltip(anchor, rec)
     GameTooltip:SetOwner(anchor, "ANCHOR_RIGHT")
 
     local dateStr = date("%b %d, %H:%M", rec.timestamp or 0)
-    local bName   = NXR.BRACKET_NAMES[rec.bracketIndex] or ("Bracket " .. tostring(rec.bracketIndex))
-    local isSS    = rec.bracketIndex == NXR.BRACKET_SOLO_SHUFFLE
+    local bName   = AI.BRACKET_NAMES[rec.bracketIndex] or ("Bracket " .. tostring(rec.bracketIndex))
+    local isSS    = rec.bracketIndex == AI.BRACKET_SOLO_SHUFFLE
 
     GameTooltip:AddLine(bName .. "  -  " .. dateStr, 1, 1, 1)
     GameTooltip:AddLine(" ")
@@ -575,7 +575,7 @@ local function PopulateTeamIcons(row, rec)
     for _, ico in ipairs(row.enemyIcons) do ico:Hide() end
     row.vsLabel:Hide()
 
-    local isSS = rec.bracketIndex == NXR.BRACKET_SOLO_SHUFFLE
+    local isSS = rec.bracketIndex == AI.BRACKET_SOLO_SHUFFLE
 
     if isSS then
         -- Flat list: player spec first (full brightness), then up to 5 enemy specs (dimmed)
@@ -595,7 +595,7 @@ local function PopulateTeamIcons(row, rec)
                 local tex = i <= 3 and row.myIcons[i] or row.enemyIcons[i - 3]
                 tex:ClearAllPoints()
                 tex:SetPoint("LEFT", row, "LEFT", COL_TEAM + PAD + (i - 1) * ICON_STEP, 0)
-                NXR.SetSpecIcon(tex, icon)
+                AI.SetSpecIcon(tex, icon)
                 tex:Show()
             end
         end
@@ -623,7 +623,7 @@ local function PopulateTeamIcons(row, rec)
         for i, sid in ipairs(myTeam) do
             local icon = GetSpecIcon(sid)
             if icon then
-                NXR.SetSpecIcon(row.myIcons[i], icon)
+                AI.SetSpecIcon(row.myIcons[i], icon)
                 row.myIcons[i]:Show()
             end
         end
@@ -639,7 +639,7 @@ local function PopulateTeamIcons(row, rec)
                 if icon then
                     row.enemyIcons[i]:ClearAllPoints()
                     row.enemyIcons[i]:SetPoint("LEFT", row, "LEFT", vsX + VS_W + (i - 1) * ICON_STEP, 0)
-                    NXR.SetSpecIcon(row.enemyIcons[i], icon)
+                    AI.SetSpecIcon(row.enemyIcons[i], icon)
                     row.enemyIcons[i]:Show()
                 end
             end
@@ -649,7 +649,7 @@ local function PopulateTeamIcons(row, rec)
                 if icon then
                     row.enemyIcons[i]:ClearAllPoints()
                     row.enemyIcons[i]:SetPoint("LEFT", row, "LEFT", COL_TEAM + PAD + (i - 1) * ICON_STEP, 0)
-                    NXR.SetSpecIcon(row.enemyIcons[i], icon)
+                    AI.SetSpecIcon(row.enemyIcons[i], icon)
                     row.enemyIcons[i]:Show()
                 end
             end
@@ -663,7 +663,7 @@ end
 
 local function BuildFilteredList()
     filteredList = {}
-    local all = NXR.GetMatches()
+    local all = AI.GetMatches()
     for i = #all, 1, -1 do
         local rec  = all[i]
         local pass = true
@@ -673,7 +673,7 @@ local function BuildFilteredList()
         end
 
         if pass and filterBracket ~= "All" then
-            if NXR.BRACKET_NAMES[rec.bracketIndex] ~= filterBracket then
+            if AI.BRACKET_NAMES[rec.bracketIndex] ~= filterBracket then
                 pass = false
             end
         end
@@ -723,7 +723,7 @@ RefreshRows = function()
         row.hoverColor = hoverColor
         row.hlTex:SetColorTexture(unpack(baseColor))
 
-        local bName = BRACKET_SHORT[rec.bracketIndex] or NXR.BRACKET_NAMES[rec.bracketIndex] or "Unknown"
+        local bName = BRACKET_SHORT[rec.bracketIndex] or AI.BRACKET_NAMES[rec.bracketIndex] or "Unknown"
         row.bracketText:SetText(bName)
         row.bracketText:SetTextColor(0.85, 0.85, 0.85)
 
@@ -771,7 +771,7 @@ end
 -- Panel creation
 -- ============================================================================
 
-function NXR.CreateInsightsPanel(parent)
+function AI.CreateInsightsPanel(parent)
     insightsPanel = parent
 
     -- Filter bar
@@ -784,7 +784,7 @@ function NXR.CreateInsightsPanel(parent)
     local filterBtnW = 115
     local btnGap     = 6
 
-    charButton = NXR.CreateNXRButton(filterBar, "All Characters", charBtnW, FILTER_H - 4)
+    charButton = AI.CreateAIButton(filterBar, "All Characters", charBtnW, FILTER_H - 4)
     charButton:SetPoint("LEFT", 0, 0)
     charButton.label:ClearAllPoints()
     charButton.label:SetPoint("LEFT", 4, 0)
@@ -793,11 +793,11 @@ function NXR.CreateInsightsPanel(parent)
     charButton.label:SetWordWrap(false)
     charButton:SetScript("OnClick", function(self) ShowCharDropdown(self) end)
 
-    bracketButton = NXR.CreateNXRButton(filterBar, "Bracket: All", filterBtnW, FILTER_H - 4)
+    bracketButton = AI.CreateAIButton(filterBar, "Bracket: All", filterBtnW, FILTER_H - 4)
     bracketButton:SetPoint("LEFT", charBtnW + btnGap, 0)
     bracketButton:SetScript("OnClick", function(self) ShowBracketDropdown(self) end)
 
-    outcomeButton = NXR.CreateNXRButton(filterBar, "Outcome: All", filterBtnW, FILTER_H - 4)
+    outcomeButton = AI.CreateAIButton(filterBar, "Outcome: All", filterBtnW, FILTER_H - 4)
     outcomeButton:SetPoint("LEFT", charBtnW + filterBtnW + btnGap * 2, 0)
     outcomeButton:SetScript("OnClick", function(self) ShowOutcomeDropdown(self) end)
 
@@ -810,7 +810,7 @@ function NXR.CreateInsightsPanel(parent)
     sep1:SetHeight(1)
     sep1:SetPoint("TOPLEFT", PAD, -(PAD + FILTER_H + GAP))
     sep1:SetPoint("TOPRIGHT", -PAD, -(PAD + FILTER_H + GAP))
-    sep1:SetColorTexture(unpack(NXR.COLORS.CRIMSON_DIM))
+    sep1:SetColorTexture(unpack(AI.COLORS.CRIMSON_DIM))
 
     -- Column headers
     local headerRow = CreateFrame("Frame", nil, parent)
@@ -871,10 +871,10 @@ function NXR.CreateInsightsPanel(parent)
     emptyLabel:Hide()
 
     parent:SetScript("OnShow", function()
-        if insightsCharKey == nil and NXR.currentCharKey then
-            local char = NelxRatedDB.characters[NXR.currentCharKey]
+        if insightsCharKey == nil and AI.currentCharKey then
+            local char = ArenaInsightsDB.characters[AI.currentCharKey]
             if char then
-                insightsCharKey = NXR.currentCharKey
+                insightsCharKey = AI.currentCharKey
                 charButton.label:SetText(FormatCharButtonLabel(char))
                 charButton.label:SetJustifyH("LEFT")
             end
@@ -887,7 +887,7 @@ function NXR.CreateInsightsPanel(parent)
     end)
 end
 
-function NXR.RefreshInsights()
+function AI.RefreshInsights()
     if not insightsPanel then return end
     RefreshRows()
 end

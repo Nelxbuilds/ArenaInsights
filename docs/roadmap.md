@@ -1,14 +1,14 @@
-# Roadmap — NelxRated
+# Roadmap — ArenaInsights
 
-Evolving from NelxRated (challenge tracker) into a full PvP companion: ratings, currencies, comp insights, and gearing guidance.
+Evolving from a challenge tracker into a full PvP companion: ratings, currencies, comp insights, and gearing guidance.
 
 ---
 
 ## Rename & Rebrand
 
-**Status**: In progress — name TBD
+**Status**: Complete
 
-Rename addon with new identity, DB migration, export compatibility.
+Renamed from NelxRated to ArenaInsights. DB migration, export compatibility, and code identity updated.
 
 **Epic**: [Epic 10 — Rename & Rebrand](epic-10-rename-rebrand.md)
 
@@ -39,7 +39,7 @@ Track what you played against and with. Visualize patterns over time.
 
 Note: `GetBattlefieldScore()` MMR columns always zero since patch 4.2 — use `C_PvP.GetScoreInfo()` instead.
 
-**Epics**: Epic 12 — Match Data Capture (`core/Insights.lua`, `NelxRatedDB.matches[]`), Epic 13 — Insights UI
+**Epics**: Epic 12 — Match Data Capture (`core/Insights.lua`, `ArenaInsightsDB.matches[]`), Epic 13 — Insights UI
 
 ---
 
@@ -87,7 +87,7 @@ Ongoing. No dedicated epic — tracked as individual stories or bugs.
 
 Spec icons in Insights (team column) and ChallengesUI come from the same source: `GetSpecializationInfoByID(specID)` → `icon` texture ID. The difference is that Insights applies `SetTexCoord(0.07, 0.93, 0.07, 0.93)` which crops the built-in circular border/shadow, making them look flat and consistent with the flat `classicon-<class>` atlas icons. ChallengesUI does not apply this crop → icons render with their border → look embossed/3D → inconsistent with class icons.
 
-Fix: replace bare `SetTexture(icon)` with `NXR.SetSpecIcon(tex, icon)` (defined in `ui/MainFrame.lua`) at both usages in ChallengesUI:
+Fix: replace bare `SetTexture(icon)` with `AI.SetSpecIcon(tex, icon)` (defined in `ui/MainFrame.lua`) at both usages in ChallengesUI:
 - `ui/ChallengesUI.lua` line ~199: list row icons (`row.icons[idx]:SetTexture(sd.icon)`)
 - `ui/ChallengesUI.lua` line ~613: form spec picker (`ic:SetTexture(s.icon)`)
 

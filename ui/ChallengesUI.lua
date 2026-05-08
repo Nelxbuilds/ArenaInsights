@@ -1,4 +1,4 @@
-local addonName, NXR = ...
+local addonName, AI = ...
 
 -- ============================================================================
 -- Constants
@@ -134,14 +134,14 @@ local function UpdateRow(row, challenge)
     if challenge.active then
         row:SetBackdropColor(0.35, 0.05, 0.05, 0.6)
         row:SetBackdropBorderColor(0.7, 0.1, 0.1, 0.8)
-        row.nameStr:SetTextColor(unpack(NXR.COLORS.CRIMSON_BRIGHT))
+        row.nameStr:SetTextColor(unpack(AI.COLORS.CRIMSON_BRIGHT))
         row.activeBtn:SetText("Active")
         row.activeBtn:SetSize(60, 22)
         row.activeBtn:Disable()
     else
         row:SetBackdropColor(0.1, 0.1, 0.1, 0.5)
         row:SetBackdropBorderColor(0.25, 0.25, 0.25, 0.5)
-        row.nameStr:SetTextColor(unpack(NXR.COLORS.GOLD))
+        row.nameStr:SetTextColor(unpack(AI.COLORS.GOLD))
         row.activeBtn:SetText("Set Active")
         row.activeBtn:SetSize(72, 22)
         row.activeBtn:Enable()
@@ -154,9 +154,9 @@ local function UpdateRow(row, challenge)
     table.insert(parts, "Rating \226\137\165 " .. (challenge.goalRating or 0))
 
     local bnames = {}
-    for _, bi in ipairs(NXR.TRACKED_BRACKETS) do
+    for _, bi in ipairs(AI.TRACKED_BRACKETS) do
         if challenge.brackets[bi] then
-            table.insert(bnames, NXR.BRACKET_NAMES[bi])
+            table.insert(bnames, AI.BRACKET_NAMES[bi])
         end
     end
     if #bnames > 0 then
@@ -184,7 +184,7 @@ local function UpdateRow(row, challenge)
     if classCount > 0 then
         for classID in pairs(challenge.classes) do
             if idx > MAX_ICONS then break end
-            local cd = NXR.classData[classID]
+            local cd = AI.classData[classID]
             if cd then
                 SetClassIcon(row.icons[idx], cd.classFileName)
                 row.icons[idx]:Show()
@@ -194,7 +194,7 @@ local function UpdateRow(row, challenge)
     else
         for specID in pairs(challenge.specs) do
             if idx > MAX_ICONS then break end
-            local sd = NXR.specData[specID]
+            local sd = AI.specData[specID]
             if sd and sd.icon then
                 row.icons[idx]:SetTexture(sd.icon)
                 row.icons[idx]:Show()
@@ -206,12 +206,12 @@ local function UpdateRow(row, challenge)
     -- Button callbacks
     local id = challenge.id
     row.activeBtn:SetScript("OnClick", function()
-        NXR.SetActiveChallenge(id)
+        AI.SetActiveChallenge(id)
         RefreshList()
     end)
     row.editBtn:SetScript("OnClick", function() ShowForm(id) end)
     row.deleteBtn:SetScript("OnClick", function()
-        NXR.RemoveChallenge(id)
+        AI.RemoveChallenge(id)
         RefreshList()
     end)
 
@@ -221,7 +221,7 @@ end
 RefreshList = function()
     for _, row in ipairs(listRows) do row:Hide() end
 
-    local challenges = NelxRatedDB.challenges
+    local challenges = ArenaInsightsDB.challenges
     if not challenges or #challenges == 0 then
         emptyLabel:Show()
         listScrollChild:SetHeight(1)
@@ -344,9 +344,9 @@ local function SaveForm()
     }
 
     if editingID then
-        NXR.UpdateChallenge(editingID, data)
+        AI.UpdateChallenge(editingID, data)
     else
-        NXR.AddChallenge(data)
+        AI.AddChallenge(data)
     end
 
     ShowList()
@@ -367,7 +367,7 @@ local function BuildForm()
 
     formFrame.titleText = formFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
     formFrame.titleText:SetPoint("LEFT", backBtn, "RIGHT", 8, 0)
-    formFrame.titleText:SetTextColor(unpack(NXR.COLORS.GOLD))
+    formFrame.titleText:SetTextColor(unpack(AI.COLORS.GOLD))
 
     -- Scroll area for form content
     local scroll = CreateFrame("ScrollFrame", nil, formFrame)
@@ -422,7 +422,7 @@ local function BuildForm()
     y = y + 18
 
     local bx = 10
-    for _, bi in ipairs(NXR.TRACKED_BRACKETS) do
+    for _, bi in ipairs(AI.TRACKED_BRACKETS) do
         local btn = CreateFrame("Button", nil, p, "BackdropTemplate")
         btn:SetSize(94, 24)
         btn:SetPoint("TOPLEFT", bx, -y)
@@ -434,7 +434,7 @@ local function BuildForm()
 
         btn.label = btn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
         btn.label:SetPoint("CENTER")
-        btn.label:SetText(NXR.BRACKET_NAMES[bi])
+        btn.label:SetText(AI.BRACKET_NAMES[bi])
 
         btn:SetScript("OnClick", function()
             formState.brackets[bi] = not formState.brackets[bi] or nil
@@ -480,12 +480,12 @@ local function BuildForm()
     local classLabel = p:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     classLabel:SetPoint("TOPLEFT", 8, -y)
     classLabel:SetText("Classes")
-    classLabel:SetTextColor(unpack(NXR.COLORS.GOLD))
+    classLabel:SetTextColor(unpack(AI.COLORS.GOLD))
     y = y + 20
 
     local cx = 10
-    for _, classID in ipairs(NXR.sortedClassIDs) do
-        local cd = NXR.classData[classID]
+    for _, classID in ipairs(AI.sortedClassIDs) do
+        local cd = AI.classData[classID]
         if cd then
             local btn = CreateFrame("Button", nil, p, "BackdropTemplate")
             btn:SetSize(CLASS_BTN_SIZE, CLASS_BTN_SIZE)
@@ -539,7 +539,7 @@ local function BuildForm()
     local specTitle = p:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     specTitle:SetPoint("TOPLEFT", 8, -y)
     specTitle:SetText("Specs included in this challenge:")
-    specTitle:SetTextColor(unpack(NXR.COLORS.GOLD))
+    specTitle:SetTextColor(unpack(AI.COLORS.GOLD))
     y = y + 20
 
     local roleOrder = {
@@ -550,7 +550,7 @@ local function BuildForm()
     }
 
     for _, roleInfo in ipairs(roleOrder) do
-        local specs = NXR.roleSpecs[roleInfo.key]
+        local specs = AI.roleSpecs[roleInfo.key]
         if specs and #specs > 0 then
             -- Section header
             local header = p:CreateFontString(nil, "OVERLAY", "GameFontNormal")
@@ -651,7 +651,7 @@ local function BuildForm()
 end
 
 local function PopulateFormForEdit(challengeID)
-    for _, c in ipairs(NelxRatedDB.challenges) do
+    for _, c in ipairs(ArenaInsightsDB.challenges) do
         if c.id == challengeID then
             formState.name       = c.name
             formState.goalRating = c.goalRating
@@ -696,13 +696,13 @@ end
 -- Public API
 -- ============================================================================
 
-function NXR.RefreshChallengeList()
+function AI.RefreshChallengeList()
     if panel and listFrame and listFrame:IsShown() then
         RefreshList()
     end
 end
 
-function NXR.CreateChallengesPanel(parent)
+function AI.CreateChallengesPanel(parent)
     if panel then return panel end
 
     panel = CreateFrame("Frame", nil, parent)

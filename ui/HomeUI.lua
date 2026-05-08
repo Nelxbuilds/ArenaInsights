@@ -1,4 +1,4 @@
-local addonName, NXR = ...
+local addonName, AI = ...
 
 -- ============================================================================
 -- Home Tab (Story 5-1)
@@ -35,7 +35,7 @@ local function CreateCopyableLink(parent, label, url, yOffset)
     return -16 - 22 - 10 -- height consumed
 end
 
-function NXR.CreateHomePanel(parent)
+function AI.CreateHomePanel(parent)
     local scroll = CreateFrame("Frame", nil, parent)
     scroll:SetAllPoints()
 
@@ -44,8 +44,8 @@ function NXR.CreateHomePanel(parent)
     -- Addon name
     local title = scroll:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
     title:SetPoint("TOPLEFT", PADDING, y)
-    title:SetText("NelxRated")
-    title:SetTextColor(unpack(NXR.COLORS.GOLD))
+    title:SetText("ArenaInsights")
+    title:SetTextColor(unpack(AI.COLORS.GOLD))
     y = y - 22
 
     -- Version
@@ -70,7 +70,7 @@ function NXR.CreateHomePanel(parent)
     local gsTitle = scroll:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
     gsTitle:SetPoint("TOPLEFT", PADDING, y)
     gsTitle:SetText("Getting Started")
-    gsTitle:SetTextColor(unpack(NXR.COLORS.GOLD))
+    gsTitle:SetTextColor(unpack(AI.COLORS.GOLD))
     y = y - 24
 
     local steps = {
@@ -96,11 +96,11 @@ function NXR.CreateHomePanel(parent)
     local linksTitle = scroll:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
     linksTitle:SetPoint("TOPLEFT", PADDING, y)
     linksTitle:SetText("Links")
-    linksTitle:SetTextColor(unpack(NXR.COLORS.GOLD))
+    linksTitle:SetTextColor(unpack(AI.COLORS.GOLD))
     y = y - 24
 
-    CreateCopyableLink(scroll, "CurseForge", "https://www.curseforge.com/wow/addons/nelxrated", y)
+    CreateCopyableLink(scroll, "CurseForge", "https://www.curseforge.com/wow/addons/arena-insights", y)
     y = y - 48
 
-    CreateCopyableLink(scroll, "GitHub", "https://github.com/Nelxbuilds/NelxRated", y)
+    CreateCopyableLink(scroll, "GitHub", "https://github.com/Nelxbuilds/ArenaInsights", y)
 end

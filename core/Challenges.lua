@@ -1,13 +1,13 @@
-local addonName, NXR = ...
+local addonName, AI = ...
 
 -- ============================================================================
 -- Spec & class metadata (built at ADDON_LOADED)
 -- ============================================================================
 
-NXR.classData      = {}   -- classID -> { classID, className, classFileName, specs }
-NXR.specData       = {}   -- specID  -> { specID, specName, icon, role, classID, className, classFileName }
-NXR.roleSpecs      = {}   -- role    -> sorted array of spec entries
-NXR.sortedClassIDs = {}   -- ordered array of classIDs
+AI.classData      = {}   -- classID -> { classID, className, classFileName, specs }
+AI.specData       = {}   -- specID  -> { specID, specName, icon, role, classID, className, classFileName }
+AI.roleSpecs      = {}   -- role    -> sorted array of spec entries
+AI.sortedClassIDs = {}   -- ordered array of classIDs
 
 -- Ranged DPS specIDs (WoW 12.x) — all other DAMAGER specs are melee
 local RANGED_SPEC_IDS = {
@@ -26,22 +26,22 @@ local RANGED_SPEC_IDS = {
     [1473] = true,  -- Augmentation Evoker
 }
 
-function NXR.BuildSpecData()
-    wipe(NXR.classData)
-    wipe(NXR.specData)
-    wipe(NXR.roleSpecs)
-    wipe(NXR.sortedClassIDs)
+function AI.BuildSpecData()
+    wipe(AI.classData)
+    wipe(AI.specData)
+    wipe(AI.roleSpecs)
+    wipe(AI.sortedClassIDs)
 
-    NXR.roleSpecs.HEALER  = {}
-    NXR.roleSpecs.DAMAGER = {}
-    NXR.roleSpecs.MELEE   = {}
-    NXR.roleSpecs.RANGED  = {}
-    NXR.roleSpecs.TANK    = {}
+    AI.roleSpecs.HEALER  = {}
+    AI.roleSpecs.DAMAGER = {}
+    AI.roleSpecs.MELEE   = {}
+    AI.roleSpecs.RANGED  = {}
+    AI.roleSpecs.TANK    = {}
 
     for i = 1, GetNumClasses() do
         local className, classFileName, classID = GetClassInfo(i)
         if classID then
-            table.insert(NXR.sortedClassIDs, classID)
+            table.insert(AI.sortedClassIDs, classID)
             local entry = {
                 classID       = classID,
                 className     = className,
@@ -63,21 +63,21 @@ function NXR.BuildSpecData()
                         classFileName = classFileName,
                     }
                     table.insert(entry.specs, s)
-                    NXR.specData[specID] = s
+                    AI.specData[specID] = s
                     if role == "DAMAGER" then
-                        table.insert(NXR.roleSpecs.DAMAGER, s)
+                        table.insert(AI.roleSpecs.DAMAGER, s)
                         if RANGED_SPEC_IDS[specID] then
-                            table.insert(NXR.roleSpecs.RANGED, s)
+                            table.insert(AI.roleSpecs.RANGED, s)
                         else
-                            table.insert(NXR.roleSpecs.MELEE, s)
+                            table.insert(AI.roleSpecs.MELEE, s)
                         end
-                    elseif NXR.roleSpecs[role] then
-                        table.insert(NXR.roleSpecs[role], s)
+                    elseif AI.roleSpecs[role] then
+                        table.insert(AI.roleSpecs[role], s)
                     end
                 end
             end
 
-            NXR.classData[classID] = entry
+            AI.classData[classID] = entry
         end
     end
 
@@ -89,15 +89,15 @@ function NXR.BuildSpecData()
         return a.className < b.className
     end
     for _, role in ipairs({"HEALER", "DAMAGER", "MELEE", "RANGED", "TANK"}) do
-        table.sort(NXR.roleSpecs[role], sortFn)
+        table.sort(AI.roleSpecs[role], sortFn)
     end
 
-    NXR.Debug("BuildSpecData:", NXR.TableCount(NXR.specData), "specs across",
-        #NXR.sortedClassIDs, "classes |",
-        #NXR.roleSpecs.HEALER, "healers,",
-        #NXR.roleSpecs.MELEE, "melee,",
-        #NXR.roleSpecs.RANGED, "ranged,",
-        #NXR.roleSpecs.TANK, "tanks")
+    AI.Debug("BuildSpecData:", AI.TableCount(AI.specData), "specs across",
+        #AI.sortedClassIDs, "classes |",
+        #AI.roleSpecs.HEALER, "healers,",
+        #AI.roleSpecs.MELEE, "melee,",
+        #AI.roleSpecs.RANGED, "ranged,",
+        #AI.roleSpecs.TANK, "tanks")
 end
 
 -- ============================================================================
@@ -106,7 +106,7 @@ end
 
 local function NextID()
     local max = 0
-    for _, c in ipairs(NelxRatedDB.challenges) do
+    for _, c in ipairs(ArenaInsightsDB.challenges) do
         if c.id > max then max = c.id end
     end
     return max + 1
@@ -116,8 +116,8 @@ local function GenerateUID()
     return time() .. "-" .. math.random(100000, 999999)
 end
 
-function NXR.AddChallenge(data)
-    local isFirst = #NelxRatedDB.challenges == 0
+function AI.AddChallenge(data)
+    local isFirst = #ArenaInsightsDB.challenges == 0
     local c = {
         id         = NextID(),
         uid        = data.uid or GenerateUID(),
@@ -132,64 +132,64 @@ function NXR.AddChallenge(data)
     else
         c.active = isFirst
     end
-    table.insert(NelxRatedDB.challenges, c)
-    NXR.Debug("AddChallenge: id=" .. c.id, "'" .. c.name .. "'",
+    table.insert(ArenaInsightsDB.challenges, c)
+    AI.Debug("AddChallenge: id=" .. c.id, "'" .. c.name .. "'",
         "goal=" .. c.goalRating,
-        "brackets=" .. NXR.TableCount(c.brackets),
-        "specs=" .. NXR.TableCount(c.specs),
+        "brackets=" .. AI.TableCount(c.brackets),
+        "specs=" .. AI.TableCount(c.specs),
         "active=" .. tostring(c.active))
-    if isFirst and NXR.RefreshOverlay then
-        NXR.RefreshOverlay()
+    if isFirst and AI.RefreshOverlay then
+        AI.RefreshOverlay()
     end
     return c
 end
 
-function NXR.RemoveChallenge(id)
+function AI.RemoveChallenge(id)
     local wasActive = false
-    for i, c in ipairs(NelxRatedDB.challenges) do
+    for i, c in ipairs(ArenaInsightsDB.challenges) do
         if c.id == id then
             wasActive = c.active
             if c.uid then
-                NelxRatedDB.deletedChallengeUIDs = NelxRatedDB.deletedChallengeUIDs or {}
-                NelxRatedDB.deletedChallengeUIDs[c.uid] = true
+                ArenaInsightsDB.deletedChallengeUIDs = ArenaInsightsDB.deletedChallengeUIDs or {}
+                ArenaInsightsDB.deletedChallengeUIDs[c.uid] = true
             end
-            table.remove(NelxRatedDB.challenges, i)
+            table.remove(ArenaInsightsDB.challenges, i)
             break
         end
     end
-    if wasActive and NXR.RefreshOverlay then
-        NXR.RefreshOverlay()
+    if wasActive and AI.RefreshOverlay then
+        AI.RefreshOverlay()
     end
 end
 
-function NXR.UpdateChallenge(id, data)
-    for _, c in ipairs(NelxRatedDB.challenges) do
+function AI.UpdateChallenge(id, data)
+    for _, c in ipairs(ArenaInsightsDB.challenges) do
         if c.id == id then
             if data.name ~= nil then c.name = data.name end
             if data.goalRating ~= nil then c.goalRating = data.goalRating end
             if data.brackets then c.brackets = data.brackets end
             if data.specs then c.specs = data.specs end
             if data.classes then c.classes = data.classes end
-            if c.active and NXR.RefreshOverlay then
-                NXR.RefreshOverlay()
+            if c.active and AI.RefreshOverlay then
+                AI.RefreshOverlay()
             end
             return c
         end
     end
 end
 
-function NXR.SetActiveChallenge(id)
-    NXR.Debug("SetActiveChallenge: id=" .. tostring(id))
-    for _, c in ipairs(NelxRatedDB.challenges) do
+function AI.SetActiveChallenge(id)
+    AI.Debug("SetActiveChallenge: id=" .. tostring(id))
+    for _, c in ipairs(ArenaInsightsDB.challenges) do
         c.active = (c.id == id)
     end
-    if NXR.RefreshOverlay then
-        NXR.RefreshOverlay()
+    if AI.RefreshOverlay then
+        AI.RefreshOverlay()
     end
 end
 
-function NXR.GetActiveChallenge()
-    for _, c in ipairs(NelxRatedDB.challenges) do
+function AI.GetActiveChallenge()
+    for _, c in ipairs(ArenaInsightsDB.challenges) do
         if c.active then return c end
     end
     return nil
@@ -199,8 +199,8 @@ end
 -- Manual spec/class completion (Story: Manual Spec Completion)
 -- ============================================================================
 
-function NXR.SetSpecCompleted(challengeID, specID, completed)
-    for _, c in ipairs(NelxRatedDB.challenges) do
+function AI.SetSpecCompleted(challengeID, specID, completed)
+    for _, c in ipairs(ArenaInsightsDB.challenges) do
         if c.id == challengeID then
             c.completedSpecs = c.completedSpecs or {}
             c.completedSpecs[specID] = completed and true or nil
@@ -209,8 +209,8 @@ function NXR.SetSpecCompleted(challengeID, specID, completed)
     end
 end
 
-function NXR.IsSpecCompleted(challengeID, specID)
-    for _, c in ipairs(NelxRatedDB.challenges) do
+function AI.IsSpecCompleted(challengeID, specID)
+    for _, c in ipairs(ArenaInsightsDB.challenges) do
         if c.id == challengeID then
             return c.completedSpecs and c.completedSpecs[specID] == true
         end
@@ -218,8 +218,8 @@ function NXR.IsSpecCompleted(challengeID, specID)
     return false
 end
 
-function NXR.SetClassCompleted(challengeID, classID, completed)
-    for _, c in ipairs(NelxRatedDB.challenges) do
+function AI.SetClassCompleted(challengeID, classID, completed)
+    for _, c in ipairs(ArenaInsightsDB.challenges) do
         if c.id == challengeID then
             c.completedClasses = c.completedClasses or {}
             c.completedClasses[classID] = completed and true or nil
@@ -228,8 +228,8 @@ function NXR.SetClassCompleted(challengeID, classID, completed)
     end
 end
 
-function NXR.IsClassCompleted(challengeID, classID)
-    for _, c in ipairs(NelxRatedDB.challenges) do
+function AI.IsClassCompleted(challengeID, classID)
+    for _, c in ipairs(ArenaInsightsDB.challenges) do
         if c.id == challengeID then
             return c.completedClasses and c.completedClasses[classID] == true
         end
@@ -241,20 +241,20 @@ end
 -- Initialization (called from Core.lua ADDON_LOADED)
 -- ============================================================================
 
-function NXR.InitChallenges()
-    local challenges = NelxRatedDB.challenges
+function AI.InitChallenges()
+    local challenges = ArenaInsightsDB.challenges
 
     -- Backfill UIDs for pre-9-6 challenges
     for _, c in ipairs(challenges) do
         if not c.uid then
             c.uid = GenerateUID()
-            NXR.Debug("InitChallenges: backfilled uid for '" .. c.name .. "': " .. c.uid)
+            AI.Debug("InitChallenges: backfilled uid for '" .. c.name .. "': " .. c.uid)
         end
     end
 
-    if #challenges > 0 and not NXR.GetActiveChallenge() then
+    if #challenges > 0 and not AI.GetActiveChallenge() then
         challenges[1].active = true
-        NXR.Debug("InitChallenges: auto-activated '" .. challenges[1].name .. "'")
+        AI.Debug("InitChallenges: auto-activated '" .. challenges[1].name .. "'")
     end
-    NXR.Debug("InitChallenges:", #challenges, "challenges loaded")
+    AI.Debug("InitChallenges:", #challenges, "challenges loaded")
 end

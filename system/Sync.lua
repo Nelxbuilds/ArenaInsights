@@ -1,15 +1,15 @@
-local addonName, NXR = ...
+local addonName, AI = ...
 
 -- ============================================================================
 -- Party Sync
 -- ============================================================================
 
-local SYNC_PREFIX       = "NXR_SYNC"
+local SYNC_PREFIX       = "AI_SYNC"
 local CHUNK_SIZE        = 200
 local RESPONSE_TIMEOUT  = 5
 local BUFFER_TIMEOUT    = 30
 
--- Session state (reset on each NXR.InitiateSync call)
+-- Session state (reset on each AI.InitiateSync call)
 local syncInProgress          = false
 local sessionRespondedSenders = {}
 
@@ -23,8 +23,8 @@ local inboundBuffers = {}
 -- ============================================================================
 
 local function GetMyName()
-    if NXR.currentCharKey then
-        return NXR.currentCharKey:match("^(.-)%-") or NXR.currentCharKey
+    if AI.currentCharKey then
+        return AI.currentCharKey:match("^(.-)%-") or AI.currentCharKey
     end
     return UnitName("player") or ""
 end
@@ -48,8 +48,8 @@ end
 -- ============================================================================
 
 local function SendChunks(sessionID)
-    if not NXR.SerializeCharactersForSync then return end
-    local payload = NXR.SerializeCharactersForSync()
+    if not AI.SerializeCharactersForSync then return end
+    local payload = AI.SerializeCharactersForSync()
     local chunks  = {}
     local pos     = 1
     while pos <= #payload do
@@ -71,26 +71,26 @@ end
 local statusTimer = nil
 
 local function HandleCompletePayload(sender, payload)
-    if not NXR.ParseCharactersForSync or not NXR.MergeCharacters then return end
+    if not AI.ParseCharactersForSync or not AI.MergeCharacters then return end
 
-    local characters = NXR.ParseCharactersForSync(payload)
+    local characters = AI.ParseCharactersForSync(payload)
     if not characters then
-        NXR.Debug("Sync: failed to parse payload from", sender)
+        AI.Debug("Sync: failed to parse payload from", sender)
         return
     end
 
-    NXR.MergeCharacters(characters)
+    AI.MergeCharacters(characters)
 
-    NelxRatedDB.syncPartners = NelxRatedDB.syncPartners or {}
-    NelxRatedDB.syncPartners[sender] = time()
+    ArenaInsightsDB.syncPartners = ArenaInsightsDB.syncPartners or {}
+    ArenaInsightsDB.syncPartners[sender] = time()
 
     if syncInProgress then
         sessionRespondedSenders[sender] = true
     end
 
-    if NXR.RefreshOverlay then NXR.RefreshOverlay() end
+    if AI.RefreshOverlay then AI.RefreshOverlay() end
 
-    NXR.Debug("Sync: merged data from", sender)
+    AI.Debug("Sync: merged data from", sender)
 
     -- Responder path: we received an initiation from someone else, send our data back
     if not syncInProgress then
@@ -145,9 +145,9 @@ local function StartStatusTimer()
         local n = 0
         for _ in pairs(sessionRespondedSenders) do n = n + 1 end
         if n > 0 then
-            NXR.UpdateSyncStatusUI("Synced with " .. n .. " partner(s)", false)
+            AI.UpdateSyncStatusUI("Synced with " .. n .. " partner(s)", false)
         else
-            NXR.UpdateSyncStatusUI("No response from party members.", false)
+            AI.UpdateSyncStatusUI("No response from party members.", false)
         end
     end)
 end
@@ -180,30 +180,30 @@ syncFrame:RegisterEvent("CHAT_MSG_ADDON")
 -- Public API
 -- ============================================================================
 
-function NXR.InitiateSync()
+function AI.InitiateSync()
     if GetNumGroupMembers() == 0 then
-        NXR.UpdateSyncStatusUI("Not in a party.", true)
+        AI.UpdateSyncStatusUI("Not in a party.", true)
         return
     end
 
     sessionRespondedSenders = {}
     syncInProgress = true
-    NXR.UpdateSyncStatusUI("Syncing\226\128\166", false)
+    AI.UpdateSyncStatusUI("Syncing\226\128\166", false)
 
     local sessionID = tostring(time()) .. "-" .. tostring(math.random(10000, 99999))
     SendChunks(sessionID)
     StartStatusTimer()
 end
 
-function NXR.SyncSelfTest()
-    if not NXR.SerializeCharactersForSync or not NXR.ParseCharactersForSync or not NXR.MergeCharacters then
-        print("|cffE6D200NelxRated|r sync selftest: helpers not available")
+function AI.SyncSelfTest()
+    if not AI.SerializeCharactersForSync or not AI.ParseCharactersForSync or not AI.MergeCharacters then
+        print("|cffE6D200ArenaInsights|r sync selftest: helpers not available")
         return
     end
 
-    local payload   = NXR.SerializeCharactersForSync()
+    local payload   = AI.SerializeCharactersForSync()
     local charCount = 0
-    for _ in pairs(NelxRatedDB.characters or {}) do charCount = charCount + 1 end
+    for _ in pairs(ArenaInsightsDB.characters or {}) do charCount = charCount + 1 end
 
     -- Simulate chunking
     local chunks = {}
@@ -216,14 +216,14 @@ function NXR.SyncSelfTest()
     -- Reassemble
     local reassembled = table.concat(chunks)
     if reassembled ~= payload then
-        print("|cffE6D200NelxRated|r sync selftest: FAIL — chunk reassembly mismatch")
+        print("|cffE6D200ArenaInsights|r sync selftest: FAIL — chunk reassembly mismatch")
         return
     end
 
     -- Parse
-    local characters = NXR.ParseCharactersForSync(reassembled)
+    local characters = AI.ParseCharactersForSync(reassembled)
     if not characters then
-        print("|cffE6D200NelxRated|r sync selftest: FAIL — parse returned nil")
+        print("|cffE6D200ArenaInsights|r sync selftest: FAIL — parse returned nil")
         return
     end
 
@@ -231,15 +231,15 @@ function NXR.SyncSelfTest()
     for _ in pairs(characters) do parsedCount = parsedCount + 1 end
 
     -- Merge (no-op since data is identical — updatedAt timestamps won't advance)
-    local added, updated, skipped = NXR.MergeCharacters(characters)
+    local added, updated, skipped = AI.MergeCharacters(characters)
 
     print(string.format(
-        "|cffE6D200NelxRated|r sync selftest: OK — %d chars serialized, %d chunks, %d parsed, merge: +%d ~%d skip%d",
+        "|cffE6D200ArenaInsights|r sync selftest: OK — %d chars serialized, %d chunks, %d parsed, merge: +%d ~%d skip%d",
         charCount, #chunks, parsedCount, added, updated, skipped
     ))
 end
 
-function NXR.GetSyncStatus()
+function AI.GetSyncStatus()
     if syncInProgress then return "syncing" end
     local n = 0
     for _ in pairs(sessionRespondedSenders) do n = n + 1 end
@@ -247,12 +247,12 @@ function NXR.GetSyncStatus()
     return "idle"
 end
 
-function NXR.UpdateSyncStatusUI(text, isError)
-    if not NXR._syncStatusText then return end
-    NXR._syncStatusText:SetText(text or "")
+function AI.UpdateSyncStatusUI(text, isError)
+    if not AI._syncStatusText then return end
+    AI._syncStatusText:SetText(text or "")
     if isError then
-        NXR._syncStatusText:SetTextColor(unpack(NXR.COLORS.CRIMSON_BRIGHT))
+        AI._syncStatusText:SetTextColor(unpack(AI.COLORS.CRIMSON_BRIGHT))
     else
-        NXR._syncStatusText:SetTextColor(0.78, 0.75, 0.73)
+        AI._syncStatusText:SetTextColor(0.78, 0.75, 0.73)
     end
 end

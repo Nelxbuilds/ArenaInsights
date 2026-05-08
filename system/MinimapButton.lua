@@ -1,4 +1,4 @@
-local addonName, NXR = ...
+local addonName, AI = ...
 
 local minimapFrame = CreateFrame("Frame")
 minimapFrame:RegisterEvent("PLAYER_LOGIN")
@@ -6,43 +6,43 @@ minimapFrame:SetScript("OnEvent", function(self, event)
     if event ~= "PLAYER_LOGIN" then return end
     self:UnregisterEvent("PLAYER_LOGIN")
 
-    if not NelxRatedDB or not NelxRatedDB.settings then return end
+    if not ArenaInsightsDB or not ArenaInsightsDB.settings then return end
 
-    NelxRatedDB.settings.minimapPosition = NelxRatedDB.settings.minimapPosition or {}
+    ArenaInsightsDB.settings.minimapPosition = ArenaInsightsDB.settings.minimapPosition or {}
 
     local LDB = LibStub and LibStub:GetLibrary("LibDataBroker-1.1", true)
     local LDBIcon = LibStub and LibStub:GetLibrary("LibDBIcon-1.0", true)
 
     if not LDB or not LDBIcon then return end
 
-    local dataObject = LDB:NewDataObject("NelxRated", {
+    local dataObject = LDB:NewDataObject("ArenaInsights", {
         type  = "launcher",
         icon  = "Interface\\AddOns\\NelxRated\\images\\logo",
-        label = "NelxRated",
+        label = "ArenaInsights",
 
         OnClick = function(_, button)
             if button == "LeftButton" then
-                NXR.ToggleMainFrame()
+                AI.ToggleMainFrame()
             elseif button == "RightButton" then
-                NXR.SelectTab("Settings")
+                AI.SelectTab("Settings")
             end
         end,
 
         OnTooltipShow = function(tooltip)
-            tooltip:SetText("NelxRated", 1, 0.82, 0)
+            tooltip:SetText("ArenaInsights", 1, 0.82, 0)
             tooltip:AddLine("Left-click: Toggle window", 1, 1, 1)
             tooltip:AddLine("Right-click: Settings", 1, 1, 1)
             tooltip:Show()
         end,
     })
 
-    LDBIcon:Register("NelxRated", dataObject, NelxRatedDB.settings.minimapPosition)
+    LDBIcon:Register("ArenaInsights", dataObject, ArenaInsightsDB.settings.minimapPosition)
 
-    local show = NelxRatedDB.settings.showMinimapButton
+    local show = ArenaInsightsDB.settings.showMinimapButton
     if show == nil then show = true end
     if show then
-        LDBIcon:Show("NelxRated")
+        LDBIcon:Show("ArenaInsights")
     else
-        LDBIcon:Hide("NelxRated")
+        LDBIcon:Hide("ArenaInsights")
     end
 end)

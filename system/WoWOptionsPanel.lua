@@ -1,10 +1,10 @@
-local addonName, NXR = ...
+local addonName, AI = ...
 
 -- ============================================================================
 -- WoW Native Settings Panel — Discovery / Launch Page
 -- ============================================================================
 -- Registers an entry under Settings > AddOns so users can find the addon
--- without knowing the /nxr slash command. Static launch page only —
+-- without knowing the /ai slash command. Static launch page only —
 -- not a mirror of SettingsUI.lua.
 -- ============================================================================
 
@@ -15,8 +15,8 @@ local function BuildOptionsFrame()
     -- Title
     local title = f:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
     title:SetPoint("TOPLEFT", 16, -16)
-    title:SetText("NelxRated")
-    title:SetTextColor(unpack(NXR.COLORS.CRIMSON_BRIGHT))
+    title:SetText("ArenaInsights")
+    title:SetTextColor(unpack(AI.COLORS.CRIMSON_BRIGHT))
 
     -- Tagline
     local tagline = f:CreateFontString(nil, "ARTWORK", "GameFontNormal")
@@ -30,9 +30,9 @@ local function BuildOptionsFrame()
     divider:SetWidth(360)
     divider:SetPoint("TOPLEFT", tagline, "BOTTOMLEFT", 0, -10)
     divider:SetColorTexture(
-        NXR.COLORS.CRIMSON_BRIGHT[1],
-        NXR.COLORS.CRIMSON_BRIGHT[2],
-        NXR.COLORS.CRIMSON_BRIGHT[3],
+        AI.COLORS.CRIMSON_BRIGHT[1],
+        AI.COLORS.CRIMSON_BRIGHT[2],
+        AI.COLORS.CRIMSON_BRIGHT[3],
         0.4
     )
 
@@ -48,17 +48,17 @@ local function BuildOptionsFrame()
         "— for every spec and character on your account.\n\n" ..
         "Set rating challenges, view progress history, and compare specs\n" ..
         "side-by-side with the in-game overlay.\n\n" ..
-        "Slash command: |cffE6D200/nxr|r"
+        "Slash command: |cffE6D200/ai|r"
     )
 
     -- Launch button
-    -- NXR.CreateNXRButton is defined in MainFrame.lua. BuildOptionsFrame() is
+    -- AI.CreateAIButton is defined in MainFrame.lua. BuildOptionsFrame() is
     -- only called inside ADDON_LOADED (after all files load), so it's safe.
-    local btn = NXR.CreateNXRButton(f, "Open NelxRated", 200, 32)
+    local btn = AI.CreateAIButton(f, "Open ArenaInsights", 200, 32)
     btn:SetPoint("TOPLEFT", desc, "BOTTOMLEFT", 0, -20)
     btn:SetScript("OnClick", function()
         if SettingsPanel then SettingsPanel:Hide() end
-        NXR.ToggleMainFrame()
+        AI.ToggleMainFrame()
     end)
 
     return f
@@ -72,7 +72,7 @@ regFrame:SetScript("OnEvent", function(self, event, loadedAddon)
     self:UnregisterEvent("ADDON_LOADED")
 
     local optionsFrame = BuildOptionsFrame()
-    local category = Settings.RegisterCanvasLayoutCategory(optionsFrame, "NelxRated")
+    local category = Settings.RegisterCanvasLayoutCategory(optionsFrame, "ArenaInsights")
     Settings.RegisterAddOnCategory(category)
-    NXR.wowOptionsCategoryID = category:GetID()
+    AI.wowOptionsCategoryID = category:GetID()
 end)

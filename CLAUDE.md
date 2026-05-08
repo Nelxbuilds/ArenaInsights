@@ -8,12 +8,12 @@ Before using any WoW API not already documented in this file, invoke `/wow-api-r
 
 ## Project
 
-**Name**: NelxRated
+**Name**: ArenaInsights
 **Author**: Nelx
 **Description**: Personal PvP rating challenge tracker for Solo Shuffle, 2v2, 3v3, Blitz BG. Track ratings and MMR by spec/class across multiple characters and accounts.
 **Tech stack**: Lua, WoW Midnight 12.x addon API
-**Namespace**: `local addonName, NXR = ...` — all public API on `NXR.*`
-**SavedVariables**: `NelxRatedDB`
+**Namespace**: `local addonName, AI = ...` — all public API on `AI.*`
+**SavedVariables**: `ArenaInsightsDB`
 
 ## Architecture
 
@@ -22,20 +22,20 @@ Addon organized around main modules:
 - **Core / Event Handling** (`core/Core.lua`): Registers PvP events, extracts rating/MMR data, persists to SavedVariables
 - **Challenge System** (`core/Challenges.lua`): Multi-spec, multi-bracket challenge CRUD with active challenge logic
 - **Overlay** (`ui/Overlay.lua`): Movable frame showing spec rows from active challenge with ratings and tooltips
-- **Main Frame** (`ui/MainFrame.lua`): Custom standalone frame (`/nxr`) with vertical sidebar nav (Home, Challenges, Characters, Settings, Import/Export)
+- **Main Frame** (`ui/MainFrame.lua`): Custom standalone frame (`/ai`) with vertical sidebar nav (Home, Challenges, Characters, Settings, Import/Export)
 - **Data Layer** (`core/Currency.lua`, `ui/ImportExportUI.lua`): Character tracking, challenge management, cross-account Import/Export
 - **System** (`system/`): Party sync, tooltip hooks, WoW Settings integration, minimap button
 
 ## File Manifest
 
-Manifest file: `NelxRated.toc`
+Manifest file: `ArenaInsights.toc`
 Load order top-to-bottom. New files added in dependency order.
 Three subdirectories: `core/` (data/logic), `ui/` (frames/panels), `system/` (WoW integration). See per-directory CLAUDE.md for details.
 
 **Adding a new file:**
 1. Pick subdir: pure logic → `core/`, frames/panels → `ui/`, WoW subsystem hooks → `system/`
-2. Add path to `NelxRated.toc` in correct dependency position
-3. Add entry to that subdir's `CLAUDE.md` (fn signatures, events, public API on `NXR.*`)
+2. Add path to `ArenaInsights.toc` in correct dependency position
+3. Add entry to that subdir's `CLAUDE.md` (fn signatures, events, public API on `AI.*`)
 
 ## Bracket Indices
 
@@ -43,10 +43,10 @@ Three subdirectories: `core/` (data/logic), `ui/` (frames/panels), `system/` (Wo
 
 | Bracket | Index | Constant |
 |---------|-------|----------|
-| 2v2 Arena | 0 | `NXR.BRACKET_2V2` |
-| 3v3 Arena | 1 | `NXR.BRACKET_3V3` |
-| Blitz Battleground | 4 | `NXR.BRACKET_BLITZ` |
-| Solo Shuffle | 7 | `NXR.BRACKET_SOLO_SHUFFLE` |
+| 2v2 Arena | 0 | `AI.BRACKET_2V2` |
+| 3v3 Arena | 1 | `AI.BRACKET_3V3` |
+| Blitz Battleground | 4 | `AI.BRACKET_BLITZ` |
+| Solo Shuffle | 7 | `AI.BRACKET_SOLO_SHUFFLE` |
 
 
 ## Key Design Constraints
@@ -102,11 +102,11 @@ Flag any path where opacity=0 but mouse input not disabled.
 
 Import must NOT replace existing character entries from other accounts.
 Merge by account key, not overwrite.
-Flag any `NelxRatedDB.characters = importedData` replacement.
+Flag any `ArenaInsightsDB.characters = importedData` replacement.
 
 ### D3: Character key format — `core/`
 
-Keys in `NelxRatedDB` must be `"Name-Realm"` format.
+Keys in `ArenaInsightsDB` must be `"Name-Realm"` format.
 Built with `UnitName("player") .. "-" .. GetRealmName()`, not just `UnitName("player")`.
 
 ### D4: Rating color threshold logic — `ui/`
@@ -175,7 +175,7 @@ local BORDER_W   = 1
 ## Release
 
 Platform: CurseForge
-Manifest: `NelxRated.toc`
+Manifest: `ArenaInsights.toc`
 Version field: `## Version:`
 
 Packaging ignore list:
@@ -220,12 +220,12 @@ Key skill notes:
 
 ## SavedVariables
 
-All data in `NelxRatedDB` (declared in TOC). Structure after `InitDB()`:
+All data in `ArenaInsightsDB` (declared in TOC). Structure after `InitDB()`:
 
 ```lua
-NelxRatedDB.settings        -- User preferences (opacity, overlay lock, account name, etc.)
-NelxRatedDB.characters      -- Tracked character rating data
-NelxRatedDB.challenges      -- Challenge definitions
-NelxRatedDB.overlayPosition -- Saved overlay frame position
-NelxRatedDB.schemaVersion   -- DB migration version
+ArenaInsightsDB.settings        -- User preferences (opacity, overlay lock, account name, etc.)
+ArenaInsightsDB.characters      -- Tracked character rating data
+ArenaInsightsDB.challenges      -- Challenge definitions
+ArenaInsightsDB.overlayPosition -- Saved overlay frame position
+ArenaInsightsDB.schemaVersion   -- DB migration version
 ```

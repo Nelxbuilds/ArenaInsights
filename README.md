@@ -1,4 +1,4 @@
-# NelxRated
+# ArenaInsights
 
 Personal PvP rating challenge tracker for World of Warcraft (Midnight 12.x).
 
@@ -12,7 +12,7 @@ Track your arena and battleground ratings across multiple characters and account
 - **Match Insights** — Per-match history log with outcome colors, MMR delta, spec icons, character filter, and team breakdown
 - **Rating History** — Graph visualization of rating progression per character/spec/bracket with goal line overlay and class color option
 - **Multi-Character** — Track all your characters in one place, see your best-rated character per spec
-- **Party Sync** — One-button bidirectional sync with other NelxRated accounts in your party; merges character rating data without overwriting existing entries
+- **Party Sync** — One-button bidirectional sync with other ArenaInsights accounts in your party; merges character rating data without overwriting existing entries
 - **Multi-Account** — Import/Export characters, challenges, settings, and ratings between WoW accounts without overwriting existing data
 - **Currency Tracking** — Per-character PvP currency ledger (Honor, Conquest, Bloody Tokens, PvP items) with visibility toggles and horizontal scroll
 - **Minimap Button** — Quick-access minimap icon to open the main frame
@@ -22,11 +22,11 @@ Track your arena and battleground ratings across multiple characters and account
 
 | Command | Description |
 |---------|-------------|
-| `/nxr` | Open the main frame |
-| `/nxr overlay` | Toggle overlay visibility |
-| `/nxr lock` / `/nxr unlock` | Lock or unlock overlay position |
-| `/nxr sync` | Sync character data with other NelxRated accounts in party |
-| `/nxr help` | Show all commands |
+| `/ai` | Open the main frame |
+| `/ai overlay` | Toggle overlay visibility |
+| `/ai lock` / `/ai unlock` | Lock or unlock overlay position |
+| `/ai sync` | Sync character data with other ArenaInsights accounts in party |
+| `/ai help` | Show all commands |
 
 ## Main Frame Tabs
 
@@ -45,12 +45,12 @@ Track your arena and battleground ratings across multiple characters and account
 
 ### CurseForge
 
-Download from [CurseForge](https://www.curseforge.com/wow/addons/nelxrated) and install with the CurseForge app.
+Download from [CurseForge](https://www.curseforge.com/wow/addons/arena-insights) and install with the CurseForge app.
 
 ### Manual
 
-1. Download the latest release from [GitHub Releases](https://github.com/Nelxbuilds/NelxRated/releases)
-2. Extract `NelxRated` into your `World of Warcraft/_retail_/Interface/AddOns/` directory
+1. Download the latest release from [GitHub Releases](https://github.com/Nelxbuilds/ArenaInsights/releases)
+2. Extract `ArenaInsights` into your `World of Warcraft/_retail_/Interface/AddOns/` directory
 3. Restart WoW or `/reload`
 
 ## Requirements

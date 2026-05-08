@@ -1,10 +1,10 @@
-local addonName, NXR = ...
+local addonName, AI = ...
 
 -- ============================================================================
 -- Overlay Module (Epic 4)
 -- ============================================================================
 
-NXR.Overlay = {}
+AI.Overlay = {}
 
 local overlayFrame
 local rowPool = {}
@@ -29,7 +29,7 @@ local OVERLAY_BACKDROP = {
 }
 
 local OVERLAY_BG_COLOR     = { 0.06, 0.06, 0.06, 0.85 }
-local OVERLAY_BORDER_COLOR = NXR.COLORS.CRIMSON_DIM
+local OVERLAY_BORDER_COLOR = AI.COLORS.CRIMSON_DIM
 
 -- ============================================================================
 -- Rating progress colors (Story 4-4)
@@ -71,11 +71,11 @@ local function IsInRatedPvP()
 end
 
 local function GetCurrentOpacity()
-    if not NelxRatedDB or not NelxRatedDB.settings then return 1.0 end
+    if not ArenaInsightsDB or not ArenaInsightsDB.settings then return 1.0 end
     if IsInRatedPvP() then
-        return NelxRatedDB.settings.opacityInArena or 1.0
+        return ArenaInsightsDB.settings.opacityInArena or 1.0
     else
-        return NelxRatedDB.settings.opacityOutOfArena or 1.0
+        return ArenaInsightsDB.settings.opacityOutOfArena or 1.0
     end
 end
 
@@ -100,7 +100,7 @@ end
 
 local function ApplyLockState()
     if not overlayFrame then return end
-    local locked = NelxRatedDB.settings.overlayLocked
+    local locked = ArenaInsightsDB.settings.overlayLocked
     overlayFrame:SetMovable(not locked)
     if locked then
         overlayFrame:RegisterForDrag()  -- clear drag registration
@@ -109,17 +109,17 @@ local function ApplyLockState()
     end
 end
 
-function NXR.Overlay.OnLockChanged()
+function AI.Overlay.OnLockChanged()
     ApplyLockState()
 end
 
-function NXR.Overlay.SetLocked(locked)
-    NelxRatedDB.settings.overlayLocked = locked
+function AI.Overlay.SetLocked(locked)
+    ArenaInsightsDB.settings.overlayLocked = locked
     ApplyLockState()
     if locked then
-        print("|cffE6D200NelxRated|r: Overlay locked")
+        print("|cffE6D200ArenaInsights|r: Overlay locked")
     else
-        print("|cffE6D200NelxRated|r: Overlay unlocked")
+        print("|cffE6D200ArenaInsights|r: Overlay unlocked")
     end
 end
 
@@ -129,7 +129,7 @@ end
 
 local function ApplyBackground()
     if not overlayFrame then return end
-    if NelxRatedDB.settings.showOverlayBackground then
+    if ArenaInsightsDB.settings.showOverlayBackground then
         overlayFrame:SetBackdrop(OVERLAY_BACKDROP)
         overlayFrame:SetBackdropColor(unpack(OVERLAY_BG_COLOR))
         overlayFrame:SetBackdropBorderColor(unpack(OVERLAY_BORDER_COLOR))
@@ -138,7 +138,7 @@ local function ApplyBackground()
     end
 end
 
-function NXR.Overlay.OnBackgroundChanged()
+function AI.Overlay.OnBackgroundChanged()
     ApplyBackground()
 end
 
@@ -148,11 +148,11 @@ end
 
 local function ApplyScale()
     if not overlayFrame then return end
-    local scale = NelxRatedDB.settings.overlayScale or 1.0
+    local scale = ArenaInsightsDB.settings.overlayScale or 1.0
     overlayFrame:SetScale(scale)
 end
 
-function NXR.Overlay.OnScaleChanged()
+function AI.Overlay.OnScaleChanged()
     ApplyScale()
 end
 
@@ -160,11 +160,11 @@ end
 -- Opacity changed (Story 4-5)
 -- ============================================================================
 
-function NXR.Overlay.OnOpacityChanged()
+function AI.Overlay.OnOpacityChanged()
     if not overlayFrame then return end
     local inPvP = IsInRatedPvP()
     local opacity = GetCurrentOpacity()
-    NXR.Debug("Overlay opacity:", opacity, "| inPvP:", tostring(inPvP))
+    AI.Debug("Overlay opacity:", opacity, "| inPvP:", tostring(inPvP))
     overlayFrame:SetAlpha(opacity)
     ApplyMouseState(opacity)
 end
@@ -173,20 +173,20 @@ end
 -- Show / Hide toggle
 -- ============================================================================
 
-function NXR.Overlay.SetShown(show)
-    NelxRatedDB.settings.showOverlay = show
+function AI.Overlay.SetShown(show)
+    ArenaInsightsDB.settings.showOverlay = show
     if show then
-        NXR.RefreshOverlay()
-        print("|cffE6D200NelxRated|r: Overlay shown")
+        AI.RefreshOverlay()
+        print("|cffE6D200ArenaInsights|r: Overlay shown")
     else
         if overlayFrame then overlayFrame:Hide() end
-        print("|cffE6D200NelxRated|r: Overlay hidden")
+        print("|cffE6D200ArenaInsights|r: Overlay hidden")
     end
 end
 
-function NXR.Overlay.Toggle()
-    local current = NelxRatedDB.settings.showOverlay
-    NXR.Overlay.SetShown(not current)
+function AI.Overlay.Toggle()
+    local current = ArenaInsightsDB.settings.showOverlay
+    AI.Overlay.SetShown(not current)
 end
 
 -- ============================================================================
@@ -272,28 +272,28 @@ local function CreateRow(parent, index)
         local ed = self.entryData
         local isCompleted
         if ed.classMode then
-            isCompleted = NXR.IsClassCompleted(ed.challengeID, ed.classID)
+            isCompleted = AI.IsClassCompleted(ed.challengeID, ed.classID)
         else
-            isCompleted = NXR.IsSpecCompleted(ed.challengeID, ed.specID)
+            isCompleted = AI.IsSpecCompleted(ed.challengeID, ed.specID)
         end
         MenuUtil.CreateContextMenu(self, function(owner, rootDescription)
             if isCompleted then
                 rootDescription:CreateButton("Unmark Complete", function()
                     if ed.classMode then
-                        NXR.SetClassCompleted(ed.challengeID, ed.classID, false)
+                        AI.SetClassCompleted(ed.challengeID, ed.classID, false)
                     else
-                        NXR.SetSpecCompleted(ed.challengeID, ed.specID, false)
+                        AI.SetSpecCompleted(ed.challengeID, ed.specID, false)
                     end
-                    NXR.RefreshOverlay()
+                    AI.RefreshOverlay()
                 end)
             else
                 rootDescription:CreateButton("Mark Complete", function()
                     if ed.classMode then
-                        NXR.SetClassCompleted(ed.challengeID, ed.classID, true)
+                        AI.SetClassCompleted(ed.challengeID, ed.classID, true)
                     else
-                        NXR.SetSpecCompleted(ed.challengeID, ed.specID, true)
+                        AI.SetSpecCompleted(ed.challengeID, ed.specID, true)
                     end
-                    NXR.RefreshOverlay()
+                    AI.RefreshOverlay()
                 end)
             end
         end)
@@ -302,7 +302,7 @@ local function CreateRow(parent, index)
     -- Forward drag events to the overlay so rows don't block dragging
     row:RegisterForDrag("LeftButton")
     row:SetScript("OnDragStart", function()
-        if not NelxRatedDB.settings.overlayLocked then
+        if not ArenaInsightsDB.settings.overlayLocked then
             overlayFrame:StartMoving()
         end
     end)
@@ -344,9 +344,9 @@ end
 -- Find characters matching a single specID with rating in challenge brackets
 local function FindMatchingCharactersForSpec(specID, challenge)
     local matches = {}
-    if not NelxRatedDB or not NelxRatedDB.characters then return matches end
+    if not ArenaInsightsDB or not ArenaInsightsDB.characters then return matches end
 
-    for charKey, char in pairs(NelxRatedDB.characters) do
+    for charKey, char in pairs(ArenaInsightsDB.characters) do
         -- Match current spec OR characters with historical data for this spec
         local hasHistoricalData = char.specBrackets and char.specBrackets[specID] ~= nil
         if char.specID == specID or hasHistoricalData then
@@ -354,7 +354,7 @@ local function FindMatchingCharactersForSpec(specID, challenge)
             local bestBracket = nil
 
             for bracketIdx in pairs(challenge.brackets) do
-                local data = NXR.GetRating(charKey, bracketIdx, specID)
+                local data = AI.GetRating(charKey, bracketIdx, specID)
                 if data and data.rating and data.rating > bestRating then
                     bestRating = data.rating
                     bestBracket = bracketIdx
@@ -366,9 +366,9 @@ local function FindMatchingCharactersForSpec(specID, challenge)
                     charKey     = charKey,
                     rating      = bestRating,
                     bracketIdx  = bestBracket,
-                    bracketName = NXR.BRACKET_NAMES[bestBracket] or "Unknown",
+                    bracketName = AI.BRACKET_NAMES[bestBracket] or "Unknown",
                     specID      = specID,
-                    specName    = NXR.specData[specID] and NXR.specData[specID].specName or "",
+                    specName    = AI.specData[specID] and AI.specData[specID].specName or "",
                 })
             end
         end
@@ -381,9 +381,9 @@ end
 -- Find all characters of any spec belonging to a class, best rating across all specs & brackets
 local function FindMatchingCharactersForClass(classID, challenge)
     local matches = {}
-    if not NelxRatedDB or not NelxRatedDB.characters then return matches end
+    if not ArenaInsightsDB or not ArenaInsightsDB.characters then return matches end
 
-    local classInfo = NXR.classData[classID]
+    local classInfo = AI.classData[classID]
     if not classInfo then return matches end
 
     -- Collect all specIDs belonging to this class
@@ -392,9 +392,9 @@ local function FindMatchingCharactersForClass(classID, challenge)
         classSpecIDs[s.specID] = true
     end
 
-    for charKey, char in pairs(NelxRatedDB.characters) do
+    for charKey, char in pairs(ArenaInsightsDB.characters) do
         -- Check if this character's class matches (via specID -> classID lookup)
-        local charSpec = char.specID and NXR.specData[char.specID]
+        local charSpec = char.specID and AI.specData[char.specID]
         if charSpec and charSpec.classID == classID then
             local bestRating = 0
             local bestBracket = nil
@@ -403,7 +403,7 @@ local function FindMatchingCharactersForClass(classID, challenge)
             -- Check all specs this character might have data for
             for specID in pairs(classSpecIDs) do
                 for bracketIdx in pairs(challenge.brackets) do
-                    local data = NXR.GetRating(charKey, bracketIdx, specID)
+                    local data = AI.GetRating(charKey, bracketIdx, specID)
                     if data and data.rating and data.rating > bestRating then
                         bestRating = data.rating
                         bestBracket = bracketIdx
@@ -417,9 +417,9 @@ local function FindMatchingCharactersForClass(classID, challenge)
                     charKey     = charKey,
                     rating      = bestRating,
                     bracketIdx  = bestBracket,
-                    bracketName = NXR.BRACKET_NAMES[bestBracket] or "Unknown",
+                    bracketName = AI.BRACKET_NAMES[bestBracket] or "Unknown",
                     specID      = bestSpecID,
-                    specName    = NXR.specData[bestSpecID] and NXR.specData[bestSpecID].specName or "",
+                    specName    = AI.specData[bestSpecID] and AI.specData[bestSpecID].specName or "",
                 })
             end
         end
@@ -449,8 +449,8 @@ local function GetSortedClassIDs(challenge)
         table.insert(classIDs, classID)
     end
     table.sort(classIDs, function(a, b)
-        local ca = NXR.classData[a]
-        local cb = NXR.classData[b]
+        local ca = AI.classData[a]
+        local cb = AI.classData[b]
         if not ca or not cb then return a < b end
         return ca.className < cb.className
     end)
@@ -467,8 +467,8 @@ local function GetSortedSpecIDs(challenge)
         table.insert(specIDs, specID)
     end
     table.sort(specIDs, function(a, b)
-        local sa = NXR.specData[a]
-        local sb = NXR.specData[b]
+        local sa = AI.specData[a]
+        local sb = AI.specData[b]
         if not sa or not sb then return a < b end
         if sa.className ~= sb.className then
             return sa.className < sb.className
@@ -491,7 +491,7 @@ local function CalcChallengeProgress(challenge)
     if classMode then
         for classID in pairs(challenge.classes) do
             total = total + 1
-            if NXR.IsClassCompleted(challenge.id, classID) then
+            if AI.IsClassCompleted(challenge.id, classID) then
                 completed = completed + 1
             else
                 local matches = FindMatchingCharactersForClass(classID, challenge)
@@ -503,7 +503,7 @@ local function CalcChallengeProgress(challenge)
     else
         for specID in pairs(challenge.specs) do
             total = total + 1
-            if NXR.IsSpecCompleted(challenge.id, specID) then
+            if AI.IsSpecCompleted(challenge.id, specID) then
                 completed = completed + 1
             else
                 local matches = FindMatchingCharactersForSpec(specID, challenge)
@@ -521,8 +521,8 @@ local function RefreshProgressBar(contentWidth, titleOffset)
     local pb = overlayFrame and overlayFrame.progressBar
     if not pb then return end
 
-    local challenge = NXR.GetActiveChallenge()
-    if not NelxRatedDB.settings.showOverlayProgressBar or not challenge then
+    local challenge = AI.GetActiveChallenge()
+    if not ArenaInsightsDB.settings.showOverlayProgressBar or not challenge then
         pb:Hide()
         return
     end
@@ -555,13 +555,13 @@ end
 -- ============================================================================
 
 local function IsLoggedInRow(specID, classID, classMode)
-    local charKey = NXR.currentCharKey
+    local charKey = AI.currentCharKey
     if not charKey then return false end
-    local char = NelxRatedDB.characters and NelxRatedDB.characters[charKey]
+    local char = ArenaInsightsDB.characters and ArenaInsightsDB.characters[charKey]
     if not char then return false end
 
     if classMode then
-        local charSpec = char.specID and NXR.specData[char.specID]
+        local charSpec = char.specID and AI.specData[char.specID]
         return charSpec and charSpec.classID == classID
     else
         return char.specID == specID
@@ -573,9 +573,9 @@ local function PopulateRow(row, bestMatch, challenge, specID, classID, classMode
     local isManuallyCompleted = false
     if challenge and challenge.id then
         if classMode and classID then
-            isManuallyCompleted = NXR.IsClassCompleted(challenge.id, classID)
+            isManuallyCompleted = AI.IsClassCompleted(challenge.id, classID)
         elseif specID then
-            isManuallyCompleted = NXR.IsSpecCompleted(challenge.id, specID)
+            isManuallyCompleted = AI.IsSpecCompleted(challenge.id, specID)
         end
     end
 
@@ -625,11 +625,11 @@ local function GetRoleHeader(index)
 end
 
 local function GetSpecRole(specID)
-    local specInfo = NXR.specData[specID]
+    local specInfo = AI.specData[specID]
     if not specInfo then return "MELEE" end
     if specInfo.role == "DAMAGER" then
         -- Check melee vs ranged via roleSpecs lookup
-        for _, s in ipairs(NXR.roleSpecs.RANGED or {}) do
+        for _, s in ipairs(AI.roleSpecs.RANGED or {}) do
             if s.specID == specID then return "RANGED" end
         end
         return "MELEE"
@@ -638,7 +638,7 @@ local function GetSpecRole(specID)
 end
 
 local function GetClassPrimaryRole(classID)
-    local classInfo = NXR.classData[classID]
+    local classInfo = AI.classData[classID]
     if not classInfo then return "MELEE" end
     local roleCounts = { HEALER = 0, MELEE = 0, RANGED = 0, TANK = 0 }
     for _, s in ipairs(classInfo.specs) do
@@ -670,7 +670,7 @@ local function BuildRowEntries(challenge, classMode)
     if classMode then
         local classIDs = GetSortedClassIDs(challenge)
         for _, classID in ipairs(classIDs) do
-            local classInfo = NXR.classData[classID]
+            local classInfo = AI.classData[classID]
             local matches = FindMatchingCharactersForClass(classID, challenge)
             table.insert(entries, {
                 type       = "class",
@@ -684,7 +684,7 @@ local function BuildRowEntries(challenge, classMode)
     else
         local specIDs = GetSortedSpecIDs(challenge)
         for _, specID in ipairs(specIDs) do
-            local specInfo = NXR.specData[specID]
+            local specInfo = AI.specData[specID]
             local matches = FindMatchingCharactersForSpec(specID, challenge)
             table.insert(entries, {
                 type       = "spec",
@@ -727,20 +727,20 @@ end
 -- Refresh overlay (Story 4-2, 4-3, 4-4, 9-1 through 9-5)
 -- ============================================================================
 
-function NXR.RefreshOverlay()
+function AI.RefreshOverlay()
     if not overlayFrame then
-        NXR.Debug("RefreshOverlay: frame not created yet")
+        AI.Debug("RefreshOverlay: frame not created yet")
         return
     end
 
     -- Respect show/hide setting
-    if NelxRatedDB.settings.showOverlay == false then
-        NXR.Debug("RefreshOverlay: overlay hidden by setting")
+    if ArenaInsightsDB.settings.showOverlay == false then
+        AI.Debug("RefreshOverlay: overlay hidden by setting")
         overlayFrame:Hide()
         return
     end
 
-    local challenge = NXR.GetActiveChallenge()
+    local challenge = AI.GetActiveChallenge()
 
     -- Hide all rows and role headers
     for _, row in ipairs(rowPool) do
@@ -752,7 +752,7 @@ function NXR.RefreshOverlay()
 
     -- If no active challenge, hide overlay
     if not challenge or not challenge.specs then
-        NXR.Debug("RefreshOverlay: no active challenge")
+        AI.Debug("RefreshOverlay: no active challenge")
         overlayFrame:Hide()
         return
     end
@@ -761,7 +761,7 @@ function NXR.RefreshOverlay()
 
     -- Title offset
     local titleOffset = 0
-    if NelxRatedDB.settings.showOverlayTitle and challenge.name and challenge.name ~= "" then
+    if ArenaInsightsDB.settings.showOverlayTitle and challenge.name and challenge.name ~= "" then
         overlayFrame.titleText:SetText(challenge.name)
         overlayFrame.titleText:ClearAllPoints()
         overlayFrame.titleText:SetPoint("TOPLEFT", overlayFrame, "TOPLEFT", PADDING, -PADDING)
@@ -773,7 +773,7 @@ function NXR.RefreshOverlay()
 
     -- Bar offset
     local barOffset = 0
-    if NelxRatedDB.settings.showOverlayProgressBar then
+    if ArenaInsightsDB.settings.showOverlayProgressBar then
         local _, total = CalcChallengeProgress(challenge)
         if total > 0 then
             barOffset = BAR_HEIGHT + BAR_PADDING
@@ -782,15 +782,15 @@ function NXR.RefreshOverlay()
 
     local topOffset = titleOffset + barOffset
 
-    NXR.Debug("RefreshOverlay: challenge='" .. challenge.name .. "'",
+    AI.Debug("RefreshOverlay: challenge='" .. challenge.name .. "'",
         "goal=" .. tostring(challenge.goalRating),
         "classMode=" .. tostring(classMode),
-        "brackets=" .. NXR.TableCount(challenge.brackets),
-        classMode and ("classes=" .. NXR.TableCount(challenge.classes)) or ("specs=" .. NXR.TableCount(challenge.specs)))
+        "brackets=" .. AI.TableCount(challenge.brackets),
+        classMode and ("classes=" .. AI.TableCount(challenge.classes)) or ("specs=" .. AI.TableCount(challenge.specs)))
 
     -- Build row data
     local entries = BuildRowEntries(challenge, classMode)
-    if NelxRatedDB.settings.hideZeroRatingRows then
+    if ArenaInsightsDB.settings.hideZeroRatingRows then
         local filtered = {}
         for _, entry in ipairs(entries) do
             if entry.bestMatch ~= nil then
@@ -806,8 +806,8 @@ function NXR.RefreshOverlay()
 
     overlayFrame:Show()
 
-    local groupByRole = NelxRatedDB.settings.overlayGroupByRole and not classMode
-    local numColumns = NelxRatedDB.settings.overlayColumns or 1
+    local groupByRole = ArenaInsightsDB.settings.overlayGroupByRole and not classMode
+    local numColumns = ArenaInsightsDB.settings.overlayColumns or 1
 
     -- First pass: create rows, populate data, measure text
     local maxRatingWidth = 0
@@ -1010,7 +1010,7 @@ function NXR.RefreshOverlay()
     end
 
     -- Re-apply opacity and mouse state
-    NXR.Overlay.OnOpacityChanged()
+    AI.Overlay.OnOpacityChanged()
 end
 
 -- ============================================================================
@@ -1020,7 +1020,7 @@ end
 SavePosition = function()
     if not overlayFrame then return end
     local point, _, relPoint, x, y = overlayFrame:GetPoint()
-    NelxRatedDB.overlayPosition = {
+    ArenaInsightsDB.overlayPosition = {
         point    = point,
         relPoint = relPoint,
         x        = x,
@@ -1030,7 +1030,7 @@ end
 
 local function RestorePosition()
     if not overlayFrame then return end
-    local pos = NelxRatedDB.overlayPosition
+    local pos = ArenaInsightsDB.overlayPosition
     if pos and pos.point then
         overlayFrame:ClearAllPoints()
         overlayFrame:SetPoint(pos.point, UIParent, pos.relPoint, pos.x, pos.y)
@@ -1055,7 +1055,7 @@ local function CreateOverlayFrame()
     overlayFrame:EnableMouse(true)
     overlayFrame:RegisterForDrag("LeftButton")
     overlayFrame:SetScript("OnDragStart", function(self)
-        if not NelxRatedDB.settings.overlayLocked then
+        if not ArenaInsightsDB.settings.overlayLocked then
             self:StartMoving()
         end
     end)
@@ -1081,7 +1081,7 @@ local function CreateOverlayFrame()
     pbFill:SetPoint("TOPLEFT")
     pbFill:SetPoint("BOTTOMLEFT")
     pbFill:SetWidth(1)
-    local cb = NXR.COLORS.CRIMSON_BRIGHT
+    local cb = AI.COLORS.CRIMSON_BRIGHT
     pbFill:SetColorTexture(cb[1], cb[2], cb[3], 1)
     overlayFrame.progressBarFill = pbFill
 
@@ -1109,8 +1109,8 @@ local function CreateOverlayFrame()
     ApplyLockState()
 
     -- Initial refresh
-    NXR.Debug("Overlay frame created, restoring position and refreshing")
-    NXR.RefreshOverlay()
+    AI.Debug("Overlay frame created, restoring position and refreshing")
+    AI.RefreshOverlay()
 end
 
 -- ============================================================================
@@ -1135,6 +1135,6 @@ eventFrame:SetScript("OnEvent", function(self, event, ...)
 
     elseif event == "PLAYER_ENTERING_WORLD" or event == "ZONE_CHANGED_NEW_AREA" then
         -- Re-evaluate opacity for arena/BG state (Story 4-5)
-        NXR.Overlay.OnOpacityChanged()
+        AI.Overlay.OnOpacityChanged()
     end
 end)

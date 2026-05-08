@@ -1,25 +1,25 @@
-local addonName, NXR = ...
-_G.NXR = NXR  -- expose for /run and external tooling
+local addonName, AI = ...
+_G.AI = AI  -- expose for /run and external tooling
 
 -- ============================================================================
 -- Bracket constants
 -- ============================================================================
 
-NXR.BRACKET_2V2          = 1
-NXR.BRACKET_3V3          = 2
-NXR.BRACKET_BLITZ        = 4
-NXR.BRACKET_SOLO_SHUFFLE = 7
+AI.BRACKET_2V2          = 1
+AI.BRACKET_3V3          = 2
+AI.BRACKET_BLITZ        = 4
+AI.BRACKET_SOLO_SHUFFLE = 7
 
-NXR.BRACKET_NAMES = {
+AI.BRACKET_NAMES = {
     [1] = "2v2",
     [2] = "3v3",
     [4] = "Blitz BG",
     [7] = "Solo Shuffle",
 }
 
-NXR.TRACKED_BRACKETS = { 1, 2, 4, 7 }
+AI.TRACKED_BRACKETS = { 1, 2, 4, 7 }
 
-NXR.PER_SPEC_BRACKETS = {
+AI.PER_SPEC_BRACKETS = {
     [4] = true,   -- Blitz BG (per-spec rating)
     [7] = true,   -- Solo Shuffle (per-spec rating)
 }
@@ -28,7 +28,7 @@ NXR.PER_SPEC_BRACKETS = {
 -- Color palette
 -- ============================================================================
 
-NXR.COLORS = {
+AI.COLORS = {
     CRIMSON_BRIGHT = { 0.9, 0.15, 0.15 },
     CRIMSON_MID    = { 0.7, 0.1, 0.1 },
     CRIMSON_DIM    = { 0.35, 0.05, 0.05 },
@@ -41,17 +41,17 @@ NXR.COLORS = {
 
 local debugMode = false
 
-function NXR.Debug(...)
+function AI.Debug(...)
     if not debugMode then return end
-    print("|cff888888[NXR]|r", ...)
+    print("|cff888888[AI]|r", ...)
 end
 
-function NXR.DebugInsights(...)
-    if not NXR.InsightsDebug then return end
-    print("|cff888888[NXR Insights]|r", ...)
+function AI.DebugInsights(...)
+    if not AI.InsightsDebug then return end
+    print("|cff888888[AI Insights]|r", ...)
 end
 
-function NXR.TableCount(t)
+function AI.TableCount(t)
     local n = 0
     if t then for _ in pairs(t) do n = n + 1 end end
     return n
@@ -101,25 +101,25 @@ local function RunMigrations(db)
 end
 
 local function InitDB()
-    NelxRatedDB = NelxRatedDB or {}
+    ArenaInsightsDB = ArenaInsightsDB or {}
 
-    NelxRatedDB.settings              = NelxRatedDB.settings or {}
-    NelxRatedDB.characters            = NelxRatedDB.characters or {}
-    NelxRatedDB.challenges            = NelxRatedDB.challenges or {}
-    NelxRatedDB.overlayPosition       = NelxRatedDB.overlayPosition or {}
-    NelxRatedDB.schemaVersion         = NelxRatedDB.schemaVersion or 0
-    NelxRatedDB.deletedChallengeUIDs  = NelxRatedDB.deletedChallengeUIDs or {}
-    NelxRatedDB.syncPartners          = NelxRatedDB.syncPartners or {}
-    NelxRatedDB.matches               = NelxRatedDB.matches or {}
+    ArenaInsightsDB.settings              = ArenaInsightsDB.settings or {}
+    ArenaInsightsDB.characters            = ArenaInsightsDB.characters or {}
+    ArenaInsightsDB.challenges            = ArenaInsightsDB.challenges or {}
+    ArenaInsightsDB.overlayPosition       = ArenaInsightsDB.overlayPosition or {}
+    ArenaInsightsDB.schemaVersion         = ArenaInsightsDB.schemaVersion or 0
+    ArenaInsightsDB.deletedChallengeUIDs  = ArenaInsightsDB.deletedChallengeUIDs or {}
+    ArenaInsightsDB.syncPartners          = ArenaInsightsDB.syncPartners or {}
+    ArenaInsightsDB.matches               = ArenaInsightsDB.matches or {}
 
-    RunMigrations(NelxRatedDB)
-    NXR.Debug("InitDB complete — schema", NelxRatedDB.schemaVersion,
-        "| chars:", NXR.TableCount(NelxRatedDB.characters),
-        "| challenges:", #NelxRatedDB.challenges)
+    RunMigrations(ArenaInsightsDB)
+    AI.Debug("InitDB complete — schema", ArenaInsightsDB.schemaVersion,
+        "| chars:", AI.TableCount(ArenaInsightsDB.characters),
+        "| challenges:", #ArenaInsightsDB.challenges)
 
     for k, v in pairs(SETTINGS_DEFAULTS) do
-        if NelxRatedDB.settings[k] == nil then
-            NelxRatedDB.settings[k] = v
+        if ArenaInsightsDB.settings[k] == nil then
+            ArenaInsightsDB.settings[k] = v
         end
     end
 end
@@ -128,13 +128,13 @@ end
 -- Character information capture
 -- ============================================================================
 
-function NXR.UpdateCharacterInfo()
+function AI.UpdateCharacterInfo()
     local name, realm = UnitName("player")
     realm = (realm and realm ~= "") and realm or GetRealmName()
     if not name or not realm then return end
 
     local key = name .. "-" .. realm
-    NXR.currentCharKey = key
+    AI.currentCharKey = key
 
     local classDisplayName, classFileName = UnitClass("player")
     local _, raceFileName = UnitRace("player")
@@ -146,7 +146,7 @@ function NXR.UpdateCharacterInfo()
         specID, specName = GetSpecializationInfo(specIndex)
     end
 
-    local char = NelxRatedDB.characters[key] or { brackets = {}, specBrackets = {} }
+    local char = ArenaInsightsDB.characters[key] or { brackets = {}, specBrackets = {} }
     char.name             = name
     char.realm            = realm
     char.classFileName    = classFileName
@@ -157,12 +157,12 @@ function NXR.UpdateCharacterInfo()
         char.specID   = specID
         char.specName = specName
     end
-    char.account          = NelxRatedDB.settings.accountName
+    char.account          = ArenaInsightsDB.settings.accountName
     char.raceFileName     = raceFileName
     char.gender           = gender
 
-    NelxRatedDB.characters[key] = char
-    NXR.Debug("UpdateCharacterInfo:", key, classFileName or "?",
+    ArenaInsightsDB.characters[key] = char
+    AI.Debug("UpdateCharacterInfo:", key, classFileName or "?",
         specName and ("spec=" .. specName .. " [" .. tostring(specID) .. "]") or "spec=nil")
 end
 
@@ -196,16 +196,16 @@ local function AppendHistory(char, historyKey, rating)
     end
 end
 
-function NXR.SaveBracketData(bracketIndex, rating, mmr)
-    local key = NXR.currentCharKey
+function AI.SaveBracketData(bracketIndex, rating, mmr)
+    local key = AI.currentCharKey
     if not key then
-        NXR.Debug("SaveBracketData: no currentCharKey, skipping")
+        AI.Debug("SaveBracketData: no currentCharKey, skipping")
         return
     end
 
-    local char = NelxRatedDB.characters[key]
+    local char = ArenaInsightsDB.characters[key]
     if not char then
-        NXR.Debug("SaveBracketData: char not found for", key)
+        AI.Debug("SaveBracketData: char not found for", key)
         return
     end
 
@@ -215,31 +215,31 @@ function NXR.SaveBracketData(bracketIndex, rating, mmr)
         updatedAt = time(),
     }
 
-    if NXR.PER_SPEC_BRACKETS[bracketIndex] then
+    if AI.PER_SPEC_BRACKETS[bracketIndex] then
         local specID = char.specID
         if not specID then
-            NXR.Debug("SaveBracketData: per-spec bracket", bracketIndex, "but specID is nil for", key)
+            AI.Debug("SaveBracketData: per-spec bracket", bracketIndex, "but specID is nil for", key)
             return
         end
         char.specBrackets = char.specBrackets or {}
         char.specBrackets[specID] = char.specBrackets[specID] or {}
         char.specBrackets[specID][bracketIndex] = data
         AppendHistory(char, specID .. ":" .. bracketIndex, rating)
-        NXR.Debug("SaveBracketData:", key, NXR.BRACKET_NAMES[bracketIndex] or bracketIndex,
+        AI.Debug("SaveBracketData:", key, AI.BRACKET_NAMES[bracketIndex] or bracketIndex,
             "rating=" .. rating, "spec=" .. specID)
     else
         char.brackets[bracketIndex] = data
         AppendHistory(char, bracketIndex, rating)
-        NXR.Debug("SaveBracketData:", key, NXR.BRACKET_NAMES[bracketIndex] or bracketIndex,
+        AI.Debug("SaveBracketData:", key, AI.BRACKET_NAMES[bracketIndex] or bracketIndex,
             "rating=" .. rating)
     end
 end
 
-function NXR.GetRating(charKey, bracketIndex, specID)
-    local char = NelxRatedDB.characters[charKey]
+function AI.GetRating(charKey, bracketIndex, specID)
+    local char = ArenaInsightsDB.characters[charKey]
     if not char then return nil end
 
-    if NXR.PER_SPEC_BRACKETS[bracketIndex] then
+    if AI.PER_SPEC_BRACKETS[bracketIndex] then
         local sb = char.specBrackets and char.specBrackets[specID]
         return sb and sb[bracketIndex]
     else
@@ -247,11 +247,11 @@ function NXR.GetRating(charKey, bracketIndex, specID)
     end
 end
 
-function NXR.GetRatingHistory(charKey, bracketIndex, specID)
-    local char = NelxRatedDB.characters[charKey]
+function AI.GetRatingHistory(charKey, bracketIndex, specID)
+    local char = ArenaInsightsDB.characters[charKey]
     if not char or not char.ratingHistory then return nil end
 
-    if NXR.PER_SPEC_BRACKETS[bracketIndex] then
+    if AI.PER_SPEC_BRACKETS[bracketIndex] then
         if not specID then return nil end
         return char.ratingHistory[specID .. ":" .. bracketIndex]
     else
@@ -261,31 +261,31 @@ end
 
 local function CapturePvPStats()
     if not GetPersonalRatedInfo then
-        NXR.Debug("CapturePvPStats: GetPersonalRatedInfo not available")
+        AI.Debug("CapturePvPStats: GetPersonalRatedInfo not available")
         return
     end
 
-    NXR.UpdateCharacterInfo()
-    NXR.Debug("CapturePvPStats: scanning brackets for", NXR.currentCharKey or "?")
+    AI.UpdateCharacterInfo()
+    AI.Debug("CapturePvPStats: scanning brackets for", AI.currentCharKey or "?")
 
     local captured = 0
-    for _, bracketIndex in ipairs(NXR.TRACKED_BRACKETS) do
+    for _, bracketIndex in ipairs(AI.TRACKED_BRACKETS) do
         local rating, seasonBest, weeklyBest, seasonPlayed, seasonWon, weeklyPlayed, weeklyWon, cap = GetPersonalRatedInfo(bracketIndex)
         if rating and rating > 0 then
-            NXR.SaveBracketData(bracketIndex, rating, 0)
+            AI.SaveBracketData(bracketIndex, rating, 0)
             captured = captured + 1
         else
-            NXR.Debug("  bracket", NXR.BRACKET_NAMES[bracketIndex] or bracketIndex,
+            AI.Debug("  bracket", AI.BRACKET_NAMES[bracketIndex] or bracketIndex,
                 "— rating:", tostring(rating), "(skipped)")
         end
     end
-    NXR.Debug("CapturePvPStats: saved", captured, "brackets")
+    AI.Debug("CapturePvPStats: saved", captured, "brackets")
 
-    if NXR.RefreshOverlay then
-        NXR.RefreshOverlay()
+    if AI.RefreshOverlay then
+        AI.RefreshOverlay()
     end
-    if NXR.RefreshHistoryGraph then
-        NXR.RefreshHistoryGraph()
+    if AI.RefreshHistoryGraph then
+        AI.RefreshHistoryGraph()
     end
 end
 
@@ -305,25 +305,31 @@ eventFrame:SetScript("OnEvent", function(self, event, ...)
     if event == "ADDON_LOADED" then
         local loadedAddon = ...
         if loadedAddon == addonName then
+            -- Silent SavedVariables migration: NelxRatedDB -> ArenaInsightsDB
+            -- Must run before InitDB() so existing user data is preserved.
+            if NelxRatedDB and not ArenaInsightsDB then
+                ArenaInsightsDB = NelxRatedDB
+                NelxRatedDB = nil
+            end
             InitDB()
-            if NXR.BuildSpecData then NXR.BuildSpecData() end
-            if NXR.InitChallenges then NXR.InitChallenges() end
-            NXR.Debug("ADDON_LOADED complete — specs loaded:",
-                NXR.TableCount(NXR.specData), "| active challenge:",
-                NXR.GetActiveChallenge and NXR.GetActiveChallenge() and NXR.GetActiveChallenge().name or "none")
+            if AI.BuildSpecData then AI.BuildSpecData() end
+            if AI.InitChallenges then AI.InitChallenges() end
+            AI.Debug("ADDON_LOADED complete — specs loaded:",
+                AI.TableCount(AI.specData), "| active challenge:",
+                AI.GetActiveChallenge and AI.GetActiveChallenge() and AI.GetActiveChallenge().name or "none")
             self:UnregisterEvent("ADDON_LOADED")
         end
 
     elseif event == "PLAYER_ENTERING_WORLD" then
-        NXR.Debug("Event: PLAYER_ENTERING_WORLD")
-        NXR.UpdateCharacterInfo()
+        AI.Debug("Event: PLAYER_ENTERING_WORLD")
+        AI.UpdateCharacterInfo()
 
     elseif event == "ACTIVE_TALENT_GROUP_CHANGED" then
-        NXR.Debug("Event: ACTIVE_TALENT_GROUP_CHANGED")
-        NXR.UpdateCharacterInfo()
+        AI.Debug("Event: ACTIVE_TALENT_GROUP_CHANGED")
+        AI.UpdateCharacterInfo()
 
     elseif event == "PVP_RATED_STATS_UPDATE" then
-        NXR.Debug("Event: PVP_RATED_STATS_UPDATE", pvpStatsTimer and "(debounced)" or "(capturing)")
+        AI.Debug("Event: PVP_RATED_STATS_UPDATE", pvpStatsTimer and "(debounced)" or "(capturing)")
         if pvpStatsTimer then return end
         pvpStatsTimer = C_Timer.After(0.5, function()
             pvpStatsTimer = nil
@@ -336,55 +342,54 @@ end)
 -- Slash command
 -- ============================================================================
 
-SLASH_NELXRATED1 = "/nxr"
-SLASH_NELXRATED2 = "/nelxrated"
-SlashCmdList["NELXRATED"] = function(msg)
+SLASH_ARENAINSIGHTS1 = "/ai"
+SlashCmdList["ARENAINSIGHTS"] = function(msg)
     local cmd = (msg or ""):lower():match("^%s*(%S+)") or ""
     if cmd == "help" then
-        print("|cffE6D200NelxRated|r commands:")
-        print("  /nxr — Open the main window")
-        print("  /nxr overlay — Toggle overlay visibility")
-        print("  /nxr lock — Lock overlay position")
-        print("  /nxr unlock — Unlock overlay position")
-        print("  /nxr sync — Sync with other NelxRated accounts in party")
-        print("  /nxr sync selftest — Test serialize/chunk/parse/merge pipeline locally")
-        print("  /nxr debug — Toggle debug logging")
-        print("  /nxr help — Show this help")
+        print("|cffE6D200ArenaInsights|r commands:")
+        print("  /ai — Open the main window")
+        print("  /ai overlay — Toggle overlay visibility")
+        print("  /ai lock — Lock overlay position")
+        print("  /ai unlock — Unlock overlay position")
+        print("  /ai sync — Sync with other ArenaInsights accounts in party")
+        print("  /ai sync selftest — Test serialize/chunk/parse/merge pipeline locally")
+        print("  /ai debug — Toggle debug logging")
+        print("  /ai help — Show this help")
         return
     end
     if cmd == "debug" then
         debugMode = not debugMode
-        print("|cffE6D200NelxRated|r debug " .. (debugMode and "ON" or "OFF"))
+        print("|cffE6D200ArenaInsights|r debug " .. (debugMode and "ON" or "OFF"))
         return
     end
     if cmd == "overlay" then
-        if NXR.Overlay and NXR.Overlay.Toggle then
-            NXR.Overlay.Toggle()
+        if AI.Overlay and AI.Overlay.Toggle then
+            AI.Overlay.Toggle()
         end
         return
     end
     if cmd == "lock" then
-        if NXR.Overlay and NXR.Overlay.SetLocked then
-            NXR.Overlay.SetLocked(true)
+        if AI.Overlay and AI.Overlay.SetLocked then
+            AI.Overlay.SetLocked(true)
         end
         return
     end
     if cmd == "unlock" then
-        if NXR.Overlay and NXR.Overlay.SetLocked then
-            NXR.Overlay.SetLocked(false)
+        if AI.Overlay and AI.Overlay.SetLocked then
+            AI.Overlay.SetLocked(false)
         end
         return
     end
     if cmd == "sync" then
         local sub = (msg or ""):lower():match("^%s*%S+%s+(%S+)") or ""
         if sub == "selftest" then
-            if NXR.SyncSelfTest then NXR.SyncSelfTest() end
+            if AI.SyncSelfTest then AI.SyncSelfTest() end
         else
-            if NXR.InitiateSync then NXR.InitiateSync() end
+            if AI.InitiateSync then AI.InitiateSync() end
         end
         return
     end
-    if NXR.ToggleMainFrame then
-        NXR.ToggleMainFrame()
+    if AI.ToggleMainFrame then
+        AI.ToggleMainFrame()
     end
 end

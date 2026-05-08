@@ -2,27 +2,27 @@
 
 All UI panels and the main window. No networking, no WoW Settings registration.
 
-CRITICAL: ui/MainFrame.lua MUST be last in ui/ TOC order — it calls NXR.Create*Panel() for all tabs during CreateMainFrame(). Reordering will break the main window.
+CRITICAL: ui/MainFrame.lua MUST be last in ui/ TOC order — it calls AI.Create*Panel() for all tabs during CreateMainFrame(). Reordering will break the main window.
 
 ## MainFrame.lua — Shared widget API (available to all ui/ files)
-- NXR.NXR_BACKDROP — backdrop table for BackdropTemplate frames
-- NXR.COLORS.BG_BASE, NXR.COLORS.BG_RAISED — defined here (table started in core/Core.lua)
-- NXR.CreateNXRButton(parent, text, width, height) → Button
-- NXR.CreateNXRInput(parent, width, height) → EditBox
-- NXR.ToggleMainFrame() — lazily creates main window on first call
-- NXR.SelectTab(tabName) — show tab; opens main window if hidden
+- AI.AI_BACKDROP — backdrop table for BackdropTemplate frames
+- AI.COLORS.BG_BASE, AI.COLORS.BG_RAISED — defined here (table started in core/Core.lua)
+- AI.CreateAIButton(parent, text, width, height) → Button
+- AI.CreateAIInput(parent, width, height) → EditBox
+- AI.ToggleMainFrame() — lazily creates main window on first call
+- AI.SelectTab(tabName) — show tab; opens main window if hidden
 - Tab names: "Home", "Insights", "History", "Challenges", "Characters", "Currency", "Settings"
 
 ## Overlay.lua
 - Independent floating frame — not a tab in the main window
-- NXR.RefreshOverlay(), NXR.Overlay.Toggle(), NXR.Overlay.SetLocked(bool)
-- Reads NXR.specData, NXR.classData (from core/Challenges.lua)
+- AI.RefreshOverlay(), AI.Overlay.Toggle(), AI.Overlay.SetLocked(bool)
+- Reads AI.specData, AI.classData (from core/Challenges.lua)
 - Lint D1: opacity=0 → EnableMouse(false) on all interactive sub-frames
 
 ## Tab panel contract
 Each panel file must:
-- Expose NXR.Create*Panel(parentFrame) called by MainFrame.lua
-- Expose NXR.Refresh*() for external refresh calls
+- Expose AI.Create*Panel(parentFrame) called by MainFrame.lua
+- Expose AI.Refresh*() for external refresh calls
 - Parent all frames to the passed parentFrame argument
 
 ## Icon atlas rules

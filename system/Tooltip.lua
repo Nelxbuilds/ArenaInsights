@@ -1,13 +1,13 @@
-local addonName, NXR = ...
+local addonName, AI = ...
 
 local MAX_ROWS = 10
 
 local function AppendCharRows(tooltip, getAmount)
-    if not NelxRatedDB then return end
-    if NelxRatedDB.settings and NelxRatedDB.settings.disableTooltip then return end
+    if not ArenaInsightsDB then return end
+    if ArenaInsightsDB.settings and ArenaInsightsDB.settings.disableTooltip then return end
 
     local rows = {}
-    for _, char in pairs(NelxRatedDB.characters) do
+    for _, char in pairs(ArenaInsightsDB.characters) do
         local amount = getAmount(char)
         if amount and amount > 0 then
             rows[#rows + 1] = { name = char.name or "?", amount = amount, classFileName = char.classFileName }
@@ -18,7 +18,7 @@ local function AppendCharRows(tooltip, getAmount)
 
     table.sort(rows, function(a, b) return a.amount > b.amount end)
 
-    tooltip:AddLine("NelxRated", 0.88, 0.22, 0.18)
+    tooltip:AddLine("ArenaInsights", 0.88, 0.22, 0.18)
 
     local shown = math.min(#rows, MAX_ROWS)
     for i = 1, shown do
@@ -37,7 +37,7 @@ end
 TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Currency, function(tooltip, data)
     if not data or not data.id then return end
     local tracked = false
-    for _, entry in ipairs(NXR.TRACKED_CURRENCIES) do
+    for _, entry in ipairs(AI.TRACKED_CURRENCIES) do
         if entry.id == data.id then tracked = true; break end
     end
     if not tracked then return end
@@ -52,7 +52,7 @@ end)
 TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Item, function(tooltip, data)
     if not data or not data.id then return end
     local tracked = false
-    for _, entry in ipairs(NXR.TRACKED_ITEMS) do
+    for _, entry in ipairs(AI.TRACKED_ITEMS) do
         if entry.id == data.id then tracked = true; break end
     end
     if not tracked then return end

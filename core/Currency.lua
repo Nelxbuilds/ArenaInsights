@@ -1,26 +1,26 @@
-local addonName, NXR = ...
+local addonName, AI = ...
 
-NXR.TRACKED_CURRENCIES = {
+AI.TRACKED_CURRENCIES = {
     { id = 1792, name = "Honor" },
     { id = 1602, name = "Conquest" },
     { id = 2123, name = "Bloody Tokens" },
 }
 
-NXR.TRACKED_ITEMS = {
+AI.TRACKED_ITEMS = {
     { id = 137642, name = "Mark of Honor" },
     { id = 241334, name = "Flask of Honor" },
     { id = 258622, name = "Medal of Conquest" },
 }
 
 local function CaptureCurrencyData()
-    local key = NXR.currentCharKey
+    local key = AI.currentCharKey
     if not key then return end
 
-    local char = NelxRatedDB.characters[key]
+    local char = ArenaInsightsDB.characters[key]
     if not char then return end
 
     char.currencies = char.currencies or {}
-    for _, entry in ipairs(NXR.TRACKED_CURRENCIES) do
+    for _, entry in ipairs(AI.TRACKED_CURRENCIES) do
         local info = C_CurrencyInfo.GetCurrencyInfo(entry.id)
         if info then
             char.currencies[entry.id] = {
@@ -31,7 +31,7 @@ local function CaptureCurrencyData()
     end
 
     char.items = char.items or {}
-    for _, entry in ipairs(NXR.TRACKED_ITEMS) do
+    for _, entry in ipairs(AI.TRACKED_ITEMS) do
         char.items[entry.id] = { count = GetItemCount(entry.id, true) }
     end
 end

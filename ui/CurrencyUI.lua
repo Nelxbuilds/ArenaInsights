@@ -1,4 +1,4 @@
-local addonName, NXR = ...
+local addonName, AI = ...
 
 local ROW_HEIGHT = 28
 local ROW_GAP    = 2
@@ -24,10 +24,10 @@ local headerBtns   = {}  -- keyed by col.key
 
 -- All possible columns (built once at load time; filtered at runtime)
 local ALL_COLUMNS = { { key = "char", label = "Character" } }
-for _, c in ipairs(NXR.TRACKED_CURRENCIES) do
+for _, c in ipairs(AI.TRACKED_CURRENCIES) do
     table.insert(ALL_COLUMNS, { key = "currency_" .. c.id, label = c.name, currencyId = c.id })
 end
-for _, item in ipairs(NXR.TRACKED_ITEMS) do
+for _, item in ipairs(AI.TRACKED_ITEMS) do
     table.insert(ALL_COLUMNS, { key = "item_" .. item.id, label = item.name, itemId = item.id })
 end
 
@@ -39,7 +39,7 @@ end
 
 local function GetVisibleColumns()
     local result = {}
-    local s = NelxRatedDB and NelxRatedDB.settings
+    local s = ArenaInsightsDB and ArenaInsightsDB.settings
     for _, col in ipairs(ALL_COLUMNS) do
         local hidden = false
         if col.currencyId and s and s.hiddenCurrencies then
@@ -81,7 +81,7 @@ end
 local function UpdateHeaderHighlights()
     for key, btn in pairs(headerBtns) do
         if key == sortKey then
-            btn.label:SetTextColor(unpack(NXR.COLORS.CRIMSON_BRIGHT))
+            btn.label:SetTextColor(unpack(AI.COLORS.CRIMSON_BRIGHT))
         else
             btn.label:SetTextColor(0.7, 0.7, 0.7)
         end
@@ -106,7 +106,7 @@ local function Refresh()
     if not scrollChild then return end
     for _, row in ipairs(rows) do row:Hide() end
 
-    local characters = NelxRatedDB and NelxRatedDB.characters or {}
+    local characters = ArenaInsightsDB and ArenaInsightsDB.characters or {}
     local visibleCols = GetVisibleColumns()
     local totalW = GetTotalWidth(visibleCols)
 
@@ -148,9 +148,9 @@ local function Refresh()
     -- Collect and sort character keys
     local keys = {}
     for k in pairs(characters) do
-        local hidden = NelxRatedDB.settings and
-            NelxRatedDB.settings.hiddenCharacters and
-            NelxRatedDB.settings.hiddenCharacters[k]
+        local hidden = ArenaInsightsDB.settings and
+            ArenaInsightsDB.settings.hiddenCharacters and
+            ArenaInsightsDB.settings.hiddenCharacters[k]
         if not hidden then table.insert(keys, k) end
     end
     table.sort(keys, function(a, b)
@@ -249,11 +249,11 @@ local function Refresh()
     scrollChild:SetHeight(math.max(yOff, 1))
 end
 
-function NXR.RefreshCurrencyPanel()
+function AI.RefreshCurrencyPanel()
     if currPanel and currPanel:IsShown() then Refresh() end
 end
 
-function NXR.CreateCurrencyPanel(parent)
+function AI.CreateCurrencyPanel(parent)
     if currPanel then return currPanel end
 
     currPanel = CreateFrame("Frame", nil, parent)
@@ -263,7 +263,7 @@ function NXR.CreateCurrencyPanel(parent)
     local title = currPanel:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
     title:SetPoint("TOPLEFT", 8, -8)
     title:SetText("Currency")
-    title:SetTextColor(unpack(NXR.COLORS.GOLD))
+    title:SetTextColor(unpack(AI.COLORS.GOLD))
 
     -- Empty state label
     emptyLabel = currPanel:CreateFontString(nil, "OVERLAY", "GameFontNormal")
@@ -285,12 +285,12 @@ function NXR.CreateCurrencyPanel(parent)
         edgeSize = 1,
     })
     hBar:SetBackdropColor(0.06, 0.04, 0.04, 0.9)
-    hBar:SetBackdropBorderColor(unpack(NXR.COLORS.CRIMSON_DIM))
+    hBar:SetBackdropBorderColor(unpack(AI.COLORS.CRIMSON_DIM))
     hBar:SetMinMaxValues(0, 0)
     hBar:SetValue(0)
     local thumb = hBar:CreateTexture(nil, "ARTWORK")
     thumb:SetSize(40, HBAR_H - 4)
-    thumb:SetColorTexture(unpack(NXR.COLORS.CRIMSON_DIM))
+    thumb:SetColorTexture(unpack(AI.COLORS.CRIMSON_DIM))
     hBar:SetThumbTexture(thumb)
     hBar:SetScript("OnValueChanged", function(self, val)
         if hScrollFrame then hScrollFrame:SetHorizontalScroll(val) end
@@ -335,7 +335,7 @@ function NXR.CreateCurrencyPanel(parent)
         edgeSize = 1,
     })
     headerFrame:SetBackdropColor(0.06, 0.04, 0.04, 0.9)
-    headerFrame:SetBackdropBorderColor(unpack(NXR.COLORS.CRIMSON_DIM))
+    headerFrame:SetBackdropBorderColor(unpack(AI.COLORS.CRIMSON_DIM))
 
     -- Header buttons for all columns (positioned/hidden in Refresh)
     for _, col in ipairs(ALL_COLUMNS) do

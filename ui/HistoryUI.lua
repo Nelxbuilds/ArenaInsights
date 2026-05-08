@@ -1,4 +1,4 @@
-local addonName, NXR = ...
+local addonName, AI = ...
 
 -- ============================================================================
 -- History Tab (Epic 6 — Stories 6-3 through 6-6)
@@ -45,7 +45,7 @@ local function GetOrCreateLine(parent, index)
     if not lines[index] then
         local line = parent:CreateLine()
         line:SetThickness(LINE_W)
-        line:SetColorTexture(unpack(NXR.COLORS.CRIMSON_BRIGHT))
+        line:SetColorTexture(unpack(AI.COLORS.CRIMSON_BRIGHT))
         lines[index] = line
     end
     return lines[index]
@@ -130,21 +130,21 @@ end
 -- ============================================================================
 
 local function ResolveLineColor()
-    local setting = NelxRatedDB.settings.chartColor or "default"
+    local setting = ArenaInsightsDB.settings.chartColor or "default"
     if setting == "class" and filterCharKey then
-        local char = NelxRatedDB.characters[filterCharKey]
+        local char = ArenaInsightsDB.characters[filterCharKey]
         if char and char.classFileName and RAID_CLASS_COLORS then
             local cc = RAID_CLASS_COLORS[char.classFileName]
             if cc then return cc.r, cc.g, cc.b end
         end
     end
-    return unpack(NXR.COLORS.CRIMSON_BRIGHT)
+    return unpack(AI.COLORS.CRIMSON_BRIGHT)
 end
 
 local function RefreshGraph()
     if not canvas then return end
 
-    local history = NXR.GetRatingHistory(filterCharKey, filterBracketIndex, filterSpecID)
+    local history = AI.GetRatingHistory(filterCharKey, filterBracketIndex, filterSpecID)
 
     if not history or #history < MIN_POINTS then
         placeholder:Show()
@@ -173,7 +173,7 @@ local function RefreshGraph()
 
     -- Story 6-5: Extend range to include goal if applicable
     local goalRating
-    local challenge = NXR.GetActiveChallenge and NXR.GetActiveChallenge()
+    local challenge = AI.GetActiveChallenge and AI.GetActiveChallenge()
     if challenge then
         local bracketMatch = false
         for b, _ in pairs(challenge.brackets or {}) do
@@ -337,13 +337,13 @@ end
 
 local function BuildSortedCharList()
     local classSortIndex = {}
-    for i, classID in ipairs(NXR.sortedClassIDs) do
-        local cd = NXR.classData[classID]
+    for i, classID in ipairs(AI.sortedClassIDs) do
+        local cd = AI.classData[classID]
         if cd then classSortIndex[cd.classFileName] = i end
     end
 
     local list = {}
-    for key, char in pairs(NelxRatedDB.characters) do
+    for key, char in pairs(ArenaInsightsDB.characters) do
         if HasAnyHistory(char) then
             list[#list + 1] = { key = key, char = char }
         end
@@ -396,11 +396,11 @@ local function FormatCharButtonLabel(char)
 end
 
 local function AutoSelectBracketForChar(charKey)
-    local char = NelxRatedDB.characters[charKey]
+    local char = ArenaInsightsDB.characters[charKey]
     if not char or not char.ratingHistory then return end
 
     for _, bi in ipairs(BRACKET_PRIORITY) do
-        if NXR.PER_SPEC_BRACKETS[bi] then
+        if AI.PER_SPEC_BRACKETS[bi] then
             local bestSpec, bestCount = nil, 0
             for histKey, arr in pairs(char.ratingHistory) do
                 if type(histKey) == "string" then
@@ -415,11 +415,11 @@ local function AutoSelectBracketForChar(charKey)
                 filterBracketIndex = bi
                 filterSpecID = bestSpec
                 if specButton then
-                    local specInfo = NXR.specData and NXR.specData[filterSpecID]
+                    local specInfo = AI.specData and AI.specData[filterSpecID]
                     specButton.label:SetText(specInfo and specInfo.specName or "Unknown")
                 end
                 if bracketButton then
-                    bracketButton.label:SetText(NXR.BRACKET_NAMES[bi] or "Select")
+                    bracketButton.label:SetText(AI.BRACKET_NAMES[bi] or "Select")
                 end
                 return
             end
@@ -429,11 +429,11 @@ local function AutoSelectBracketForChar(charKey)
                 filterBracketIndex = bi
                 filterSpecID = char.specID
                 if specButton then
-                    local specInfo = filterSpecID and NXR.specData and NXR.specData[filterSpecID]
+                    local specInfo = filterSpecID and AI.specData and AI.specData[filterSpecID]
                     specButton.label:SetText(specInfo and specInfo.specName or "Select")
                 end
                 if bracketButton then
-                    bracketButton.label:SetText(NXR.BRACKET_NAMES[bi] or "Select")
+                    bracketButton.label:SetText(AI.BRACKET_NAMES[bi] or "Select")
                 end
                 return
             end
@@ -466,7 +466,7 @@ local function GetOrCreateDropdownEntry(parent, index)
 
     local hl = btn:CreateTexture(nil, "HIGHLIGHT")
     hl:SetAllPoints()
-    hl:SetColorTexture(NXR.COLORS.CRIMSON_DIM[1], NXR.COLORS.CRIMSON_DIM[2], NXR.COLORS.CRIMSON_DIM[3], 0.3)
+    hl:SetColorTexture(AI.COLORS.CRIMSON_DIM[1], AI.COLORS.CRIMSON_DIM[2], AI.COLORS.CRIMSON_DIM[3], 0.3)
 
     btn.label = btn:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     btn.label:SetPoint("LEFT", 6, 0)
@@ -512,7 +512,7 @@ end
 -- ============================================================================
 
 UpdateSpecButtonState = function()
-    if NXR.PER_SPEC_BRACKETS[filterBracketIndex] then
+    if AI.PER_SPEC_BRACKETS[filterBracketIndex] then
         specButton:Enable()
         specButton:SetAlpha(1)
     else
@@ -522,10 +522,10 @@ UpdateSpecButtonState = function()
 end
 
 local function SetFilterDefaults()
-    filterCharKey = NXR.currentCharKey
-    local char = filterCharKey and NelxRatedDB.characters[filterCharKey]
+    filterCharKey = AI.currentCharKey
+    local char = filterCharKey and ArenaInsightsDB.characters[filterCharKey]
     filterSpecID = char and char.specID
-    filterBracketIndex = NXR.BRACKET_SOLO_SHUFFLE
+    filterBracketIndex = AI.BRACKET_SOLO_SHUFFLE
 
     if charButton then
         charButton.label:SetText(FormatCharButtonLabel(char))
@@ -536,11 +536,11 @@ local function SetFilterDefaults()
         AutoSelectBracketForChar(filterCharKey)
     else
         if specButton then
-            local specInfo = filterSpecID and NXR.specData and NXR.specData[filterSpecID]
+            local specInfo = filterSpecID and AI.specData and AI.specData[filterSpecID]
             specButton.label:SetText(specInfo and specInfo.specName or "Select")
         end
         if bracketButton then
-            bracketButton.label:SetText(NXR.BRACKET_NAMES[filterBracketIndex] or "Select")
+            bracketButton.label:SetText(AI.BRACKET_NAMES[filterBracketIndex] or "Select")
         end
     end
 end
@@ -551,7 +551,7 @@ local function CreateDropdownButton(parent, labelText, width, yOffset, xOffset)
     lbl:SetText(labelText)
     lbl:SetTextColor(0.7, 0.7, 0.7)
 
-    local btn = NXR.CreateNXRButton(parent, "Select", width, 24)
+    local btn = AI.CreateAIButton(parent, "Select", width, 24)
     btn:SetPoint("TOPLEFT", xOffset, yOffset - 16)
     return btn
 end
@@ -566,7 +566,7 @@ local function CreateOrGetSimpleDropdown(dropdown, parent)
             edgeSize = 1,
         })
         dropdown:SetBackdropColor(0.08, 0.08, 0.08, 0.95)
-        dropdown:SetBackdropBorderColor(unpack(NXR.COLORS.CRIMSON_DIM))
+        dropdown:SetBackdropBorderColor(unpack(AI.COLORS.CRIMSON_DIM))
         dropdown:SetFrameStrata("TOOLTIP")
     end
     return dropdown
@@ -582,7 +582,7 @@ local function GetOrCreateSimpleEntry(pool, parent, index)
 
     local hl = btn:CreateTexture(nil, "HIGHLIGHT")
     hl:SetAllPoints()
-    hl:SetColorTexture(NXR.COLORS.CRIMSON_DIM[1], NXR.COLORS.CRIMSON_DIM[2], NXR.COLORS.CRIMSON_DIM[3], 0.3)
+    hl:SetColorTexture(AI.COLORS.CRIMSON_DIM[1], AI.COLORS.CRIMSON_DIM[2], AI.COLORS.CRIMSON_DIM[3], 0.3)
 
     btn.label = btn:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     btn.label:SetPoint("LEFT", 6, 0)
@@ -656,7 +656,7 @@ local function ShowCharacterMenu(btn)
             edgeSize = 1,
         })
         charDropdown:SetBackdropColor(0.08, 0.08, 0.08, 0.95)
-        charDropdown:SetBackdropBorderColor(unpack(NXR.COLORS.CRIMSON_DIM))
+        charDropdown:SetBackdropBorderColor(unpack(AI.COLORS.CRIMSON_DIM))
         charDropdown:SetFrameStrata("TOOLTIP")
         charDropdown:SetClipsChildren(true)
     end
@@ -687,7 +687,7 @@ local function ShowSpecMenu(btn)
     end
 
     if not filterCharKey then return end
-    local char = NelxRatedDB.characters[filterCharKey]
+    local char = ArenaInsightsDB.characters[filterCharKey]
     if not char then return end
 
     local specIDs = {}
@@ -702,8 +702,8 @@ local function ShowSpecMenu(btn)
         end
     end
 
-    if char.classFileName and NXR.classData then
-        for _, classEntry in pairs(NXR.classData) do
+    if char.classFileName and AI.classData then
+        for _, classEntry in pairs(AI.classData) do
             if classEntry.classFileName == char.classFileName then
                 for _, spec in ipairs(classEntry.specs) do
                     if not seen[spec.specID] then
@@ -717,7 +717,7 @@ local function ShowSpecMenu(btn)
 
     local items = {}
     for _, sid in ipairs(specIDs) do
-        local specInfo = NXR.specData and NXR.specData[sid]
+        local specInfo = AI.specData and AI.specData[sid]
         items[#items + 1] = {
             display = specInfo and specInfo.specName or ("Spec " .. sid),
             specID = sid,
@@ -740,9 +740,9 @@ local function ShowBracketMenu(btn)
     end
 
     local items = {}
-    for _, bracketIndex in ipairs(NXR.TRACKED_BRACKETS) do
+    for _, bracketIndex in ipairs(AI.TRACKED_BRACKETS) do
         items[#items + 1] = {
-            display = NXR.BRACKET_NAMES[bracketIndex],
+            display = AI.BRACKET_NAMES[bracketIndex],
             bracketIndex = bracketIndex,
         }
     end
@@ -761,7 +761,7 @@ end
 -- History tab creation (Story 6-3)
 -- ============================================================================
 
-function NXR.CreateHistoryPanel(parent)
+function AI.CreateHistoryPanel(parent)
     local panel = CreateFrame("Frame", nil, parent)
     panel:SetAllPoints()
 
@@ -771,7 +771,7 @@ function NXR.CreateHistoryPanel(parent)
     local title = panel:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
     title:SetPoint("TOPLEFT", PADDING, y)
     title:SetText("Rating History")
-    title:SetTextColor(unpack(NXR.COLORS.GOLD))
+    title:SetTextColor(unpack(AI.COLORS.GOLD))
     y = y - 28
 
     -- Filter row
@@ -846,4 +846,4 @@ function NXR.CreateHistoryPanel(parent)
 end
 
 -- Allow external refresh (e.g. after new data arrives)
-NXR.RefreshHistoryGraph = RefreshGraph
+AI.RefreshHistoryGraph = RefreshGraph

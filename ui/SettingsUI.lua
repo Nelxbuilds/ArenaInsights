@@ -1,4 +1,4 @@
-local addonName, NXR = ...
+local addonName, AI = ...
 
 -- ============================================================================
 -- Settings Tab (Story 3-3)
@@ -56,20 +56,20 @@ local function CreateSliderRow(parent, labelText, yOffset, settingsKey, onChange
     -- Thumb texture
     local thumb = slider:CreateTexture(nil, "ARTWORK")
     thumb:SetSize(12, 20)
-    thumb:SetColorTexture(unpack(NXR.COLORS.CRIMSON_BRIGHT))
+    thumb:SetColorTexture(unpack(AI.COLORS.CRIMSON_BRIGHT))
     slider:SetThumbTexture(thumb)
 
     local valueText = parent:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     valueText:SetPoint("LEFT", slider, "RIGHT", 10, 0)
     valueText:SetTextColor(0.8, 0.8, 0.8)
 
-    local initial = NelxRatedDB.settings[settingsKey] or default
+    local initial = ArenaInsightsDB.settings[settingsKey] or default
     slider:SetValue(initial)
     valueText:SetText(string.format(fmt, initial * fmtMul))
 
     slider:SetScript("OnValueChanged", function(self, value)
         value = Round(value, step)
-        NelxRatedDB.settings[settingsKey] = value
+        ArenaInsightsDB.settings[settingsKey] = value
         valueText:SetText(string.format(fmt, value * fmtMul))
         if onChange then onChange(value) end
     end)
@@ -87,7 +87,7 @@ local function CreateCheckRow(parent, labelText, yOffset, settingsKey, onChange)
     lbl:SetText(labelText)
 
     cb:SetScript("OnClick", function(self)
-        NelxRatedDB.settings[settingsKey] = self:GetChecked()
+        ArenaInsightsDB.settings[settingsKey] = self:GetChecked()
         if onChange then onChange(self:GetChecked()) end
     end)
 
@@ -108,7 +108,7 @@ local function SelectTab(idx)
     activeTab = idx
     for i, btn in ipairs(tabButtons) do
         if i == idx then
-            btn.label:SetTextColor(unpack(NXR.COLORS.CRIMSON_BRIGHT))
+            btn.label:SetTextColor(unpack(AI.COLORS.CRIMSON_BRIGHT))
             btn.activeLine:Show()
         else
             btn.label:SetTextColor(0.55, 0.52, 0.50)
@@ -142,7 +142,7 @@ local function CreateTabStrip(parent, yAnchor)
         btn.activeLine:SetHeight(2)
         btn.activeLine:SetPoint("BOTTOMLEFT", btn, "BOTTOMLEFT", 4, 0)
         btn.activeLine:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", -4, 0)
-        btn.activeLine:SetColorTexture(unpack(NXR.COLORS.CRIMSON_BRIGHT))
+        btn.activeLine:SetColorTexture(unpack(AI.COLORS.CRIMSON_BRIGHT))
         btn.activeLine:Hide()
 
         local tabIdx = i
@@ -187,51 +187,51 @@ local function BuildOverlayContent(parent)
 
     bgCheckbox = CreateCheckRow(leftCol, "Show background & border", ly,
         "showOverlayBackground", function()
-            if NXR.Overlay and NXR.Overlay.OnBackgroundChanged then
-                NXR.Overlay.OnBackgroundChanged()
+            if AI.Overlay and AI.Overlay.OnBackgroundChanged then
+                AI.Overlay.OnBackgroundChanged()
             end
         end)
     ly = ly + 34
 
     lockCheckbox = CreateCheckRow(leftCol, "Lock overlay position", ly,
         "overlayLocked", function()
-            if NXR.Overlay and NXR.Overlay.OnLockChanged then
-                NXR.Overlay.OnLockChanged()
+            if AI.Overlay and AI.Overlay.OnLockChanged then
+                AI.Overlay.OnLockChanged()
             end
         end)
     ly = ly + 34
 
     groupByRoleCheckbox = CreateCheckRow(leftCol, "Group by role", ly,
         "overlayGroupByRole", function()
-            NXR.RefreshOverlay()
+            AI.RefreshOverlay()
         end)
     ly = ly + 34
 
     hideZeroCheckbox = CreateCheckRow(leftCol, "Hide unrated rows", ly,
         "hideZeroRatingRows", function()
-            NXR.RefreshOverlay()
+            AI.RefreshOverlay()
         end)
     ly = ly + 34
 
     progressBarCheckbox = CreateCheckRow(leftCol, "Show progress bar", ly,
         "showOverlayProgressBar", function()
-            NXR.RefreshOverlay()
+            AI.RefreshOverlay()
         end)
     ly = ly + 34
 
     titleCheckbox = CreateCheckRow(leftCol, "Show challenge title", ly,
         "showOverlayTitle", function()
-            NXR.RefreshOverlay()
+            AI.RefreshOverlay()
         end)
     ly = ly + 42
 
-    overlayToggleBtn = NXR.CreateNXRButton(leftCol, "Show Overlay", 140, 28)
+    overlayToggleBtn = AI.CreateAIButton(leftCol, "Show Overlay", 140, 28)
     overlayToggleBtn:SetPoint("TOPLEFT", 10, -ly)
     overlayToggleBtn:SetScript("OnClick", function()
-        if NXR.Overlay and NXR.Overlay.Toggle then
-            NXR.Overlay.Toggle()
+        if AI.Overlay and AI.Overlay.Toggle then
+            AI.Overlay.Toggle()
         end
-        if NelxRatedDB.settings.showOverlay then
+        if ArenaInsightsDB.settings.showOverlay then
             overlayToggleBtn.label:SetText("Hide Overlay")
         else
             overlayToggleBtn.label:SetText("Show Overlay")
@@ -243,31 +243,31 @@ local function BuildOverlayContent(parent)
 
     arenaSlider, arenaValueText = CreateSliderRow(rightCol, "Opacity (In Arena)", ry,
         "opacityInArena", function()
-            if NXR.Overlay and NXR.Overlay.OnOpacityChanged then
-                NXR.Overlay.OnOpacityChanged()
+            if AI.Overlay and AI.Overlay.OnOpacityChanged then
+                AI.Overlay.OnOpacityChanged()
             end
         end)
     ry = ry + 56
 
     outArenaSlider, outArenaValueText = CreateSliderRow(rightCol, "Opacity (Out of Arena)", ry,
         "opacityOutOfArena", function()
-            if NXR.Overlay and NXR.Overlay.OnOpacityChanged then
-                NXR.Overlay.OnOpacityChanged()
+            if AI.Overlay and AI.Overlay.OnOpacityChanged then
+                AI.Overlay.OnOpacityChanged()
             end
         end)
     ry = ry + 56
 
     scaleSlider, scaleValueText = CreateSliderRow(rightCol, "Scale", ry,
         "overlayScale", function()
-            if NXR.Overlay and NXR.Overlay.OnScaleChanged then
-                NXR.Overlay.OnScaleChanged()
+            if AI.Overlay and AI.Overlay.OnScaleChanged then
+                AI.Overlay.OnScaleChanged()
             end
         end, { min = 0.5, max = 2.0, step = 0.05, default = 1.0 })
     ry = ry + 56
 
     columnsSlider, columnsValueText = CreateSliderRow(rightCol, "Columns", ry,
         "overlayColumns", function()
-            NXR.RefreshOverlay()
+            AI.RefreshOverlay()
         end, { min = 1, max = 10, step = 1, default = 1, format = "%d", formatMultiplier = 1 })
 
     return f
@@ -285,11 +285,11 @@ local function BuildHistoryContent(parent)
     chartLabel:SetText("Chart Line Color")
     y = y + 18
 
-    chartColorBtn = NXR.CreateNXRButton(f, "Default (Crimson)", 180, 24)
+    chartColorBtn = AI.CreateAIButton(f, "Default (Crimson)", 180, 24)
     chartColorBtn:SetPoint("TOPLEFT", 10, -y)
 
     local function UpdateChartColorLabel()
-        local val = NelxRatedDB.settings.chartColor or "default"
+        local val = ArenaInsightsDB.settings.chartColor or "default"
         if val == "class" then
             chartColorBtn.label:SetText("Class Color")
         else
@@ -300,14 +300,14 @@ local function BuildHistoryContent(parent)
     chartColorBtn:SetScript("OnClick", function(self)
         MenuUtil.CreateContextMenu(self, function(_, rootDescription)
             rootDescription:CreateButton("Default (Crimson)", function()
-                NelxRatedDB.settings.chartColor = "default"
+                ArenaInsightsDB.settings.chartColor = "default"
                 UpdateChartColorLabel()
-                if NXR.RefreshHistoryGraph then NXR.RefreshHistoryGraph() end
+                if AI.RefreshHistoryGraph then AI.RefreshHistoryGraph() end
             end)
             rootDescription:CreateButton("Class Color", function()
-                NelxRatedDB.settings.chartColor = "class"
+                ArenaInsightsDB.settings.chartColor = "class"
                 UpdateChartColorLabel()
-                if NXR.RefreshHistoryGraph then NXR.RefreshHistoryGraph() end
+                if AI.RefreshHistoryGraph then AI.RefreshHistoryGraph() end
             end)
         end)
     end)
@@ -331,7 +331,7 @@ local function BuildGeneralContent(parent)
     accLabel:SetText("Account Name")
     y = y + 18
 
-    accountInput = NXR.CreateNXRInput(f, 200, 24)
+    accountInput = AI.CreateAIInput(f, 200, 24)
     accountInput:SetPoint("TOPLEFT", 10, -y)
 
     local saveAccBtn = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
@@ -345,7 +345,7 @@ local function BuildGeneralContent(parent)
     accStatus:SetTextColor(0.3, 1, 0.3)
 
     saveAccBtn:SetScript("OnClick", function()
-        NelxRatedDB.settings.accountName = accountInput:GetText()
+        ArenaInsightsDB.settings.accountName = accountInput:GetText()
         accStatus:SetText("Saved")
         C_Timer.After(2, function() accStatus:SetText("") end)
     end)
@@ -357,7 +357,7 @@ local function BuildGeneralContent(parent)
     divider:SetHeight(1)
     divider:SetPoint("TOPLEFT", f, "TOPLEFT", 8, -y)
     divider:SetPoint("TOPRIGHT", f, "TOPRIGHT", -8, -y)
-    divider:SetColorTexture(unpack(NXR.COLORS.CRIMSON_DIM))
+    divider:SetColorTexture(unpack(AI.COLORS.CRIMSON_DIM))
     y = y + 14
 
     -- Party Sync header
@@ -376,28 +376,28 @@ local function BuildGeneralContent(parent)
     syncDesc:SetNonSpaceWrap(false)
     syncDesc:SetTextColor(0.78, 0.75, 0.73)
     syncDesc:SetText(
-        "Merges character rating data across all NelxRated accounts in your party.\n" ..
+        "Merges character rating data across all ArenaInsights accounts in your party.\n" ..
         "Designed for multi-account play — join a party with your alt account, press\n" ..
         "Sync, and both accounts end up with the combined data. Newer ratings win."
     )
     y = y + 52
 
     -- Sync button
-    local syncBtn = NXR.CreateNXRButton(f, "Sync", 80, 24)
+    local syncBtn = AI.CreateAIButton(f, "Sync", 80, 24)
     syncBtn:SetPoint("TOPLEFT", 10, -y)
     syncBtn:SetScript("OnClick", function()
-        if NXR.InitiateSync then
-            NXR.InitiateSync()
+        if AI.InitiateSync then
+            AI.InitiateSync()
         end
     end)
     y = y + 32
 
-    -- Status text (updated by NXR.UpdateSyncStatusUI in Sync.lua)
+    -- Status text (updated by AI.UpdateSyncStatusUI in Sync.lua)
     local syncStatusText = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     syncStatusText:SetPoint("TOPLEFT", 10, -y)
     syncStatusText:SetText("")
     syncStatusText:SetTextColor(0.78, 0.75, 0.73)
-    NXR._syncStatusText = syncStatusText
+    AI._syncStatusText = syncStatusText
     y = y + 28
 
     -- Divider
@@ -405,7 +405,7 @@ local function BuildGeneralContent(parent)
     divider2:SetHeight(1)
     divider2:SetPoint("TOPLEFT", f, "TOPLEFT", 8, -y)
     divider2:SetPoint("TOPRIGHT", f, "TOPRIGHT", -8, -y)
-    divider2:SetColorTexture(unpack(NXR.COLORS.CRIMSON_DIM))
+    divider2:SetColorTexture(unpack(AI.COLORS.CRIMSON_DIM))
     y = y + 14
 
     local currencyHeader = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
@@ -419,9 +419,9 @@ local function BuildGeneralContent(parent)
             local LDBIcon = LibStub and LibStub:GetLibrary("LibDBIcon-1.0", true)
             if LDBIcon then
                 if checked then
-                    LDBIcon:Show("NelxRated")
+                    LDBIcon:Show("ArenaInsights")
                 else
-                    LDBIcon:Hide("NelxRated")
+                    LDBIcon:Hide("ArenaInsights")
                 end
             end
         end)
@@ -453,12 +453,12 @@ local function BuildCurrencySettingsContent(parent)
         div:SetHeight(1)
         div:SetPoint("TOPLEFT", f, "TOPLEFT", 8, -y)
         div:SetPoint("TOPRIGHT", f, "TOPRIGHT", -8, -y)
-        div:SetColorTexture(unpack(NXR.COLORS.CRIMSON_DIM))
+        div:SetColorTexture(unpack(AI.COLORS.CRIMSON_DIM))
         y = y + 14
     end
 
     SectionHeader("Currencies")
-    for _, entry in ipairs(NXR.TRACKED_CURRENCIES) do
+    for _, entry in ipairs(AI.TRACKED_CURRENCIES) do
         local cb = CreateFrame("CheckButton", nil, f, "UICheckButtonTemplate")
         cb:SetSize(26, 26)
         cb:SetPoint("TOPLEFT", 8, -y)
@@ -469,13 +469,13 @@ local function BuildCurrencySettingsContent(parent)
 
         local entryId = entry.id
         cb:SetScript("OnClick", function(self)
-            NelxRatedDB.settings.hiddenCurrencies = NelxRatedDB.settings.hiddenCurrencies or {}
+            ArenaInsightsDB.settings.hiddenCurrencies = ArenaInsightsDB.settings.hiddenCurrencies or {}
             if not self:GetChecked() then
-                NelxRatedDB.settings.hiddenCurrencies[entryId] = true
+                ArenaInsightsDB.settings.hiddenCurrencies[entryId] = true
             else
-                NelxRatedDB.settings.hiddenCurrencies[entryId] = nil
+                ArenaInsightsDB.settings.hiddenCurrencies[entryId] = nil
             end
-            if NXR.RefreshCurrencyPanel then NXR.RefreshCurrencyPanel() end
+            if AI.RefreshCurrencyPanel then AI.RefreshCurrencyPanel() end
         end)
 
         table.insert(currencyCheckboxes, { cb = cb, ctype = "currency", id = entryId })
@@ -484,7 +484,7 @@ local function BuildCurrencySettingsContent(parent)
 
     Divider()
     SectionHeader("Items")
-    for _, item in ipairs(NXR.TRACKED_ITEMS) do
+    for _, item in ipairs(AI.TRACKED_ITEMS) do
         local cb = CreateFrame("CheckButton", nil, f, "UICheckButtonTemplate")
         cb:SetSize(26, 26)
         cb:SetPoint("TOPLEFT", 8, -y)
@@ -495,13 +495,13 @@ local function BuildCurrencySettingsContent(parent)
 
         local itemId = item.id
         cb:SetScript("OnClick", function(self)
-            NelxRatedDB.settings.hiddenItems = NelxRatedDB.settings.hiddenItems or {}
+            ArenaInsightsDB.settings.hiddenItems = ArenaInsightsDB.settings.hiddenItems or {}
             if not self:GetChecked() then
-                NelxRatedDB.settings.hiddenItems[itemId] = true
+                ArenaInsightsDB.settings.hiddenItems[itemId] = true
             else
-                NelxRatedDB.settings.hiddenItems[itemId] = nil
+                ArenaInsightsDB.settings.hiddenItems[itemId] = nil
             end
-            if NXR.RefreshCurrencyPanel then NXR.RefreshCurrencyPanel() end
+            if AI.RefreshCurrencyPanel then AI.RefreshCurrencyPanel() end
         end)
 
         table.insert(currencyCheckboxes, { cb = cb, ctype = "item", id = itemId })
@@ -509,7 +509,7 @@ local function BuildCurrencySettingsContent(parent)
     end
 
     f.RefreshChecks = function()
-        local s = NelxRatedDB and NelxRatedDB.settings or {}
+        local s = ArenaInsightsDB and ArenaInsightsDB.settings or {}
         for _, entry in ipairs(currencyCheckboxes) do
             local isHidden = false
             if entry.ctype == "currency" then
@@ -528,7 +528,7 @@ local function BuildImportExportContent(parent)
     local f = CreateFrame("Frame", nil, parent)
     f:SetPoint("TOPLEFT", 0, 0)
     f:SetPoint("BOTTOMRIGHT", 0, 0)
-    NXR.CreateImportExportPanel(f)
+    AI.CreateImportExportPanel(f)
     return f
 end
 
@@ -536,7 +536,7 @@ end
 -- Public: create settings panel
 -- ============================================================================
 
-function NXR.CreateSettingsPanel(parent)
+function AI.CreateSettingsPanel(parent)
     if panel then return panel end
 
     panel = CreateFrame("Frame", nil, parent)
@@ -545,7 +545,7 @@ function NXR.CreateSettingsPanel(parent)
     local title = panel:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
     title:SetPoint("TOPLEFT", 8, -8)
     title:SetText("Settings")
-    title:SetTextColor(unpack(NXR.COLORS.GOLD))
+    title:SetTextColor(unpack(AI.COLORS.GOLD))
 
     -- Tab strip (below title)
     local TAB_H = 26
@@ -557,7 +557,7 @@ function NXR.CreateSettingsPanel(parent)
     divider:SetHeight(1)
     divider:SetPoint("TOPLEFT", panel, "TOPLEFT", 8, TAB_Y - TAB_H)
     divider:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -8, TAB_Y - TAB_H)
-    divider:SetColorTexture(unpack(NXR.COLORS.CRIMSON_DIM))
+    divider:SetColorTexture(unpack(AI.COLORS.CRIMSON_DIM))
 
     -- Content area below tab strip + divider
     local contentFrame = CreateFrame("Frame", nil, panel)
@@ -575,17 +575,17 @@ function NXR.CreateSettingsPanel(parent)
 
     panel:SetScript("OnShow", function()
         -- Overlay tab state
-        arenaSlider:SetValue(NelxRatedDB.settings.opacityInArena or 1.0)
-        outArenaSlider:SetValue(NelxRatedDB.settings.opacityOutOfArena or 1.0)
-        scaleSlider:SetValue(NelxRatedDB.settings.overlayScale or 1.0)
-        columnsSlider:SetValue(NelxRatedDB.settings.overlayColumns or 1)
-        bgCheckbox:SetChecked(NelxRatedDB.settings.showOverlayBackground)
-        lockCheckbox:SetChecked(NelxRatedDB.settings.overlayLocked or false)
-        groupByRoleCheckbox:SetChecked(NelxRatedDB.settings.overlayGroupByRole or false)
-        hideZeroCheckbox:SetChecked(NelxRatedDB.settings.hideZeroRatingRows or false)
-        progressBarCheckbox:SetChecked(NelxRatedDB.settings.showOverlayProgressBar or false)
-        titleCheckbox:SetChecked(NelxRatedDB.settings.showOverlayTitle or false)
-        if NelxRatedDB.settings.showOverlay then
+        arenaSlider:SetValue(ArenaInsightsDB.settings.opacityInArena or 1.0)
+        outArenaSlider:SetValue(ArenaInsightsDB.settings.opacityOutOfArena or 1.0)
+        scaleSlider:SetValue(ArenaInsightsDB.settings.overlayScale or 1.0)
+        columnsSlider:SetValue(ArenaInsightsDB.settings.overlayColumns or 1)
+        bgCheckbox:SetChecked(ArenaInsightsDB.settings.showOverlayBackground)
+        lockCheckbox:SetChecked(ArenaInsightsDB.settings.overlayLocked or false)
+        groupByRoleCheckbox:SetChecked(ArenaInsightsDB.settings.overlayGroupByRole or false)
+        hideZeroCheckbox:SetChecked(ArenaInsightsDB.settings.hideZeroRatingRows or false)
+        progressBarCheckbox:SetChecked(ArenaInsightsDB.settings.showOverlayProgressBar or false)
+        titleCheckbox:SetChecked(ArenaInsightsDB.settings.showOverlayTitle or false)
+        if ArenaInsightsDB.settings.showOverlay then
             overlayToggleBtn.label:SetText("Hide Overlay")
         else
             overlayToggleBtn.label:SetText("Show Overlay")
@@ -595,9 +595,9 @@ function NXR.CreateSettingsPanel(parent)
         -- Currency settings tab state
         tabContent[4].RefreshChecks()
         -- General tab state
-        accountInput:SetText(NelxRatedDB.settings.accountName or "")
-        showMinimapCheckbox:SetChecked(NelxRatedDB.settings.showMinimapButton ~= false)
-        disableTooltipCheckbox:SetChecked(NelxRatedDB.settings.disableTooltip or false)
+        accountInput:SetText(ArenaInsightsDB.settings.accountName or "")
+        showMinimapCheckbox:SetChecked(ArenaInsightsDB.settings.showMinimapButton ~= false)
+        disableTooltipCheckbox:SetChecked(ArenaInsightsDB.settings.disableTooltip or false)
     end)
 
     return panel

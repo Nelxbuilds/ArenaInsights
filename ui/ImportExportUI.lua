@@ -1,11 +1,12 @@
-local addonName, NXR = ...
+local addonName, AI = ...
 
 -- ============================================================================
 -- Import/Export Tab (Story 3-4)
 -- ============================================================================
 
-local HEADER_V1 = "NelxRated-Export-v1"
-local HEADER_V2 = "NelxRated-Export-v2"
+local HEADER_V1 = "NelxRated-Export-v1"   -- accepted on import, never written
+local HEADER_V2 = "NelxRated-Export-v2"   -- accepted on import, never written
+local HEADER_V3 = "ArenaInsights-Export-v1" -- current: written by export, accepted on import
 local panel
 
 -- ============================================================================
@@ -14,7 +15,7 @@ local panel
 
 local function SerializeCharacterLines(lines)
     table.insert(lines, "[BEGIN_CHARS]")
-    for key, char in pairs(NelxRatedDB.characters) do
+    for key, char in pairs(ArenaInsightsDB.characters) do
         table.insert(lines, "[BEGIN_CHAR]")
         table.insert(lines, "key=" .. key)
         table.insert(lines, "name=" .. (char.name or ""))
@@ -68,7 +69,7 @@ end
 
 local function SerializeChallengeLines(lines)
     table.insert(lines, "[BEGIN_CHALLENGES]")
-    for _, c in ipairs(NelxRatedDB.challenges) do
+    for _, c in ipairs(ArenaInsightsDB.challenges) do
         table.insert(lines, "[BEGIN_CHALLENGE]")
         table.insert(lines, "uid=" .. (c.uid or ""))
         table.insert(lines, "name=" .. (c.name or ""))
@@ -88,18 +89,18 @@ end
 
 local function SerializeSettingsLines(lines)
     table.insert(lines, "[BEGIN_SETTINGS]")
-    for k, v in pairs(NelxRatedDB.settings) do
+    for k, v in pairs(ArenaInsightsDB.settings) do
         table.insert(lines, k .. "=" .. tostring(v))
     end
     table.insert(lines, "[END_SETTINGS]")
 end
 
 -- ============================================================================
--- Full export (v2)
+-- Full export (v3)
 -- ============================================================================
 
 local function SerializeAll()
-    local lines = { HEADER_V2 }
+    local lines = { HEADER_V3 }
     SerializeCharacterLines(lines)
     SerializeChallengeLines(lines)
     SerializeSettingsLines(lines)
@@ -279,7 +280,7 @@ local function DeserializeAll(text)
     end
 
     local header = lines[1]
-    if header == HEADER_V2 then
+    if header == HEADER_V3 or header == HEADER_V2 then
         return DeserializeV2(lines)
     elseif header == HEADER_V1 then
         return DeserializeV1(lines)
@@ -367,13 +368,13 @@ local function MergeCharacters(imported)
     local added, updated, skipped = 0, 0, 0
     for key, char in pairs(imported) do
         if not ValidateCharacter(key, char) then
-            NXR.Debug("Import: skipping invalid entry:", tostring(key))
+            AI.Debug("Import: skipping invalid entry:", tostring(key))
             skipped = skipped + 1
-        elseif NelxRatedDB.characters[key] then
-            MergeCharacterData(NelxRatedDB.characters[key], char)
+        elseif ArenaInsightsDB.characters[key] then
+            MergeCharacterData(ArenaInsightsDB.characters[key], char)
             updated = updated + 1
         else
-            NelxRatedDB.characters[key] = char
+            ArenaInsightsDB.characters[key] = char
             added = added + 1
         end
     end
@@ -383,16 +384,16 @@ end
 local function MergeChallenges(imported)
     local added, skipped = 0, 0
     local existingUIDs = {}
-    for _, c in ipairs(NelxRatedDB.challenges) do
+    for _, c in ipairs(ArenaInsightsDB.challenges) do
         if c.uid then existingUIDs[c.uid] = true end
     end
-    local deletedUIDs = NelxRatedDB.deletedChallengeUIDs or {}
+    local deletedUIDs = ArenaInsightsDB.deletedChallengeUIDs or {}
 
     for _, c in ipairs(imported) do
         if c.uid and (existingUIDs[c.uid] or deletedUIDs[c.uid]) then
             skipped = skipped + 1
         else
-            NXR.AddChallenge({
+            AI.AddChallenge({
                 uid        = c.uid,
                 name       = c.name,
                 goalRating = c.goalRating,
@@ -409,7 +410,7 @@ end
 
 local function MergeSettings(imported)
     for k, v in pairs(imported) do
-        NelxRatedDB.settings[k] = v
+        ArenaInsightsDB.settings[k] = v
     end
 end
 
@@ -417,15 +418,15 @@ end
 -- Sync helpers (consumed by Sync.lua)
 -- ============================================================================
 
-NXR.MergeCharacters = MergeCharacters
+AI.MergeCharacters = MergeCharacters
 
-function NXR.SerializeCharactersForSync()
-    local lines = { HEADER_V2 }
+function AI.SerializeCharactersForSync()
+    local lines = { HEADER_V3 }
     SerializeCharacterLines(lines)
     return table.concat(lines, "\n")
 end
 
-function NXR.ParseCharactersForSync(text)
+function AI.ParseCharactersForSync(text)
     local data = DeserializeAll(text)
     if not data then return nil end
     return data.characters
@@ -435,7 +436,7 @@ end
 -- UI
 -- ============================================================================
 
-function NXR.CreateImportExportPanel(parent)
+function AI.CreateImportExportPanel(parent)
     if panel then return panel end
 
     panel = CreateFrame("Frame", nil, parent)
@@ -444,7 +445,7 @@ function NXR.CreateImportExportPanel(parent)
     local title = panel:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
     title:SetPoint("TOPLEFT", 8, -8)
     title:SetText("Import / Export")
-    title:SetTextColor(unpack(NXR.COLORS.GOLD))
+    title:SetTextColor(unpack(AI.COLORS.GOLD))
 
     -- ----------------------------------------------------------------
     -- Export section
@@ -579,30 +580,30 @@ function NXR.CreateImportExportPanel(parent)
 
         -- Settings — apply with confirmation via StaticPopup
         if data.settings then
-            StaticPopupDialogs["NELXRATED_IMPORT_SETTINGS"] = {
+            StaticPopupDialogs["ARENAINSIGHTS_IMPORT_SETTINGS"] = {
                 text = "Import settings? This will overwrite your current settings.",
                 button1 = "Yes",
                 button2 = "No",
                 OnAccept = function()
                     MergeSettings(data.settings)
-                    NXR.Overlay.OnOpacityChanged()
-                    NXR.Overlay.OnScaleChanged()
-                    NXR.Overlay.OnBackgroundChanged()
-                    NXR.Overlay.OnLockChanged()
-                    NXR.RefreshOverlay()
-                    print("|cffE6D200NelxRated|r: Settings imported.")
+                    AI.Overlay.OnOpacityChanged()
+                    AI.Overlay.OnScaleChanged()
+                    AI.Overlay.OnBackgroundChanged()
+                    AI.Overlay.OnLockChanged()
+                    AI.RefreshOverlay()
+                    print("|cffE6D200ArenaInsights|r: Settings imported.")
                 end,
                 timeout = 0,
                 whileDead = true,
                 hideOnEscape = true,
             }
-            StaticPopup_Show("NELXRATED_IMPORT_SETTINGS")
+            StaticPopup_Show("ARENAINSIGHTS_IMPORT_SETTINGS")
         end
 
         statusText:SetTextColor(0.3, 1, 0.3)
         statusText:SetText("Imported: " .. table.concat(parts, " | "))
 
-        if NXR.RefreshOverlay then NXR.RefreshOverlay() end
+        if AI.RefreshOverlay then AI.RefreshOverlay() end
 
         importBox:SetText("")
     end)

@@ -1,4 +1,4 @@
-local addonName, NXR = ...
+local addonName, AI = ...
 
 -- ============================================================================
 -- Characters Tab (Story 3-2)
@@ -15,7 +15,7 @@ local emptyLabel
 local function RefreshCharacterList()
     for _, row in ipairs(rows) do row:Hide() end
 
-    local characters = NelxRatedDB and NelxRatedDB.characters or {}
+    local characters = ArenaInsightsDB and ArenaInsightsDB.characters or {}
 
     -- Collect keys and sort
     local keys = {}
@@ -92,19 +92,19 @@ local function RefreshCharacterList()
 
         -- Ratings per bracket
         local rParts = {}
-        for _, bi in ipairs(NXR.TRACKED_BRACKETS) do
+        for _, bi in ipairs(AI.TRACKED_BRACKETS) do
             local data = char.brackets and char.brackets[bi]
             if data then
-                table.insert(rParts, NXR.BRACKET_NAMES[bi] .. ": " .. data.rating)
+                table.insert(rParts, AI.BRACKET_NAMES[bi] .. ": " .. data.rating)
             end
         end
         -- Show per-spec brackets for ALL specs with data (not just current spec)
         if char.specBrackets then
             for sid, sb in pairs(char.specBrackets) do
-                local specLabel = NXR.specData and NXR.specData[sid] and NXR.specData[sid].specName or tostring(sid)
-                for _, bi in ipairs(NXR.TRACKED_BRACKETS) do
-                    if NXR.PER_SPEC_BRACKETS[bi] and sb[bi] then
-                        table.insert(rParts, specLabel .. " " .. NXR.BRACKET_NAMES[bi] .. ": " .. sb[bi].rating)
+                local specLabel = AI.specData and AI.specData[sid] and AI.specData[sid].specName or tostring(sid)
+                for _, bi in ipairs(AI.TRACKED_BRACKETS) do
+                    if AI.PER_SPEC_BRACKETS[bi] and sb[bi] then
+                        table.insert(rParts, specLabel .. " " .. AI.BRACKET_NAMES[bi] .. ": " .. sb[bi].rating)
                     end
                 end
             end
@@ -114,7 +114,7 @@ local function RefreshCharacterList()
         -- Remove button
         local charKey = key
         row.removeBtn:SetScript("OnClick", function()
-            NelxRatedDB.characters[charKey] = nil
+            ArenaInsightsDB.characters[charKey] = nil
             RefreshCharacterList()
         end)
 
@@ -130,7 +130,7 @@ local function RefreshCharacterList()
     scrollChild:SetHeight(math.max(yOff, 1))
 end
 
-function NXR.CreateCharactersPanel(parent)
+function AI.CreateCharactersPanel(parent)
     if panel then return panel end
 
     panel = CreateFrame("Frame", nil, parent)
@@ -140,7 +140,7 @@ function NXR.CreateCharactersPanel(parent)
     local title = panel:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
     title:SetPoint("TOPLEFT", 8, -8)
     title:SetText("Characters")
-    title:SetTextColor(unpack(NXR.COLORS.GOLD))
+    title:SetTextColor(unpack(AI.COLORS.GOLD))
 
     -- Empty state
     emptyLabel = panel:CreateFontString(nil, "OVERLAY", "GameFontNormal")

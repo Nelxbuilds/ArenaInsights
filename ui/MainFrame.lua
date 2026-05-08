@@ -1,26 +1,26 @@
-local addonName, NXR = ...
+local addonName, AI = ...
 
 -- ============================================================================
 -- Shared backdrop & widget helpers
 -- ============================================================================
 
-NXR.NXR_BACKDROP = {
+AI.AI_BACKDROP = {
     bgFile   = "Interface\\Buttons\\WHITE8x8",
     edgeFile = "Interface\\Buttons\\WHITE8x8",
     edgeSize = 2,
 }
 
-NXR.COLORS.BG_BASE   = { 0.06, 0.06, 0.06, 0.95 }
-NXR.COLORS.BG_RAISED = { 0.10, 0.10, 0.10, 0.95 }
+AI.COLORS.BG_BASE   = { 0.06, 0.06, 0.06, 0.95 }
+AI.COLORS.BG_RAISED = { 0.10, 0.10, 0.10, 0.95 }
 
 -- Applies a spec icon texture with the standard crop that removes the built-in
 -- circular border, producing a flat appearance consistent with classicon atlas icons.
-function NXR.SetSpecIcon(tex, icon)
+function AI.SetSpecIcon(tex, icon)
     tex:SetTexture(icon)
     tex:SetTexCoord(0.07, 0.93, 0.07, 0.93)
 end
 
-function NXR.CreateNXRButton(parent, text, width, height)
+function AI.CreateAIButton(parent, text, width, height)
     local btn = CreateFrame("Button", nil, parent, "BackdropTemplate")
     btn:SetSize(width or 120, height or 28)
     btn:SetBackdrop({
@@ -36,7 +36,7 @@ function NXR.CreateNXRButton(parent, text, width, height)
     btn.label:SetText(text or "")
 
     btn:SetScript("OnEnter", function(self)
-        self:SetBackdropBorderColor(unpack(NXR.COLORS.CRIMSON_MID))
+        self:SetBackdropBorderColor(unpack(AI.COLORS.CRIMSON_MID))
     end)
     btn:SetScript("OnLeave", function(self)
         if not self.nxrActive then
@@ -47,7 +47,7 @@ function NXR.CreateNXRButton(parent, text, width, height)
     return btn
 end
 
-function NXR.CreateNXRInput(parent, width, height)
+function AI.CreateAIInput(parent, width, height)
     local box = CreateFrame("EditBox", nil, parent, "BackdropTemplate")
     box:SetSize(width or 200, height or 24)
     box:SetBackdrop({
@@ -114,8 +114,8 @@ local function CreateSidebar(parent)
     sidebar:SetWidth(SIDEBAR_WIDTH)
     sidebar:SetPoint("TOPLEFT", 2, -2)
     sidebar:SetPoint("BOTTOMLEFT", 2, 2)
-    sidebar:SetBackdrop(NXR.NXR_BACKDROP)
-    sidebar:SetBackdropColor(unpack(NXR.COLORS.BG_RAISED))
+    sidebar:SetBackdrop(AI.AI_BACKDROP)
+    sidebar:SetBackdropColor(unpack(AI.COLORS.BG_RAISED))
     sidebar:SetBackdropBorderColor(0, 0, 0, 0)
 
     -- Right edge separator
@@ -123,13 +123,13 @@ local function CreateSidebar(parent)
     sep:SetWidth(1)
     sep:SetPoint("TOPRIGHT", 0, 0)
     sep:SetPoint("BOTTOMRIGHT", 0, 0)
-    sep:SetColorTexture(unpack(NXR.COLORS.CRIMSON_DIM))
+    sep:SetColorTexture(unpack(AI.COLORS.CRIMSON_DIM))
 
     -- Title
     local title = sidebar:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
     title:SetPoint("TOPLEFT", 14, -16)
-    title:SetText("NelxRated")
-    title:SetTextColor(unpack(NXR.COLORS.GOLD))
+    title:SetText("ArenaInsights")
+    title:SetTextColor(unpack(AI.COLORS.GOLD))
 
     -- Nav buttons
     local TAB_HEIGHT = 44
@@ -158,7 +158,7 @@ local function CreateSidebar(parent)
         btn.accent:SetWidth(3)
         btn.accent:SetPoint("TOPLEFT", 0, 0)
         btn.accent:SetPoint("BOTTOMLEFT", 0, 0)
-        btn.accent:SetColorTexture(unpack(NXR.COLORS.CRIMSON_BRIGHT))
+        btn.accent:SetColorTexture(unpack(AI.COLORS.CRIMSON_BRIGHT))
         btn.accent:Hide()
 
         btn:SetScript("OnEnter", function(self)
@@ -184,19 +184,19 @@ local function CreateSidebar(parent)
 end
 
 local function CreateMainFrame()
-    local f = CreateFrame("Frame", "NelxRatedMainFrame", UIParent, "BackdropTemplate")
+    local f = CreateFrame("Frame", "ArenaInsightsMainFrame", UIParent, "BackdropTemplate")
     f:SetSize(FRAME_W, FRAME_H)
     f:SetPoint("CENTER")
-    f:SetBackdrop(NXR.NXR_BACKDROP)
-    f:SetBackdropColor(unpack(NXR.COLORS.BG_BASE))
-    f:SetBackdropBorderColor(unpack(NXR.COLORS.CRIMSON_DIM))
+    f:SetBackdrop(AI.AI_BACKDROP)
+    f:SetBackdropColor(unpack(AI.COLORS.BG_BASE))
+    f:SetBackdropBorderColor(unpack(AI.COLORS.CRIMSON_DIM))
     f:SetMovable(true)
     f:EnableMouse(true)
     f:RegisterForDrag("LeftButton")
     f:SetScript("OnDragStart", f.StartMoving)
     f:SetScript("OnDragStop", f.StopMovingOrSizing)
     f:SetFrameStrata("DIALOG")
-    tinsert(UISpecialFrames, "NelxRatedMainFrame")
+    tinsert(UISpecialFrames, "ArenaInsightsMainFrame")
 
     -- Close button
     local close = CreateFrame("Button", nil, f, "UIPanelCloseButton")
@@ -219,35 +219,35 @@ local function CreateMainFrame()
     end
 
     -- Embed Home panel
-    NXR.CreateHomePanel(tabPanels["Home"])
+    AI.CreateHomePanel(tabPanels["Home"])
 
     -- Embed Challenges panel
-    NXR.CreateChallengesPanel(tabPanels["Challenges"])
+    AI.CreateChallengesPanel(tabPanels["Challenges"])
 
     -- Build other tabs
-    if NXR.CreateCharactersPanel then
-        NXR.CreateCharactersPanel(tabPanels["Characters"])
+    if AI.CreateCharactersPanel then
+        AI.CreateCharactersPanel(tabPanels["Characters"])
     end
-    if NXR.CreateCurrencyPanel then
-        NXR.CreateCurrencyPanel(tabPanels["Currency"])
+    if AI.CreateCurrencyPanel then
+        AI.CreateCurrencyPanel(tabPanels["Currency"])
     end
-    if NXR.CreateSettingsPanel then
-        NXR.CreateSettingsPanel(tabPanels["Settings"])
+    if AI.CreateSettingsPanel then
+        AI.CreateSettingsPanel(tabPanels["Settings"])
     end
-    if NXR.CreateHistoryPanel then
-        NXR.CreateHistoryPanel(tabPanels["History"])
+    if AI.CreateHistoryPanel then
+        AI.CreateHistoryPanel(tabPanels["History"])
     end
-    if NXR.CreateInsightsPanel then
-        NXR.CreateInsightsPanel(tabPanels["Insights"])
+    if AI.CreateInsightsPanel then
+        AI.CreateInsightsPanel(tabPanels["Insights"])
     end
     -- Default to Home tab
     SelectTab("Home")
 
     mainFrame = f
-    NXR.mainFrame = f
+    AI.mainFrame = f
 end
 
-function NXR.SelectTab(tabName)
+function AI.SelectTab(tabName)
     if not mainFrame then
         CreateMainFrame()
     elseif not mainFrame:IsShown() then
@@ -256,7 +256,7 @@ function NXR.SelectTab(tabName)
     SelectTab(tabName)
 end
 
-function NXR.ToggleMainFrame()
+function AI.ToggleMainFrame()
     if not mainFrame then
         CreateMainFrame()
         return -- already visible on creation

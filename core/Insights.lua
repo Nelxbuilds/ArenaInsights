@@ -1,10 +1,10 @@
-local addonName, NXR = ...
+local addonName, AI = ...
 
 -- ============================================================================
 -- Module-local state
 -- ============================================================================
 
-local snapshot          = {}   -- bracketIndex → rating from NelxRatedDB before match
+local snapshot          = {}   -- bracketIndex → rating from ArenaInsightsDB before match
 local pendingEnemySpecs = {}  -- populated by ARENA_PREP_OPPONENT_SPECIALIZATIONS
 local pendingAllySpecs  = {}  -- teammate specs captured at ARENA_PREP (best-effort, inspect cache)
 local pendingRecord    = nil  -- partial record held between PVP_MATCH_COMPLETE and PVP_RATED_STATS_UPDATE
@@ -16,26 +16,26 @@ local ssRoundPrevWins = 0     -- wins snapshot taken at round start
 local ssActive        = false -- true only inside a confirmed SS match
 local matchBracketHint = nil  -- bracket captured early as fallback for DB-diff detection
 
-NXR.InsightsDebug = false
+AI.InsightsDebug = false
 
 -- ============================================================================
 -- Public accessor (I-5)
 -- ============================================================================
 
-function NXR.GetMatches()
-    return NelxRatedDB.matches or {}
+function AI.GetMatches()
+    return ArenaInsightsDB.matches or {}
 end
 
 -- Only callable with InsightsDebug=true.
 -- Removes records with no bracket or no rating.
 -- For SS records: clears shuffle.rounds if captured rounds < 6 (keeps match-level data).
-function NXR.PurgeCorruptMatches()
-    if not NXR.InsightsDebug then
-        print("[NXR] PurgeCorruptMatches requires InsightsDebug=true")
+function AI.PurgeCorruptMatches()
+    if not AI.InsightsDebug then
+        print("[AI] PurgeCorruptMatches requires InsightsDebug=true")
         return
     end
-    local matches = NelxRatedDB.matches
-    if not matches then print("[NXR] No match data."); return end
+    local matches = ArenaInsightsDB.matches
+    if not matches then print("[AI] No match data."); return end
 
     local kept, removed, fixed = {}, 0, 0
     for _, r in ipairs(matches) do
@@ -50,8 +50,8 @@ function NXR.PurgeCorruptMatches()
         end
     end
 
-    NelxRatedDB.matches = kept
-    print(("[NXR] Purge complete — removed %d, fixed %d SS round tables, kept %d"):format(
+    ArenaInsightsDB.matches = kept
+    print(("[AI] Purge complete — removed %d, fixed %d SS round tables, kept %d"):format(
         removed, fixed, #kept))
 end
 
@@ -65,21 +65,21 @@ end
 -- Returns nil if no active rated match identifiable.
 local function DetectActiveBracket()
     if C_PvP and C_PvP.IsSoloShuffle and C_PvP.IsSoloShuffle() then
-        return NXR.BRACKET_SOLO_SHUFFLE
+        return AI.BRACKET_SOLO_SHUFFLE
     end
     if C_PvP and C_PvP.IsRatedSoloRBG and C_PvP.IsRatedSoloRBG() then
-        return NXR.BRACKET_BLITZ
+        return AI.BRACKET_BLITZ
     end
     if IsActiveBattlefieldArena and IsActiveBattlefieldArena() then
         local opp = (GetNumArenaOpponents and GetNumArenaOpponents()) or 0
-        if opp == 2 then return NXR.BRACKET_2V2 end
-        if opp == 3 then return NXR.BRACKET_3V3 end
+        if opp == 2 then return AI.BRACKET_2V2 end
+        if opp == 3 then return AI.BRACKET_3V3 end
         local maxId = (GetMaxBattlefieldID and GetMaxBattlefieldID()) or 10
         for i = 1, maxId do
             local status, _, teamSize = GetBattlefieldStatus(i)
             if status == "active" then
-                if teamSize == 2 then return NXR.BRACKET_2V2 end
-                if teamSize == 3 then return NXR.BRACKET_3V3 end
+                if teamSize == 2 then return AI.BRACKET_2V2 end
+                if teamSize == 3 then return AI.BRACKET_3V3 end
             end
         end
     end
@@ -88,12 +88,12 @@ end
 
 -- Read current rating from DB for a given char/bracket.
 local function GetDBRating(charKey, bi)
-    local char = NelxRatedDB
-        and NelxRatedDB.characters
-        and NelxRatedDB.characters[charKey]
+    local char = ArenaInsightsDB
+        and ArenaInsightsDB.characters
+        and ArenaInsightsDB.characters[charKey]
     if not char then return nil end
     local data
-    if NXR.PER_SPEC_BRACKETS[bi] then
+    if AI.PER_SPEC_BRACKETS[bi] then
         local specID = char.specID
         if specID and char.specBrackets and char.specBrackets[specID] then
             data = char.specBrackets[specID][bi]
@@ -104,21 +104,21 @@ local function GetDBRating(charKey, bi)
     return data and data.rating
 end
 
--- Read current saved ratings from NelxRatedDB into snapshot.
+-- Read current saved ratings from ArenaInsightsDB into snapshot.
 -- No WoW PvP API calls — safe at any time, including during zone transitions.
 local function TakeDBSnapshot(charKey)
     local char = charKey
-        and NelxRatedDB
-        and NelxRatedDB.characters
-        and NelxRatedDB.characters[charKey]
+        and ArenaInsightsDB
+        and ArenaInsightsDB.characters
+        and ArenaInsightsDB.characters[charKey]
     snapshot = {}
     if not char then
-        NXR.DebugInsights("TakeDBSnapshot: no char data for", tostring(charKey))
+        AI.DebugInsights("TakeDBSnapshot: no char data for", tostring(charKey))
         return
     end
-    for _, bi in ipairs(NXR.TRACKED_BRACKETS) do
+    for _, bi in ipairs(AI.TRACKED_BRACKETS) do
         local data
-        if NXR.PER_SPEC_BRACKETS[bi] then
+        if AI.PER_SPEC_BRACKETS[bi] then
             local specID = char.specID
             if specID and char.specBrackets and char.specBrackets[specID] then
                 data = char.specBrackets[specID][bi]
@@ -130,27 +130,27 @@ local function TakeDBSnapshot(charKey)
         end
         snapshot[bi] = data and data.rating
     end
-    NXR.DebugInsights("TakeDBSnapshot:",
-        "2v2=" .. tostring(snapshot[NXR.BRACKET_2V2]),
-        "3v3=" .. tostring(snapshot[NXR.BRACKET_3V3]),
-        "blitz=" .. tostring(snapshot[NXR.BRACKET_BLITZ]),
-        "ss=" .. tostring(snapshot[NXR.BRACKET_SOLO_SHUFFLE]))
+    AI.DebugInsights("TakeDBSnapshot:",
+        "2v2=" .. tostring(snapshot[AI.BRACKET_2V2]),
+        "3v3=" .. tostring(snapshot[AI.BRACKET_3V3]),
+        "blitz=" .. tostring(snapshot[AI.BRACKET_BLITZ]),
+        "ss=" .. tostring(snapshot[AI.BRACKET_SOLO_SHUFFLE]))
 end
 
--- Compare current NelxRatedDB ratings vs snapshot to find the bracket that changed.
+-- Compare current ArenaInsightsDB ratings vs snapshot to find the bracket that changed.
 -- Called one frame after PVP_RATED_STATS_UPDATE so Core.lua has already written new values.
 local function DetectBracketFromDB(charKey)
     local char = charKey
-        and NelxRatedDB
-        and NelxRatedDB.characters
-        and NelxRatedDB.characters[charKey]
+        and ArenaInsightsDB
+        and ArenaInsightsDB.characters
+        and ArenaInsightsDB.characters[charKey]
     if not char then return nil end
 
-    for _, bi in ipairs(NXR.TRACKED_BRACKETS) do
+    for _, bi in ipairs(AI.TRACKED_BRACKETS) do
         local prev = snapshot[bi]
         if prev ~= nil then
             local data
-            if NXR.PER_SPEC_BRACKETS[bi] then
+            if AI.PER_SPEC_BRACKETS[bi] then
                 local specID = char.specID
                 if specID and char.specBrackets and char.specBrackets[specID] then
                     data = char.specBrackets[specID][bi]
@@ -163,7 +163,7 @@ local function DetectBracketFromDB(charKey)
 
             local current = data and data.rating
             if current ~= nil and current ~= prev then
-                NXR.DebugInsights("DetectBracketFromDB: bracket", bi,
+                AI.DebugInsights("DetectBracketFromDB: bracket", bi,
                     "changed", prev, "->", current)
                 return bi
             end
@@ -263,8 +263,8 @@ local function CaptureFromScoreboard(rec)
                 or (shortName and shortName == playerName)
                 or (name == playerFull)
 
-            if NXR.InsightsDebug then
-                print("[NXR Insights] score[" .. i .. "]"
+            if AI.InsightsDebug then
+                print("[AI Insights] score[" .. i .. "]"
                     .. " name=" .. tostring(name)
                     .. " classToken=" .. tostring(classToken)
                     .. " talentSpec=" .. tostring(talentSpec)
@@ -420,27 +420,27 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
         -- SS fires PVP_MATCH_ACTIVE on every round zone-in; IsSoloShuffle() returns false
         -- during the zone transition. If we already confirmed this is SS (hint set from a
         -- prior round's state-change recovery), preserve accumulated rounds and re-arm.
-        if not isSS and matchBracketHint == NXR.BRACKET_SOLO_SHUFFLE then
+        if not isSS and matchBracketHint == AI.BRACKET_SOLO_SHUFFLE then
             ssActive = true
-            NXR.DebugInsights("PVP_MATCH_ACTIVE: SS round zone-in, preserving state rounds=", #ssRounds)
+            AI.DebugInsights("PVP_MATCH_ACTIVE: SS round zone-in, preserving state rounds=", #ssRounds)
             return
         end
         ssActive           = isSS and true or false
-        matchBracketHint   = DetectActiveBracket() or (isSS and NXR.BRACKET_SOLO_SHUFFLE or nil)
+        matchBracketHint   = DetectActiveBracket() or (isSS and AI.BRACKET_SOLO_SHUFFLE or nil)
         ssRounds           = {}
         ssRoundStart       = nil
         ssRoundPrevWins    = 0
-        NXR.DebugInsights("PVP_MATCH_ACTIVE isSS=", tostring(ssActive))
+        AI.DebugInsights("PVP_MATCH_ACTIVE isSS=", tostring(ssActive))
 
     -- ---- I-2: DB snapshot before zone transition (no API restriction risk) ----
     elseif event == "PLAYER_LEAVING_WORLD" then
-        TakeDBSnapshot(NXR.currentCharKey)
+        TakeDBSnapshot(AI.currentCharKey)
         if ssActive then
             -- SS zones between every round — preserve accumulated ssRounds across zone-outs.
             -- Only clear per-round timing; ssActive re-armed at next state=3.
             ssRoundStart = nil
             ssActive     = false
-            NXR.DebugInsights("PLAYER_LEAVING_WORLD: SS inter-round zone, preserving", #ssRounds, "rounds")
+            AI.DebugInsights("PLAYER_LEAVING_WORLD: SS inter-round zone, preserving", #ssRounds, "rounds")
         end
 
     -- ---- I-3: Enemy spec capture ----
@@ -451,12 +451,12 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
             local specID = GetArenaOpponentSpec(i)
             pendingEnemySpecs[i] = (specID and specID ~= 0) and specID or 0
         end
-        NXR.DebugInsights("enemy specs captured, count=", count)
+        AI.DebugInsights("enemy specs captured, count=", count)
         -- Authoritative bracket signal for arena: opponent count maps directly to size
         if count == 2 then
-            matchBracketHint = NXR.BRACKET_2V2
+            matchBracketHint = AI.BRACKET_2V2
         elseif count == 3 then
-            matchBracketHint = NXR.BRACKET_3V3
+            matchBracketHint = AI.BRACKET_3V3
         end
         -- Ally specs: best-effort — inspect cache may not be populated at prep time
         pendingAllySpecs = {}
@@ -467,10 +467,10 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
                 pendingAllySpecs[#pendingAllySpecs + 1] = (sid and sid ~= 0) and sid or nil
             end
         end
-        NXR.DebugInsights("ally specs captured, count=", #pendingAllySpecs)
+        AI.DebugInsights("ally specs captured, count=", #pendingAllySpecs)
         -- Refresh snapshot in case PLAYER_LEAVING_WORLD missed the char
-        if not snapshot[NXR.BRACKET_SOLO_SHUFFLE] and not snapshot[NXR.BRACKET_2V2] then
-            TakeDBSnapshot(NXR.currentCharKey)
+        if not snapshot[AI.BRACKET_SOLO_SHUFFLE] and not snapshot[AI.BRACKET_2V2] then
+            TakeDBSnapshot(AI.currentCharKey)
         end
 
     -- ---- SS round tracking via match state transitions ----
@@ -480,7 +480,7 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
         if not newState then return end
 
         local liveSS = C_PvP and C_PvP.IsSoloShuffle and C_PvP.IsSoloShuffle()
-        NXR.DebugInsights("PVP_MATCH_STATE_CHANGED state=", newState,
+        AI.DebugInsights("PVP_MATCH_STATE_CHANGED state=", newState,
             "ssActive=", tostring(ssActive), "liveSS=", tostring(liveSS),
             "rounds so far=", #ssRounds)
 
@@ -488,7 +488,7 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
         if not ssActive then
             if liveSS then
                 ssActive         = true
-                matchBracketHint = NXR.BRACKET_SOLO_SHUFFLE
+                matchBracketHint = AI.BRACKET_SOLO_SHUFFLE
             else
                 return
             end
@@ -500,7 +500,7 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
             if RequestBattlefieldScoreData then RequestBattlefieldScoreData() end
             C_Timer.After(0.2, function()
                 ssRoundPrevWins = GetMyCurrentWins()
-                NXR.DebugInsights("Round start wins snapshot:", ssRoundPrevWins)
+                AI.DebugInsights("Round start wins snapshot:", ssRoundPrevWins)
             end)
 
         elseif ssRoundStart ~= nil then
@@ -508,7 +508,7 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
             -- Avoids hardcoding PostRound value (3? 4?) which varies by build.
             local capturedStart = ssRoundStart
             if not capturedStart then
-                NXR.DebugInsights("state", newState, "but no ssRoundStart — skipping")
+                AI.DebugInsights("state", newState, "but no ssRoundStart — skipping")
                 return
             end
 
@@ -529,12 +529,12 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
                         local newWins = GetMyCurrentWins()
                         roundEntry.outcome  = newWins > prevWins and "win" or "loss"
                         ssRoundPrevWins     = newWins
-                        NXR.DebugInsights("Round", roundNum, "outcome:", roundEntry.outcome,
+                        AI.DebugInsights("Round", roundNum, "outcome:", roundEntry.outcome,
                             "wins:", prevWins, "->", newWins)
                     end)
                 end)
             else
-                NXR.DebugInsights("roundNum > 6, skipping (roundNum=", roundNum, ")")
+                AI.DebugInsights("roundNum > 6, skipping (roundNum=", roundNum, ")")
             end
         end
 
@@ -545,24 +545,24 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
 
         local winner, duration = ...
 
-        if NXR.InsightsDebug then
-            print("[NXR Insights] PVP_MATCH_COMPLETE winner=" .. tostring(winner)
+        if AI.InsightsDebug then
+            print("[AI Insights] PVP_MATCH_COMPLETE winner=" .. tostring(winner)
                 .. " duration=" .. tostring(duration))
             local _, iType, _, iName = GetInstanceInfo()
-            print("[NXR Insights] instance type=" .. tostring(iType) .. " name=" .. tostring(iName))
-            for _, bi in ipairs(NXR.TRACKED_BRACKETS) do
-                print("[NXR Insights] bracket " .. bi .. " snapshot=" .. tostring(snapshot[bi]))
+            print("[AI Insights] instance type=" .. tostring(iType) .. " name=" .. tostring(iName))
+            for _, bi in ipairs(AI.TRACKED_BRACKETS) do
+                print("[AI Insights] bracket " .. bi .. " snapshot=" .. tostring(snapshot[bi]))
             end
         end
 
-        if not NXR.currentCharKey then
-            NXR.DebugInsights("no currentCharKey, skipping")
+        if not AI.currentCharKey then
+            AI.DebugInsights("no currentCharKey, skipping")
             return
         end
 
-        local charKey = NXR.currentCharKey
+        local charKey = AI.currentCharKey
         local specID
-        local char = NelxRatedDB.characters[charKey]
+        local char = ArenaInsightsDB.characters[charKey]
         if char then specID = char.specID end
 
         -- Refresh hint at completion in case PVP_MATCH_ACTIVE detection missed
@@ -592,14 +592,14 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
 
         pendingEnemySpecs = {}
         pendingAllySpecs  = {}
-        NXR.DebugInsights("Stage 1 complete — charKey=", charKey)
+        AI.DebugInsights("Stage 1 complete — charKey=", charKey)
 
     -- ---- I-4 Stage 2: Accumulate score data (best-effort) ----
     elseif event == "UPDATE_BATTLEFIELD_SCORE" then
         if not pendingRecord or pendingRecord.scoreLoaded then return end
         CaptureFromScoreboard(pendingRecord)
         if not pendingRecord.scoreLoaded then
-            NXR.DebugInsights("score not found in UPDATE_BATTLEFIELD_SCORE, will retry")
+            AI.DebugInsights("score not found in UPDATE_BATTLEFIELD_SCORE, will retry")
         end
 
     -- ---- I-4 Stage 3: Finalize one frame after Core.lua writes new ratings ----
@@ -624,13 +624,13 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
             --   5. Live-API DetectActiveBracket() at finalize
             local function bracketFromScoreboard()
                 if C_PvP and C_PvP.IsSoloShuffle and C_PvP.IsSoloShuffle() then
-                    return NXR.BRACKET_SOLO_SHUFFLE
+                    return AI.BRACKET_SOLO_SHUFFLE
                 end
                 if C_PvP and C_PvP.IsRatedSoloRBG and C_PvP.IsRatedSoloRBG() then
-                    return NXR.BRACKET_BLITZ
+                    return AI.BRACKET_BLITZ
                 end
-                if rec.opponentCount == 2 then return NXR.BRACKET_2V2 end
-                if rec.opponentCount == 3 then return NXR.BRACKET_3V3 end
+                if rec.opponentCount == 2 then return AI.BRACKET_2V2 end
+                if rec.opponentCount == 3 then return AI.BRACKET_3V3 end
                 return nil
             end
 
@@ -640,7 +640,7 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
                 or DetectActiveBracket()
             rec.bracketHint   = nil
             rec.opponentCount = nil
-            NXR.DebugInsights("bracket detected —", tostring(rec.bracketIndex))
+            AI.DebugInsights("bracket detected —", tostring(rec.bracketIndex))
 
             -- Authoritative rating + ratingChange from DB diff: scoreboard sometimes
             -- returns 0/nil ratingChange (mislabels losses as draws). DB has ground truth.
@@ -656,7 +656,7 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
                         local diff = curRating - prev
                         if diff ~= 0 and (rec.ratingChange == nil or rec.ratingChange == 0) then
                             rec.ratingChange = diff
-                            NXR.DebugInsights("ratingChange overridden from DB diff:", diff)
+                            AI.DebugInsights("ratingChange overridden from DB diff:", diff)
                         end
                     end
                 end
@@ -666,7 +666,7 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
             --   SS  → wonRounds (>3 win, <3 loss, ==3 draw), fallback to ratingChange
             --   2v2/3v3/Blitz → directOutcome from PVP_MATCH_COMPLETE winner arg,
             --                   fallback to ratingChange sign
-            if rec.bracketIndex == NXR.BRACKET_SOLO_SHUFFLE then
+            if rec.bracketIndex == AI.BRACKET_SOLO_SHUFFLE then
                 local wr = rec.wonRounds
                 if type(wr) == "number" then
                     if wr > 3 then
@@ -677,7 +677,7 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
                         rec.outcome = "draw"
                     end
                 else
-                    NXR.DebugInsights("SS outcome fallback to ratingChange (wonRounds nil)")
+                    AI.DebugInsights("SS outcome fallback to ratingChange (wonRounds nil)")
                     local rc = rec.ratingChange
                     if rc == nil then
                         rec.outcome = "unknown"
@@ -691,9 +691,9 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
                 end
             elseif rec.directOutcome then
                 rec.outcome = rec.directOutcome
-                NXR.DebugInsights("outcome from winner arg:", rec.outcome)
+                AI.DebugInsights("outcome from winner arg:", rec.outcome)
             else
-                NXR.DebugInsights("outcome fallback to ratingChange sign")
+                AI.DebugInsights("outcome fallback to ratingChange sign")
                 local rc = rec.ratingChange
                 if rc == nil then
                     rec.outcome = "unknown"
@@ -708,7 +708,7 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
             -- SS shuffle data: trust scoreboard totals (reliable), only include
             -- rounds[] breakdown when state-change tracking captured all 6
             -- (per-round states don't fire reliably in Midnight 12.x).
-            if rec.bracketIndex == NXR.BRACKET_SOLO_SHUFFLE then
+            if rec.bracketIndex == AI.BRACKET_SOLO_SHUFFLE then
                 local won   = rec.wonRounds or 0
                 local total = 6
                 rec.shuffle = {
@@ -722,9 +722,9 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
                         capturedRounds[i] = ssRounds[i]
                     end
                     rec.shuffle.rounds = capturedRounds
-                    NXR.DebugInsights("shuffle: full per-round capture (", total, "rounds)")
+                    AI.DebugInsights("shuffle: full per-round capture (", total, "rounds)")
                 else
-                    NXR.DebugInsights("shuffle: partial capture (", #ssRounds, "/", total,
+                    AI.DebugInsights("shuffle: partial capture (", #ssRounds, "/", total,
                         ") — omitting rounds[], totals only")
                 end
                 ssRounds        = {}
@@ -735,8 +735,8 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
 
             rec.scoreLoaded = nil  -- don't persist internal flag
 
-            NelxRatedDB.matches[#NelxRatedDB.matches + 1] = rec
-            NXR.DebugInsights("match recorded — bracket=", tostring(rec.bracketIndex),
+            ArenaInsightsDB.matches[#ArenaInsightsDB.matches + 1] = rec
+            AI.DebugInsights("match recorded — bracket=", tostring(rec.bracketIndex),
                 "outcome=", rec.outcome,
                 "rating=", tostring(rec.rating))
 
