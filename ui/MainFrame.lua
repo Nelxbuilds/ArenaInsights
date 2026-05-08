@@ -78,7 +78,7 @@ local navButtons = {}
 local tabPanels  = {}
 local activeTab  = nil
 
-local TAB_ORDER = { "Home", "Insights", "History", "Challenges", "Characters", "Currency", "Settings" }
+local TAB_ORDER = { "Insights", "History", "Challenges", "Characters", "Currency", "Settings", "How-To" }
 
 local function SelectTab(tabName)
     if activeTab == tabName then return end
@@ -218,8 +218,8 @@ local function CreateMainFrame()
         tabPanels[tabName] = panel
     end
 
-    -- Embed Home panel
-    AI.CreateHomePanel(tabPanels["Home"])
+    -- Embed How-To panel
+    AI.CreateHowToPanel(tabPanels["How-To"])
 
     -- Embed Challenges panel
     AI.CreateChallengesPanel(tabPanels["Challenges"])
@@ -240,8 +240,8 @@ local function CreateMainFrame()
     if AI.CreateInsightsPanel then
         AI.CreateInsightsPanel(tabPanels["Insights"])
     end
-    -- Default to Home tab
-    SelectTab("Home")
+    -- Default to Insights tab
+    SelectTab("Insights")
 
     mainFrame = f
     AI.mainFrame = f
@@ -266,5 +266,6 @@ function AI.ToggleMainFrame()
         mainFrame:Hide()
     else
         mainFrame:Show()
+        SelectTab("Insights")
     end
 end

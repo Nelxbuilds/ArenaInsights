@@ -17,6 +17,17 @@ local ENTRY_HEIGHT        = 22
 local MAX_VISIBLE_ENTRIES = 12
 local DROPDOWN_WIDTH      = 240
 
+local DETAIL_PAD_V   = 4
+local DETAIL_HDR_H   = 14
+local DETAIL_PLINE_H = 15
+local DETAIL_ROUNDS_H = 16
+
+-- Column x-offsets within the detail frame
+local PLINE_NAME_X = 18
+local PLINE_DMG_X  = 162
+local PLINE_HEAL_X = 230
+local PLINE_KB_X   = 298
+
 -- Column x-offsets within each row (from row left edge)
 local COL_DATE    = 0
 local COL_BRACKET = 100
@@ -63,6 +74,7 @@ local rowPool        = {}
 local countLabel     = nil
 local emptyLabel     = nil
 local filteredList   = {}
+local expandedIndex  = nil
 
 -- Dropdown state
 local charDropdown, charDropdownEntries, charDropdownData, charDropdownOffset
@@ -235,6 +247,7 @@ RefreshCharDropdownEntries = function()
         entry.label:SetText(data.display)
         entry:SetScript("OnClick", function()
             insightsCharKey = data.key
+            expandedIndex = nil
             charButton.label:SetText(FormatCharButtonLabel(data.char))
             charButton.label:SetJustifyH("LEFT")
             RefreshRows()
@@ -356,6 +369,7 @@ local function ShowBracketDropdown(btn)
     end
     ShowSimpleDropdown(bracketDropdown, bracketDropdownEntries, btn, items, function(item)
         filterBracket = item.value
+        expandedIndex = nil
         bracketButton.label:SetText("Bracket: " .. item.value)
         RefreshRows()
     end)
@@ -371,6 +385,7 @@ local function ShowOutcomeDropdown(btn)
     end
     ShowSimpleDropdown(outcomeDropdown, outcomeDropdownEntries, btn, items, function(item)
         filterOutcome = item.value
+        expandedIndex = nil
         outcomeButton.label:SetText("Outcome: " .. item.value)
         RefreshRows()
     end)
@@ -382,6 +397,13 @@ end
 
 local function sign(n)
     if n > 0 then return "+" .. n elseif n < 0 then return tostring(n) else return "(+0)" end
+end
+
+local function FormatStat(n)
+    if n == nil then return "-" end
+    if n >= 1000000 then return string.format("%.1fM", n / 1000000) end
+    if n >= 1000    then return string.format("%.0fk", n / 1000) end
+    return tostring(n)
 end
 
 local function ShowMatchTooltip(anchor, rec)
@@ -540,6 +562,92 @@ local function CreateRow(parent)
         ico:Hide()
         row.enemyIcons[i] = ico
     end
+
+    -- Expand indicator (far right of header row)
+    row.expandIndicator = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    row.expandIndicator:SetPoint("RIGHT", -PAD, 0)
+    row.expandIndicator:SetText("+")
+    row.expandIndicator:SetTextColor(0.40, 0.40, 0.40)
+
+    -- Detail sub-frame (hidden by default; shown when row is expanded)
+    row.detail = CreateFrame("Frame", nil, row)
+    row.detail:SetPoint("TOPLEFT", PAD, -ROW_H)
+    row.detail:SetPoint("RIGHT", -PAD, 0)
+    row.detail:SetHeight(DETAIL_H_STATS)
+    row.detail:Hide()
+
+    local detailBg = row.detail:CreateTexture(nil, "BACKGROUND")
+    detailBg:SetAllPoints()
+    detailBg:SetColorTexture(0.02, 0.02, 0.02, 0.6)
+
+    -- Column header labels
+    local hdrDmg = row.detail:CreateFontString(nil, "OVERLAY", "GameFontNormalTiny")
+    hdrDmg:SetPoint("TOPLEFT", PLINE_DMG_X, -DETAIL_PAD_V)
+    hdrDmg:SetText("DMG")
+    hdrDmg:SetTextColor(0.38, 0.38, 0.38)
+
+    local hdrHeal = row.detail:CreateFontString(nil, "OVERLAY", "GameFontNormalTiny")
+    hdrHeal:SetPoint("TOPLEFT", PLINE_HEAL_X, -DETAIL_PAD_V)
+    hdrHeal:SetText("HEAL")
+    hdrHeal:SetTextColor(0.38, 0.38, 0.38)
+
+    local hdrKB = row.detail:CreateFontString(nil, "OVERLAY", "GameFontNormalTiny")
+    hdrKB:SetPoint("TOPLEFT", PLINE_KB_X, -DETAIL_PAD_V)
+    hdrKB:SetText("KB")
+    hdrKB:SetTextColor(0.38, 0.38, 0.38)
+
+    -- Pre-create 6 player lines (max for SS / 3v3)
+    row.detail.playerLines = {}
+    for i = 1, 6 do
+        local lineY = -(DETAIL_PAD_V + DETAIL_HDR_H + (i - 1) * DETAIL_PLINE_H)
+        local pl = {}
+
+        pl.icon = row.detail:CreateTexture(nil, "OVERLAY")
+        pl.icon:SetSize(12, 12)
+        pl.icon:SetPoint("TOPLEFT", 0, lineY - 1)
+        pl.icon:Hide()
+
+        pl.nameText = row.detail:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        pl.nameText:SetPoint("TOPLEFT", PLINE_NAME_X, lineY)
+        pl.nameText:SetWidth(PLINE_DMG_X - PLINE_NAME_X - 4)
+        pl.nameText:SetJustifyH("LEFT")
+        pl.nameText:SetWordWrap(false)
+
+        pl.dmgText = row.detail:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        pl.dmgText:SetPoint("TOPLEFT", PLINE_DMG_X, lineY)
+        pl.dmgText:SetWidth(PLINE_HEAL_X - PLINE_DMG_X - 4)
+        pl.dmgText:SetJustifyH("LEFT")
+
+        pl.healText = row.detail:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        pl.healText:SetPoint("TOPLEFT", PLINE_HEAL_X, lineY)
+        pl.healText:SetWidth(PLINE_KB_X - PLINE_HEAL_X - 4)
+        pl.healText:SetJustifyH("LEFT")
+
+        pl.kbText = row.detail:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        pl.kbText:SetPoint("TOPLEFT", PLINE_KB_X, lineY)
+        pl.kbText:SetWidth(40)
+        pl.kbText:SetJustifyH("LEFT")
+
+        row.detail.playerLines[i] = pl
+    end
+
+    -- SS rounds line (anchored dynamically in RefreshRows)
+    row.detail.roundsText = row.detail:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    row.detail.roundsText:SetWidth(480)
+    row.detail.roundsText:SetJustifyH("LEFT")
+    row.detail.roundsText:SetTextColor(0.50, 0.50, 0.50)
+    row.detail.roundsText:Hide()
+
+    row:SetScript("OnMouseDown", function(self)
+        local idx = self.rowIndex
+        if not idx then return end
+        if expandedIndex == idx then
+            expandedIndex = nil
+        else
+            expandedIndex = idx
+        end
+        RefreshRows()
+    end)
 
     row:SetScript("OnEnter", function(self)
         if self.hoverColor then
@@ -712,6 +820,7 @@ RefreshRows = function()
         row:SetPoint("TOPLEFT", 0, -yOff)
         row:SetPoint("RIGHT", scrollChild, "RIGHT", 0, 0)
         row.matchData = rec
+        row.rowIndex  = i
 
         row.dateText:SetText(date("%b %d  %H:%M", rec.timestamp or 0))
         row.dateText:SetTextColor(0.65, 0.65, 0.65)
@@ -750,14 +859,110 @@ RefreshRows = function()
             row.mmrText:SetText(tostring(preMMR + (rec.mmrChange or 0)))
             row.mmrText:SetTextColor(0.75, 0.75, 0.75)
         else
-            row.mmrText:SetText("?")
+            row.mmrText:SetText("Skirm")
             row.mmrText:SetTextColor(0.35, 0.35, 0.35)
         end
 
         PopulateTeamIcons(row, rec)
 
+        -- Expand indicator and detail frame
+        local isExpanded = (expandedIndex == i)
+        if isExpanded then
+            row.expandIndicator:SetText("-")
+            row.expandIndicator:SetTextColor(0.70, 0.70, 0.70)
+
+            local isSS = rec.bracketIndex == AI.BRACKET_SOLO_SHUFFLE
+
+            -- Build ordered player list: self, then allies (2v2/3v3), then enemies
+            local players = {}
+            players[1] = {
+                specID      = rec.specID,
+                isSelf      = true,
+                damageDone  = rec.damageDone,
+                healingDone = rec.healingDone,
+                killingBlows = rec.killingBlows,
+            }
+            if not isSS then
+                for _, p in ipairs(rec.allyPlayers or {}) do
+                    players[#players + 1] = p
+                end
+            end
+            for _, p in ipairs(rec.enemyPlayers or {}) do
+                players[#players + 1] = p
+            end
+
+            local playerCount = math.min(#players, 6)
+
+            for li = 1, 6 do
+                local pl = row.detail.playerLines[li]
+                if li <= playerCount then
+                    local p = players[li]
+                    local icon = GetSpecIcon(p.specID)
+                    if icon then
+                        AI.SetSpecIcon(pl.icon, icon)
+                        pl.icon:Show()
+                    else
+                        pl.icon:Hide()
+                    end
+                    local nameStr
+                    if p.isSelf then
+                        nameStr = rec.charKey and rec.charKey:match("^(.+)-") or "You"
+                        pl.nameText:SetTextColor(unpack(AI.COLORS.GOLD))
+                    else
+                        nameStr = p.name or "?"
+                        pl.nameText:SetTextColor(0.70, 0.70, 0.70)
+                    end
+                    pl.nameText:SetText(nameStr)
+                    pl.dmgText:SetText(FormatStat(p.damageDone))
+                    pl.healText:SetText(FormatStat(p.healingDone))
+                    pl.kbText:SetText(FormatStat(p.killingBlows))
+                    pl.dmgText:SetTextColor(0.65, 0.65, 0.65)
+                    pl.healText:SetTextColor(0.65, 0.65, 0.65)
+                    pl.kbText:SetTextColor(0.65, 0.65, 0.65)
+                else
+                    pl.icon:Hide()
+                    pl.nameText:SetText("")
+                    pl.dmgText:SetText("")
+                    pl.healText:SetText("")
+                    pl.kbText:SetText("")
+                end
+            end
+
+            -- SS rounds line below player list
+            local sh = rec.shuffle
+            local hasRounds = sh and sh.rounds and #sh.rounds == 6
+            local roundsY = -(DETAIL_PAD_V + DETAIL_HDR_H + playerCount * DETAIL_PLINE_H + 2)
+            local detailH = DETAIL_PAD_V + DETAIL_HDR_H + playerCount * DETAIL_PLINE_H + DETAIL_PAD_V
+
+            if hasRounds then
+                local parts = {}
+                for _, r in ipairs(sh.rounds) do
+                    local outcomeStr = (r.outcome == "win") and "|cff22cc22WIN|r" or "|cffcc2222LOSS|r"
+                    local dur = r.duration and ("(" .. r.duration .. "s)") or ""
+                    parts[#parts + 1] = "R" .. r.num .. " " .. outcomeStr .. " " .. dur
+                end
+                row.detail.roundsText:ClearAllPoints()
+                row.detail.roundsText:SetPoint("TOPLEFT", 0, roundsY)
+                row.detail.roundsText:SetText(table.concat(parts, "  "))
+                row.detail.roundsText:Show()
+                detailH = detailH + DETAIL_ROUNDS_H
+            else
+                row.detail.roundsText:Hide()
+            end
+
+            row.detail:SetHeight(detailH)
+            row.detail:Show()
+            row:SetHeight(ROW_H + detailH)
+            yOff = yOff + ROW_H + detailH
+        else
+            row.expandIndicator:SetText("+")
+            row.expandIndicator:SetTextColor(0.40, 0.40, 0.40)
+            row.detail:Hide()
+            row:SetHeight(ROW_H)
+            yOff = yOff + ROW_H
+        end
+
         row:Show()
-        yOff = yOff + ROW_H
     end
 
     for i = count + 1, #rowPool do
