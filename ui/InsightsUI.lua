@@ -21,13 +21,15 @@ local DROPDOWN_WIDTH      = 240
 local DETAIL_PAD_V   = 4
 local DETAIL_HDR_H   = 14
 local DETAIL_PLINE_H = 15
-local DETAIL_ROUNDS_H = 16
+local ROUND_ROW_H    = 20
+local ROUND_ICON_S   = 14
 
 -- Column x-offsets within the detail frame
 local PLINE_NAME_X = 18
 local PLINE_DMG_X  = 162
 local PLINE_HEAL_X = 230
 local PLINE_KB_X   = 298
+local PLINE_MMR_X  = 348
 
 -- Column x-offsets within each row (from row left edge)
 local COL_DATE    = 0
@@ -327,90 +329,9 @@ end
 
 local function ShowMatchTooltip(anchor, rec)
     GameTooltip:SetOwner(anchor, "ANCHOR_RIGHT")
-
-    local dateStr = date("%b %d, %H:%M", rec.timestamp or 0)
-    local bName   = AI.BRACKET_NAMES[rec.bracketIndex] or ("Bracket " .. tostring(rec.bracketIndex))
-    local isSS    = rec.bracketIndex == AI.BRACKET_SOLO_SHUFFLE
-
-    GameTooltip:AddLine(bName .. "  -  " .. dateStr, 1, 1, 1)
-    GameTooltip:AddLine(" ")
-
-    if isSS then
-        local sh  = rec.shuffle
-        local won = (sh and sh.wonRounds) or rec.wonRounds or 0
-        GameTooltip:AddLine("Won " .. won .. " / 6 rounds", 1, 0.85, 0.1)
-        GameTooltip:AddLine(" ")
-    end
-
-    local delta   = rec.ratingChange or 0
-    local preRat  = (rec.rating or 0) - delta
-    local preMMR  = rec.prematchMMR or 0
-    local postMMR = preMMR + (rec.mmrChange or 0)
-
-    GameTooltip:AddDoubleLine("Rating",
-        preRat .. "  ->  " .. (rec.rating or 0) .. "  " .. sign(delta),
-        0.65, 0.65, 0.65, 1, 1, 1)
-    if preMMR > 0 then
-        GameTooltip:AddDoubleLine("MMR",
-            preMMR .. "  ->  " .. postMMR .. "  " .. sign(rec.mmrChange or 0),
-            0.65, 0.65, 0.65, 1, 1, 1)
-    end
-
-    if isSS then
-        local hasAny = rec.specID or (rec.enemySpecs and #rec.enemySpecs > 0)
-        if hasAny then
-            GameTooltip:AddLine(" ")
-            GameTooltip:AddLine("All specs:", 0.65, 0.65, 0.65)
-            if rec.specID then
-                GameTooltip:AddLine("  [You] " .. GetSpecName(rec.specID), 1, 0.82, 0.0)
-            end
-            for _, sid in ipairs(rec.enemySpecs or {}) do
-                GameTooltip:AddLine("  " .. GetSpecName(sid), 0.85, 0.85, 0.85)
-            end
-        end
-    else
-        local hasOwn   = rec.specID ~= nil
-        local hasAlly  = rec.allySpecs and #rec.allySpecs > 0
-        local hasEnemy = rec.enemySpecs and #rec.enemySpecs > 0
-
-        if hasOwn or hasAlly then
-            GameTooltip:AddLine(" ")
-            GameTooltip:AddLine("Your team:", 0.65, 0.65, 0.65)
-            if hasOwn then
-                GameTooltip:AddLine("  [You] " .. GetSpecName(rec.specID), 1, 0.82, 0.0)
-            end
-            for _, sid in ipairs(rec.allySpecs or {}) do
-                if sid then
-                    GameTooltip:AddLine("  " .. GetSpecName(sid), 0.85, 0.85, 0.85)
-                end
-            end
-        end
-        if hasEnemy then
-            GameTooltip:AddLine(" ")
-            GameTooltip:AddLine("Enemies:", 0.65, 0.65, 0.65)
-            for _, sid in ipairs(rec.enemySpecs) do
-                GameTooltip:AddLine("  " .. GetSpecName(sid), 0.85, 0.85, 0.85)
-            end
-        end
-    end
-
-    if isSS then
-        local sh = rec.shuffle
-        if sh and sh.rounds and #sh.rounds == 6 then
-            GameTooltip:AddLine(" ")
-            GameTooltip:AddLine("Round outcomes:", 0.65, 0.65, 0.65)
-            for _, r in ipairs(sh.rounds) do
-                local label = "  R" .. r.num .. "  " .. (r.outcome or "?"):upper()
-                if r.duration then label = label .. "  (" .. r.duration .. "s)" end
-                if r.outcome == "win" then
-                    GameTooltip:AddLine(label, 0.1, 0.9, 0.1)
-                else
-                    GameTooltip:AddLine(label, 0.9, 0.1, 0.1)
-                end
-            end
-        end
-    end
-
+    local bName = AI.BRACKET_NAMES[rec.bracketIndex] or ("Bracket " .. tostring(rec.bracketIndex))
+    GameTooltip:AddLine(bName .. "  -  " .. date("%b %d, %H:%M", rec.timestamp or 0), 0.65, 0.65, 0.65)
+    GameTooltip:AddLine("Click to expand", 0.40, 0.40, 0.40)
     GameTooltip:Show()
 end
 
@@ -432,10 +353,12 @@ local function PopulateDetailPlayers(detail)
             if not a or not b then return b == nil end
             local av = (sk == "dmg"  and (a.damageDone   or 0))
                     or (sk == "heal" and (a.healingDone   or 0))
-                    or (sk == "kb"   and (a.killingBlows  or 0)) or 0
+                    or (sk == "kb"   and (a.killingBlows  or 0))
+                    or (sk == "mmr"  and (a.prematchMMR   or 0)) or 0
             local bv = (sk == "dmg"  and (b.damageDone   or 0))
                     or (sk == "heal" and (b.healingDone   or 0))
-                    or (sk == "kb"   and (b.killingBlows  or 0)) or 0
+                    or (sk == "kb"   and (b.killingBlows  or 0))
+                    or (sk == "mmr"  and (b.prematchMMR   or 0)) or 0
             if dir == "desc" then return av > bv else return av < bv end
         end)
     end
@@ -458,12 +381,21 @@ local function PopulateDetailPlayers(detail)
             pl.dmgText:SetText(FormatStat(p.damageDone))
             pl.healText:SetText(FormatStat(p.healingDone))
             pl.kbText:SetText(FormatStat(p.killingBlows))
+            local mmr = p.prematchMMR
+            if mmr and mmr > 0 then
+                pl.mmrText:SetText(tostring(mmr))
+                pl.mmrText:SetTextColor(sk == "mmr" and 0.92 or 0.65, sk == "mmr" and 0.92 or 0.65, sk == "mmr" and 0.92 or 0.65)
+            else
+                pl.mmrText:SetText("--")
+                pl.mmrText:SetTextColor(0.30, 0.30, 0.30)
+            end
             pl.dmgText:SetTextColor( sk == "dmg"  and 0.92 or 0.65, sk == "dmg"  and 0.92 or 0.65, sk == "dmg"  and 0.92 or 0.65)
             pl.healText:SetTextColor(sk == "heal" and 0.92 or 0.65, sk == "heal" and 0.92 or 0.65, sk == "heal" and 0.92 or 0.65)
             pl.kbText:SetTextColor(  sk == "kb"   and 0.92 or 0.65, sk == "kb"   and 0.92 or 0.65, sk == "kb"   and 0.92 or 0.65)
         else
             pl.icon:Hide()
-            pl.nameText:SetText("") pl.dmgText:SetText("") pl.healText:SetText("") pl.kbText:SetText("")
+            pl.nameText:SetText("") pl.dmgText:SetText("") pl.healText:SetText("")
+            pl.kbText:SetText("") pl.mmrText:SetText("")
         end
     end
 
@@ -471,6 +403,132 @@ local function PopulateDetailPlayers(detail)
         detail.hdrDmg:SetTextColor( sk == "dmg"  and 0.96 or 0.38, sk == "dmg"  and 0.92 or 0.38, sk == "dmg"  and 0.90 or 0.38)
         detail.hdrHeal:SetTextColor(sk == "heal" and 0.96 or 0.38, sk == "heal" and 0.92 or 0.38, sk == "heal" and 0.90 or 0.38)
         detail.hdrKB:SetTextColor(  sk == "kb"   and 0.96 or 0.38, sk == "kb"   and 0.92 or 0.38, sk == "kb"   and 0.90 or 0.38)
+        detail.hdrMMR:SetTextColor( sk == "mmr"  and 0.96 or 0.38, sk == "mmr"  and 0.92 or 0.38, sk == "mmr"  and 0.90 or 0.38)
+    end
+end
+
+-- ============================================================================
+-- SS per-round comp rows
+-- ============================================================================
+
+local VS_W = 18  -- pixel width of "vs" separator area
+local ROUND_ALLY_START  = 24 + ROUND_ICON_S + 2  -- x of first ally icon
+local ROUND_ENEMY_START = 24 + 3 * (ROUND_ICON_S + 2) + VS_W  -- x of first enemy icon
+local ROUND_OUTCOME_X   = 24 + 6 * (ROUND_ICON_S + 2) + VS_W + 8
+local ROUND_DUR_X       = ROUND_OUTCOME_X + 40
+
+local function GetOrCreateRoundRow(detail, idx)
+    if detail.roundRows[idx] then return detail.roundRows[idx] end
+
+    local rr = {}
+
+    rr.label = detail:CreateFontString(nil, "OVERLAY", "GameFontNormalTiny")
+    rr.label:SetWidth(22)
+    rr.label:SetJustifyH("LEFT")
+    rr.label:SetTextColor(0.40, 0.40, 0.40)
+
+    rr.myIcon = detail:CreateTexture(nil, "OVERLAY")
+    rr.myIcon:SetSize(ROUND_ICON_S, ROUND_ICON_S)
+
+    rr.allyIcons = {}
+    for i = 1, 2 do
+        local ico = detail:CreateTexture(nil, "OVERLAY")
+        ico:SetSize(ROUND_ICON_S, ROUND_ICON_S)
+        rr.allyIcons[i] = ico
+    end
+
+    rr.vsLabel = detail:CreateFontString(nil, "OVERLAY", "GameFontNormalTiny")
+    rr.vsLabel:SetText("vs")
+    rr.vsLabel:SetTextColor(0.35, 0.35, 0.35)
+
+    rr.enemyIcons = {}
+    for i = 1, 3 do
+        local ico = detail:CreateTexture(nil, "OVERLAY")
+        ico:SetSize(ROUND_ICON_S, ROUND_ICON_S)
+        rr.enemyIcons[i] = ico
+    end
+
+    rr.outcomeText = detail:CreateFontString(nil, "OVERLAY", "GameFontNormalTiny")
+    rr.outcomeText:SetWidth(36)
+    rr.outcomeText:SetJustifyH("LEFT")
+
+    rr.durText = detail:CreateFontString(nil, "OVERLAY", "GameFontNormalTiny")
+    rr.durText:SetWidth(40)
+    rr.durText:SetJustifyH("LEFT")
+    rr.durText:SetTextColor(0.38, 0.38, 0.38)
+
+    detail.roundRows[idx] = rr
+    return rr
+end
+
+local function PositionRoundRow(rr, yOff)
+    rr.label:ClearAllPoints()
+    rr.label:SetPoint("TOPLEFT", 0, yOff - 3)
+    rr.myIcon:ClearAllPoints()
+    rr.myIcon:SetPoint("TOPLEFT", 24, yOff - 2)
+    for i = 1, 2 do
+        rr.allyIcons[i]:ClearAllPoints()
+        rr.allyIcons[i]:SetPoint("TOPLEFT", ROUND_ALLY_START + (i - 1) * (ROUND_ICON_S + 2), yOff - 2)
+    end
+    rr.vsLabel:ClearAllPoints()
+    rr.vsLabel:SetPoint("TOPLEFT", 24 + 3 * (ROUND_ICON_S + 2) + 2, yOff - 3)
+    for i = 1, 3 do
+        rr.enemyIcons[i]:ClearAllPoints()
+        rr.enemyIcons[i]:SetPoint("TOPLEFT", ROUND_ENEMY_START + (i - 1) * (ROUND_ICON_S + 2), yOff - 2)
+    end
+    rr.outcomeText:ClearAllPoints()
+    rr.outcomeText:SetPoint("TOPLEFT", ROUND_OUTCOME_X, yOff - 3)
+    rr.durText:ClearAllPoints()
+    rr.durText:SetPoint("TOPLEFT", ROUND_DUR_X, yOff - 3)
+end
+
+local function PopulateRoundRows(detail, rec, playerCount)
+    local sh = rec.shuffle
+    if not (sh and sh.rounds and #sh.rounds > 0) then return end
+
+    local myIcon = GetSpecIcon(rec.specID)
+    local baseY  = -(DETAIL_PAD_V + DETAIL_HDR_H + playerCount * DETAIL_PLINE_H + 4)
+
+    for i, r in ipairs(sh.rounds) do
+        local rr   = GetOrCreateRoundRow(detail, i)
+        local yOff = baseY - (i - 1) * ROUND_ROW_H
+        PositionRoundRow(rr, yOff)
+
+        rr.label:SetText("R" .. r.num)
+
+        if myIcon then AI.SetSpecIcon(rr.myIcon, myIcon) rr.myIcon:Show()
+        else rr.myIcon:Hide() end
+
+        local allySpecs = r.allySpecs or {}
+        for j = 1, 2 do
+            local ico = rr.allyIcons[j]
+            local sid = allySpecs[j]
+            local specIcon = sid and GetSpecIcon(sid)
+            if specIcon then AI.SetSpecIcon(ico, specIcon) ico:Show()
+            else ico:Hide() end
+        end
+
+        local enemySpecs = r.enemySpecs or {}
+        for j = 1, 3 do
+            local ico = rr.enemyIcons[j]
+            local sid = enemySpecs[j]
+            local specIcon = sid and GetSpecIcon(sid)
+            if specIcon then AI.SetSpecIcon(ico, specIcon) ico:Show()
+            else ico:Hide() end
+        end
+
+        if r.outcome == "win" then
+            rr.outcomeText:SetText("WIN")
+            rr.outcomeText:SetTextColor(0.13, 0.80, 0.13)
+        elseif r.outcome == "loss" then
+            rr.outcomeText:SetText("LOSS")
+            rr.outcomeText:SetTextColor(0.80, 0.13, 0.13)
+        else
+            rr.outcomeText:SetText("?")
+            rr.outcomeText:SetTextColor(0.45, 0.45, 0.45)
+        end
+
+        rr.durText:SetText(r.duration and ("(" .. r.duration .. "s)") or "")
     end
 end
 
@@ -572,6 +630,11 @@ local function CreateRow(parent)
     row.detail.hdrKB:SetText("KB")
     row.detail.hdrKB:SetTextColor(0.38, 0.38, 0.38)
 
+    row.detail.hdrMMR = row.detail:CreateFontString(nil, "OVERLAY", "GameFontNormalTiny")
+    row.detail.hdrMMR:SetPoint("TOPLEFT", PLINE_MMR_X, -DETAIL_PAD_V)
+    row.detail.hdrMMR:SetText("MMR")
+    row.detail.hdrMMR:SetTextColor(0.38, 0.38, 0.38)
+
     -- Clickable sort zones over each column header
     row.detail.sortKey = nil
     row.detail.sortDir = "desc"
@@ -592,7 +655,8 @@ local function CreateRow(parent)
     end
     MkSortBtn(PLINE_DMG_X,  PLINE_HEAL_X - PLINE_DMG_X,  "dmg")
     MkSortBtn(PLINE_HEAL_X, PLINE_KB_X   - PLINE_HEAL_X, "heal")
-    MkSortBtn(PLINE_KB_X,   50,                           "kb")
+    MkSortBtn(PLINE_KB_X,   PLINE_MMR_X  - PLINE_KB_X,   "kb")
+    MkSortBtn(PLINE_MMR_X,  55,                           "mmr")
 
     -- Absorb clicks on the detail area so they don't collapse the row
     row.detail:EnableMouse(true)
@@ -629,18 +693,19 @@ local function CreateRow(parent)
 
         pl.kbText = row.detail:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
         pl.kbText:SetPoint("TOPLEFT", PLINE_KB_X, lineY)
-        pl.kbText:SetWidth(40)
+        pl.kbText:SetWidth(PLINE_MMR_X - PLINE_KB_X - 4)
         pl.kbText:SetJustifyH("LEFT")
+
+        pl.mmrText = row.detail:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        pl.mmrText:SetPoint("TOPLEFT", PLINE_MMR_X, lineY)
+        pl.mmrText:SetWidth(55)
+        pl.mmrText:SetJustifyH("LEFT")
 
         row.detail.playerLines[i] = pl
     end
 
-    -- SS rounds line (anchored dynamically in RefreshRows)
-    row.detail.roundsText = row.detail:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    row.detail.roundsText:SetWidth(480)
-    row.detail.roundsText:SetJustifyH("LEFT")
-    row.detail.roundsText:SetTextColor(0.50, 0.50, 0.50)
-    row.detail.roundsText:Hide()
+    -- SS per-round rows (created lazily, max 6)
+    row.detail.roundRows = {}
 
     row:SetScript("OnMouseDown", function(self)
         local idx = self.rowIndex
@@ -930,6 +995,7 @@ RefreshRows = function()
                 damageDone   = rec.damageDone,
                 healingDone  = rec.healingDone,
                 killingBlows = rec.killingBlows,
+                prematchMMR  = rec.prematchMMR,
             }
             if not isSS then
                 for _, p in ipairs(rec.allyPlayers or {}) do
@@ -944,26 +1010,15 @@ RefreshRows = function()
             PopulateDetailPlayers(row.detail)
             local playerCount = math.min(#players, 6)
 
-            -- SS rounds line below player list
+            -- SS per-round comp rows below player list
             local sh = rec.shuffle
-            local hasRounds = sh and sh.rounds and #sh.rounds == 6
-            local roundsY = -(DETAIL_PAD_V + DETAIL_HDR_H + playerCount * DETAIL_PLINE_H + 2)
+            local hasRounds = isSS and sh and sh.rounds and #sh.rounds > 0
+            local roundCount = hasRounds and #sh.rounds or 0
             local detailH = DETAIL_PAD_V + DETAIL_HDR_H + playerCount * DETAIL_PLINE_H + DETAIL_PAD_V
 
             if hasRounds then
-                local parts = {}
-                for _, r in ipairs(sh.rounds) do
-                    local outcomeStr = (r.outcome == "win") and "|cff22cc22WIN|r" or "|cffcc2222LOSS|r"
-                    local dur = r.duration and ("(" .. r.duration .. "s)") or ""
-                    parts[#parts + 1] = "R" .. r.num .. " " .. outcomeStr .. " " .. dur
-                end
-                row.detail.roundsText:ClearAllPoints()
-                row.detail.roundsText:SetPoint("TOPLEFT", 0, roundsY)
-                row.detail.roundsText:SetText(table.concat(parts, "  "))
-                row.detail.roundsText:Show()
-                detailH = detailH + DETAIL_ROUNDS_H
-            else
-                row.detail.roundsText:Hide()
+                PopulateRoundRows(row.detail, rec, playerCount)
+                detailH = detailH + roundCount * ROUND_ROW_H + 4
             end
 
             row.detail:SetHeight(detailH)

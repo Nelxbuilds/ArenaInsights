@@ -10,9 +10,10 @@ local pendingAllySpecs  = {}  -- teammate specs captured at ARENA_PREP (best-eff
 local pendingRecord    = nil  -- partial record held between PVP_MATCH_COMPLETE and PVP_RATED_STATS_UPDATE
 
 -- Solo Shuffle per-round tracking
-local ssRounds        = {}    -- accumulated per-round records: { num, outcome, duration }
+local ssRounds        = {}    -- accumulated per-round records: { num, outcome, duration, allySpecs, enemySpecs }
 local ssRoundStart    = nil   -- GetTime() at state-3 onset for current round
 local ssRoundPrevWins = 0     -- wins snapshot taken at round start
+local ssRoundComp     = nil   -- { allySpecs={}, enemySpecs={} } captured at round start
 local ssActive        = false -- true only inside a confirmed SS match
 local matchBracketHint = nil  -- bracket captured early as fallback for DB-diff detection
 
@@ -446,6 +447,7 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
         ssRounds           = {}
         ssRoundStart       = nil
         ssRoundPrevWins    = 0
+        ssRoundComp        = nil
         AI.DebugInsights("PVP_MATCH_ACTIVE isSS=", tostring(ssActive))
 
     -- ---- I-2: DB snapshot before zone transition (no API restriction risk) ----
@@ -513,10 +515,28 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
         if newState == 2 then
             -- Enum.PvPMatchState.Engaged (Midnight: 2) — round starting
             ssRoundStart = GetTime()
+            ssRoundComp  = nil
             if RequestBattlefieldScoreData then RequestBattlefieldScoreData() end
             C_Timer.After(0.2, function()
                 ssRoundPrevWins = GetMyCurrentWins()
                 AI.DebugInsights("Round start wins snapshot:", ssRoundPrevWins)
+                -- Capture per-round 3v3 team comp from scoreboard faction field
+                local myFac = GetBattlefieldArenaFaction and tonumber(GetBattlefieldArenaFaction()) or -1
+                local allies, enemies = {}, {}
+                local n = GetNumBattlefieldScores and GetNumBattlefieldScores() or 0
+                for i = 1, n do
+                    local si = C_PvP.GetScoreInfo and C_PvP.GetScoreInfo(i)
+                    if si and not si.isSelf then
+                        local fac = tonumber(si.faction) or -1
+                        if myFac ~= -1 and fac == myFac then
+                            allies[#allies + 1] = si.specID
+                        elseif myFac ~= -1 and fac ~= -1 and fac ~= myFac then
+                            enemies[#enemies + 1] = si.specID
+                        end
+                    end
+                end
+                ssRoundComp = { allySpecs = allies, enemySpecs = enemies }
+                AI.DebugInsights("Round comp: allies=", #allies, "enemies=", #enemies)
             end)
 
         elseif ssRoundStart ~= nil then
@@ -536,7 +556,14 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
 
             if roundNum <= 6 then
                 -- Insert placeholder; outcome resolved after scoreboard delay
-                local roundEntry = { num = roundNum, outcome = "unknown", duration = duration }
+                local roundEntry = {
+                    num        = roundNum,
+                    outcome    = "unknown",
+                    duration   = duration,
+                    allySpecs  = ssRoundComp and ssRoundComp.allySpecs or {},
+                    enemySpecs = ssRoundComp and ssRoundComp.enemySpecs or {},
+                }
+                ssRoundComp = nil
                 ssRounds[roundNum] = roundEntry
 
                 C_Timer.After(0.6, function()
