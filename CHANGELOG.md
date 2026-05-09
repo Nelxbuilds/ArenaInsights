@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.2.0] -- 2026-05-09
+
+### Added
+- Insights stats bar with inline W/L counts and per-round Solo Shuffle winrate
+
+### Fixed
+- Center Win/Loss labels and values within bracket half-panes in insights
+
 ## [2.1.0] -- 2026-05-09
 
 ### Added
