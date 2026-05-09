@@ -1072,25 +1072,36 @@ function AI.CreateInsightsPanel(parent)
         blk.wrText:SetText("--")
         blk.wrText:SetTextColor(0.48, 0.45, 0.43)
 
+        -- Two invisible half-panes so Win/Loss can CENTER-anchor regardless of block width
+        blk.leftPane = CreateFrame("Frame", nil, blk)
+        blk.leftPane:SetPoint("TOPLEFT", 0, -18)
+        blk.leftPane:SetPoint("BOTTOMLEFT", 0, 0)
+
+        blk.rightPane = CreateFrame("Frame", nil, blk)
+        blk.rightPane:SetPoint("TOPRIGHT", 0, -18)
+        blk.rightPane:SetPoint("BOTTOMRIGHT", 0, 0)
+
         blk.winLbl = blk:CreateFontString(nil, "OVERLAY", "GameFontNormalTiny")
-        blk.winLbl:SetPoint("TOPLEFT", 6, -22)
+        blk.winLbl:SetPoint("TOP", blk.leftPane, "TOP", 0, -4)
+        blk.winLbl:SetJustifyH("CENTER")
         blk.winLbl:SetText("Win")
         blk.winLbl:SetTextColor(0.40, 0.40, 0.40)
 
         blk.lossLbl = blk:CreateFontString(nil, "OVERLAY", "GameFontNormalTiny")
-        blk.lossLbl:SetPoint("TOPRIGHT", -8, -22)
-        blk.lossLbl:SetJustifyH("RIGHT")
+        blk.lossLbl:SetPoint("TOP", blk.rightPane, "TOP", 0, -4)
+        blk.lossLbl:SetJustifyH("CENTER")
         blk.lossLbl:SetText("Loss")
         blk.lossLbl:SetTextColor(0.40, 0.40, 0.40)
 
         blk.winVal = blk:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-        blk.winVal:SetPoint("TOPLEFT", 6, -33)
+        blk.winVal:SetPoint("TOP", blk.leftPane, "TOP", 0, -15)
+        blk.winVal:SetJustifyH("CENTER")
         blk.winVal:SetText("--")
         blk.winVal:SetTextColor(0.48, 0.45, 0.43)
 
         blk.lossVal = blk:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-        blk.lossVal:SetPoint("TOPRIGHT", -8, -33)
-        blk.lossVal:SetJustifyH("RIGHT")
+        blk.lossVal:SetPoint("TOP", blk.rightPane, "TOP", 0, -15)
+        blk.lossVal:SetJustifyH("CENTER")
         blk.lossVal:SetText("--")
         blk.lossVal:SetTextColor(0.48, 0.45, 0.43)
 
@@ -1109,11 +1120,14 @@ function AI.CreateInsightsPanel(parent)
 
     statsBar:SetScript("OnSizeChanged", function(self, w)
         local bw = w / 4
+        local hw = bw / 2
         for i, bi in ipairs(AI.TRACKED_BRACKETS) do
             local blk = bracketStatBlocks[bi]
             blk:ClearAllPoints()
             blk:SetPoint("TOPLEFT", self, "TOPLEFT", (i - 1) * bw, 0)
             blk:SetWidth(bw)
+            blk.leftPane:SetWidth(hw)
+            blk.rightPane:SetWidth(hw)
         end
     end)
 
