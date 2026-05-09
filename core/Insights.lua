@@ -470,21 +470,14 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
             pendingEnemySpecs[i] = (specID and specID ~= 0) and specID or 0
         end
         AI.DebugInsights("enemy specs captured, count=", count)
-        -- Authoritative bracket signal for arena: opponent count maps directly to size.
-        -- For Solo Shuffle: IsSoloShuffle() may now return true during prep even if it
-        -- returned false at PVP_MATCH_ACTIVE; check here to arm ssActive early.
+        -- IsSoloShuffle() may return true during prep even if false at PVP_MATCH_ACTIVE.
+        -- count==2 is NOT a reliable 2v2 signal: SS also shows 2 opponents per round in prep.
+        -- Leave 2v2 bracket detection to DetectActiveBracket() at PVP_RATED_STATS_UPDATE.
         local isSSNow = C_PvP and C_PvP.IsSoloShuffle and C_PvP.IsSoloShuffle()
         if isSSNow then
             matchBracketHint = AI.BRACKET_SOLO_SHUFFLE
             ssActive         = true
             AI.DebugInsights("ARENA_PREP: SS detected via IsSoloShuffle, ssActive armed")
-        elseif count == 5 then
-            -- 5 opponents in prep = Solo Shuffle (all lobby members shown)
-            matchBracketHint = AI.BRACKET_SOLO_SHUFFLE
-            ssActive         = true
-            AI.DebugInsights("ARENA_PREP: SS detected via opponent count=5, ssActive armed")
-        elseif count == 2 then
-            matchBracketHint = AI.BRACKET_2V2
         elseif count == 3 then
             matchBracketHint = AI.BRACKET_3V3
         end
@@ -524,8 +517,8 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
             end
         end
 
-        if newState == 2 then
-            -- Enum.PvPMatchState.Engaged (Midnight: 2) — round starting
+        if newState == 3 then
+            -- Enum.PvPMatchState.Engaged (Midnight: 3) — round starting
             ssRoundStart = GetTime()
             ssRoundComp  = nil
             if RequestBattlefieldScoreData then RequestBattlefieldScoreData() end
@@ -772,7 +765,7 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
                     lostRounds  = total - won,
                     totalRounds = total,
                 }
-                if #ssRounds >= 1 then
+                if #ssRounds == 6 then
                     local capturedRounds = {}
                     for i = 1, #ssRounds do
                         capturedRounds[i] = ssRounds[i]
