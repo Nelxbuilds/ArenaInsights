@@ -381,13 +381,17 @@ local function PopulateDetailPlayers(detail)
             pl.dmgText:SetText(FormatStat(p.damageDone))
             pl.healText:SetText(FormatStat(p.healingDone))
             pl.kbText:SetText(FormatStat(p.killingBlows))
-            local mmr = p.prematchMMR
-            if mmr and mmr > 0 then
-                pl.mmrText:SetText(tostring(mmr))
-                pl.mmrText:SetTextColor(sk == "mmr" and 0.92 or 0.65, sk == "mmr" and 0.92 or 0.65, sk == "mmr" and 0.92 or 0.65)
+            if detail.isSS then
+                local mmr = p.prematchMMR
+                if mmr and mmr > 0 then
+                    pl.mmrText:SetText(tostring(mmr))
+                    pl.mmrText:SetTextColor(sk == "mmr" and 0.92 or 0.65, sk == "mmr" and 0.92 or 0.65, sk == "mmr" and 0.92 or 0.65)
+                else
+                    pl.mmrText:SetText("--")
+                    pl.mmrText:SetTextColor(0.30, 0.30, 0.30)
+                end
             else
-                pl.mmrText:SetText("--")
-                pl.mmrText:SetTextColor(0.30, 0.30, 0.30)
+                pl.mmrText:SetText("")
             end
             pl.dmgText:SetTextColor( sk == "dmg"  and 0.92 or 0.65, sk == "dmg"  and 0.92 or 0.65, sk == "dmg"  and 0.92 or 0.65)
             pl.healText:SetTextColor(sk == "heal" and 0.92 or 0.65, sk == "heal" and 0.92 or 0.65, sk == "heal" and 0.92 or 0.65)
@@ -403,7 +407,12 @@ local function PopulateDetailPlayers(detail)
         detail.hdrDmg:SetTextColor( sk == "dmg"  and 0.96 or 0.38, sk == "dmg"  and 0.92 or 0.38, sk == "dmg"  and 0.90 or 0.38)
         detail.hdrHeal:SetTextColor(sk == "heal" and 0.96 or 0.38, sk == "heal" and 0.92 or 0.38, sk == "heal" and 0.90 or 0.38)
         detail.hdrKB:SetTextColor(  sk == "kb"   and 0.96 or 0.38, sk == "kb"   and 0.92 or 0.38, sk == "kb"   and 0.90 or 0.38)
-        detail.hdrMMR:SetTextColor( sk == "mmr"  and 0.96 or 0.38, sk == "mmr"  and 0.92 or 0.38, sk == "mmr"  and 0.90 or 0.38)
+        if detail.isSS then
+            detail.hdrMMR:Show()
+            detail.hdrMMR:SetTextColor(sk == "mmr" and 0.96 or 0.38, sk == "mmr" and 0.92 or 0.38, sk == "mmr" and 0.90 or 0.38)
+        else
+            detail.hdrMMR:Hide()
+        end
     end
 end
 
@@ -1012,6 +1021,7 @@ RefreshRows = function()
             end
 
             row.detail.playerData = players
+            row.detail.isSS = isSS
             PopulateDetailPlayers(row.detail)
             local playerCount = math.min(#players, 6)
 
