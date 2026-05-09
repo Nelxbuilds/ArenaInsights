@@ -10,7 +10,7 @@ local ICON_SZ   = 14
 local ICON_STEP = 16   -- icon size + 2px gap
 
 local FILTER_H      = 28
-local STATS_BAR_H   = 22
+local STATS_BAR_H   = 46
 local HEADER_H      = 20
 local GAP           = 4
 
@@ -805,28 +805,43 @@ local function RefreshStats()
     for _, bi in ipairs(AI.TRACKED_BRACKETS) do
         local blk = bracketStatBlocks[bi]
         if blk then
-            local w, d, l = 0, 0, 0
+            local w, l = 0, 0
+            local isSS = (bi == AI.BRACKET_SOLO_SHUFFLE)
             for _, rec in ipairs(AI.GetMatches()) do
                 if (not insightsCharKey or rec.charKey == insightsCharKey) and rec.bracketIndex == bi then
-                    if     rec.outcome == "win"  then w = w + 1
-                    elseif rec.outcome == "draw" then d = d + 1
-                    elseif rec.outcome == "loss" then l = l + 1
+                    if isSS then
+                        local won = (rec.shuffle and rec.shuffle.wonRounds) or rec.wonRounds
+                        if won ~= nil then
+                            w = w + won
+                            l = l + (6 - won)
+                        end
+                    else
+                        if     rec.outcome == "win"  then w = w + 1
+                        elseif rec.outcome == "loss" then l = l + 1
+                        end
                     end
                 end
             end
-            local total = w + d + l
+            local total = w + l
             local wr = total > 0 and math.floor(w / total * 100 + 0.5) or 0
 
             blk.statData.w     = w
-            blk.statData.d     = d
             blk.statData.l     = l
             blk.statData.total = total
             if total == 0 then
                 blk.wrText:SetText("--")
                 blk.wrText:SetTextColor(0.48, 0.45, 0.43)
+                blk.winVal:SetText("--")
+                blk.lossVal:SetText("--")
+                blk.winVal:SetTextColor(0.48, 0.45, 0.43)
+                blk.lossVal:SetTextColor(0.48, 0.45, 0.43)
             else
                 blk.wrText:SetFormattedText("%d%%", wr)
                 blk.wrText:SetTextColor(0.96, 0.92, 0.90)
+                blk.winVal:SetText(tostring(w))
+                blk.lossVal:SetText(tostring(l))
+                blk.winVal:SetTextColor(0.22, 0.80, 0.22)
+                blk.lossVal:SetTextColor(0.80, 0.22, 0.22)
             end
 
             blk:SetAlpha((not anyFilter or filterBrackets[bi]) and 1.0 or 0.25)
@@ -1041,72 +1056,56 @@ function AI.CreateInsightsPanel(parent)
     statsBar:SetPoint("TOPLEFT", PAD, -(PAD + FILTER_H + GAP))
     statsBar:SetPoint("TOPRIGHT", -PAD, -(PAD + FILTER_H + GAP))
 
-    -- Custom stats tooltip (avoids GameTooltip reskinning by other addons)
-    local statsTip = nil  -- created after loop; closures below capture the upvalue
-
+    local bracketCount = #AI.TRACKED_BRACKETS
     for i, bi in ipairs(AI.TRACKED_BRACKETS) do
         local blk = CreateFrame("Frame", nil, statsBar)
         blk:SetHeight(STATS_BAR_H)
 
         blk.nameText = blk:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-        blk.nameText:SetPoint("TOPLEFT", 2, -4)
+        blk.nameText:SetPoint("TOPLEFT", 6, -5)
         blk.nameText:SetText(BRACKET_SHORT[bi] or AI.BRACKET_NAMES[bi])
         blk.nameText:SetTextColor(0.55, 0.55, 0.55)
 
         blk.wrText = blk:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-        blk.wrText:SetPoint("TOPRIGHT", -8, -4)
+        blk.wrText:SetPoint("TOPRIGHT", -8, -5)
         blk.wrText:SetJustifyH("RIGHT")
         blk.wrText:SetText("--")
         blk.wrText:SetTextColor(0.48, 0.45, 0.43)
 
-        blk.statData = { w = 0, d = 0, l = 0, total = 0, bracketName = AI.BRACKET_NAMES[bi] }
-        blk:EnableMouse(true)
-        blk:SetScript("OnEnter", function(self)
-            local s = self.statData
-            statsTip.title:SetText(s.bracketName)
-            statsTip.winVal:SetText(tostring(s.w))
-            statsTip.drawVal:SetText(tostring(s.d))
-            statsTip.lossVal:SetText(tostring(s.l))
-            statsTip:ClearAllPoints()
-            statsTip:SetPoint("TOP", self, "BOTTOM", 0, -4)
-            statsTip:Show()
-        end)
-        blk:SetScript("OnLeave", function() statsTip:Hide() end)
+        blk.winLbl = blk:CreateFontString(nil, "OVERLAY", "GameFontNormalTiny")
+        blk.winLbl:SetPoint("TOPLEFT", 6, -22)
+        blk.winLbl:SetText("Win")
+        blk.winLbl:SetTextColor(0.40, 0.40, 0.40)
 
+        blk.lossLbl = blk:CreateFontString(nil, "OVERLAY", "GameFontNormalTiny")
+        blk.lossLbl:SetPoint("TOPRIGHT", -8, -22)
+        blk.lossLbl:SetJustifyH("RIGHT")
+        blk.lossLbl:SetText("Loss")
+        blk.lossLbl:SetTextColor(0.40, 0.40, 0.40)
+
+        blk.winVal = blk:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        blk.winVal:SetPoint("TOPLEFT", 6, -33)
+        blk.winVal:SetText("--")
+        blk.winVal:SetTextColor(0.48, 0.45, 0.43)
+
+        blk.lossVal = blk:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        blk.lossVal:SetPoint("TOPRIGHT", -8, -33)
+        blk.lossVal:SetJustifyH("RIGHT")
+        blk.lossVal:SetText("--")
+        blk.lossVal:SetTextColor(0.48, 0.45, 0.43)
+
+        if i < bracketCount then
+            local sep = blk:CreateTexture(nil, "BORDER")
+            sep:SetWidth(1)
+            sep:SetPoint("TOPRIGHT", 0, -4)
+            sep:SetPoint("BOTTOMRIGHT", 0, 4)
+            sep:SetColorTexture(unpack(AI.COLORS.CRIMSON_DIM))
+            blk.sepTex = sep
+        end
+
+        blk.statData = { w = 0, l = 0, total = 0 }
         bracketStatBlocks[bi] = blk
     end
-
-    -- Build the custom stats tooltip frame
-    statsTip = CreateFrame("Frame", nil, parent)
-    statsTip:SetSize(120, 68)
-    statsTip:SetFrameStrata("TOOLTIP")
-    statsTip:Hide()
-    local tipBg = statsTip:CreateTexture(nil, "BACKGROUND")
-    tipBg:SetAllPoints()
-    tipBg:SetColorTexture(0.07, 0.06, 0.08, 0.97)
-    local tipEdge = CreateFrame("Frame", nil, statsTip, "BackdropTemplate")
-    tipEdge:SetAllPoints()
-    tipEdge:SetBackdrop({ edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1 })
-    tipEdge:SetBackdropBorderColor(unpack(AI.COLORS.CRIMSON_DIM))
-
-    statsTip.title = statsTip:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    statsTip.title:SetPoint("TOPLEFT", 8, -7)
-    statsTip.title:SetTextColor(0.96, 0.92, 0.90)
-
-    local function TipRow(label, color, yOff)
-        local lbl = statsTip:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-        lbl:SetPoint("TOPLEFT", 8, yOff)
-        lbl:SetText(label)
-        lbl:SetTextColor(0.45, 0.45, 0.45)
-        local val = statsTip:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-        val:SetPoint("TOPRIGHT", -8, yOff)
-        val:SetJustifyH("RIGHT")
-        val:SetTextColor(unpack(color))
-        return val
-    end
-    statsTip.winVal  = TipRow("Win",  { 0.22, 0.80, 0.22 }, -24)
-    statsTip.drawVal = TipRow("Draw", { 0.80, 0.67, 0.13 }, -38)
-    statsTip.lossVal = TipRow("Loss", { 0.80, 0.13, 0.13 }, -52)
 
     statsBar:SetScript("OnSizeChanged", function(self, w)
         local bw = w / 4
