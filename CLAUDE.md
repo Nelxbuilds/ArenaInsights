@@ -22,7 +22,7 @@ Addon organized around main modules:
 - **Core / Event Handling** (`core/Core.lua`): Registers PvP events, extracts rating/MMR data, persists to SavedVariables
 - **Challenge System** (`core/Challenges.lua`): Multi-spec, multi-bracket challenge CRUD with active challenge logic
 - **Overlay** (`ui/Overlay.lua`): Movable frame showing spec rows from active challenge with ratings and tooltips
-- **Main Frame** (`ui/MainFrame.lua`): Custom standalone frame (`/ai`) with vertical sidebar nav (Home, Challenges, Characters, Settings, Import/Export)
+- **Main Frame** (`ui/MainFrame.lua`): Custom standalone frame (`/ai`) with vertical sidebar nav. Tabs: Insights, History, Challenges, Characters, Currency, Settings, How-To. Import/Export is embedded inside the Settings tab.
 - **Data Layer** (`core/Currency.lua`, `ui/ImportExportUI.lua`): Character tracking, challenge management, cross-account Import/Export
 - **System** (`system/`): Party sync, tooltip hooks, WoW Settings integration, minimap button
 
@@ -43,8 +43,8 @@ Three subdirectories: `core/` (data/logic), `ui/` (frames/panels), `system/` (Wo
 
 | Bracket | Index | Constant |
 |---------|-------|----------|
-| 2v2 Arena | 0 | `AI.BRACKET_2V2` |
-| 3v3 Arena | 1 | `AI.BRACKET_3V3` |
+| 2v2 Arena | 1 | `AI.BRACKET_2V2` |
+| 3v3 Arena | 2 | `AI.BRACKET_3V3` |
 | Blitz Battleground | 4 | `AI.BRACKET_BLITZ` |
 | Solo Shuffle | 7 | `AI.BRACKET_SOLO_SHUFFLE` |
 
@@ -87,7 +87,6 @@ Nil-safe requirements:
 Active epic docs in `docs/epic-*.md`. Delete when complete — source of truth is code, git history preserves the rest.
 Each epic: stories with acceptance criteria checkboxes.
 Completed: `- [x]`. Incomplete: `- [ ]`.
-Release checklist: `docs/curseforge-release-checklist.md`
 
 Bugs tracked in `docs/bugs.md`. One entry per bug: description, file/line, repro steps if needed. Not in epic story docs. Not in GitHub issues.
 
