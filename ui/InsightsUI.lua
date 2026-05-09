@@ -707,6 +707,11 @@ local function CreateRow(parent)
     -- SS per-round rows (created lazily, max 6)
     row.detail.roundRows = {}
 
+    -- Fallback summary shown when shuffle.rounds is nil (no per-round state data)
+    row.detail.wonRoundsText = row.detail:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    row.detail.wonRoundsText:SetJustifyH("LEFT")
+    row.detail.wonRoundsText:Hide()
+
     row:SetScript("OnMouseDown", function(self)
         local idx = self.rowIndex
         if not idx then return end
@@ -1017,8 +1022,22 @@ RefreshRows = function()
             local detailH = DETAIL_PAD_V + DETAIL_HDR_H + playerCount * DETAIL_PLINE_H + DETAIL_PAD_V
 
             if hasRounds then
+                row.detail.wonRoundsText:Hide()
                 PopulateRoundRows(row.detail, rec, playerCount)
                 detailH = detailH + roundCount * ROUND_ROW_H + 4
+            elseif isSS and sh and sh.wonRounds ~= nil then
+                -- No per-round state data — show won/lost summary as fallback
+                local summaryY = -(DETAIL_PAD_V + DETAIL_HDR_H + playerCount * DETAIL_PLINE_H + 4)
+                local won  = sh.wonRounds or 0
+                local lost = (sh.totalRounds or 6) - won
+                row.detail.wonRoundsText:ClearAllPoints()
+                row.detail.wonRoundsText:SetPoint("TOPLEFT", 0, summaryY)
+                row.detail.wonRoundsText:SetText(
+                    "|cff22cc22" .. won .. " W|r  |cffcc2222" .. lost .. " L|r  (round detail unavailable)")
+                row.detail.wonRoundsText:Show()
+                detailH = detailH + ROUND_ROW_H
+            else
+                row.detail.wonRoundsText:Hide()
             end
 
             row.detail:SetHeight(detailH)

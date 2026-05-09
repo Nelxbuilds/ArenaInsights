@@ -470,8 +470,20 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
             pendingEnemySpecs[i] = (specID and specID ~= 0) and specID or 0
         end
         AI.DebugInsights("enemy specs captured, count=", count)
-        -- Authoritative bracket signal for arena: opponent count maps directly to size
-        if count == 2 then
+        -- Authoritative bracket signal for arena: opponent count maps directly to size.
+        -- For Solo Shuffle: IsSoloShuffle() may now return true during prep even if it
+        -- returned false at PVP_MATCH_ACTIVE; check here to arm ssActive early.
+        local isSSNow = C_PvP and C_PvP.IsSoloShuffle and C_PvP.IsSoloShuffle()
+        if isSSNow then
+            matchBracketHint = AI.BRACKET_SOLO_SHUFFLE
+            ssActive         = true
+            AI.DebugInsights("ARENA_PREP: SS detected via IsSoloShuffle, ssActive armed")
+        elseif count == 5 then
+            -- 5 opponents in prep = Solo Shuffle (all lobby members shown)
+            matchBracketHint = AI.BRACKET_SOLO_SHUFFLE
+            ssActive         = true
+            AI.DebugInsights("ARENA_PREP: SS detected via opponent count=5, ssActive armed")
+        elseif count == 2 then
             matchBracketHint = AI.BRACKET_2V2
         elseif count == 3 then
             matchBracketHint = AI.BRACKET_3V3
@@ -749,9 +761,9 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
             end
             rec.directOutcome = nil
 
-            -- SS shuffle data: trust scoreboard totals (reliable), only include
-            -- rounds[] breakdown when state-change tracking captured all 6
-            -- (per-round states don't fire reliably in Midnight 12.x).
+            -- SS shuffle data: trust scoreboard totals (reliable), include rounds[]
+            -- for any partial capture (per-round states don't fire for every round
+            -- in Midnight 12.x, so we store whatever was captured rather than all-or-nothing).
             if rec.bracketIndex == AI.BRACKET_SOLO_SHUFFLE then
                 local won   = rec.wonRounds or 0
                 local total = 6
@@ -760,16 +772,15 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
                     lostRounds  = total - won,
                     totalRounds = total,
                 }
-                if #ssRounds == total then
+                if #ssRounds >= 1 then
                     local capturedRounds = {}
-                    for i = 1, total do
+                    for i = 1, #ssRounds do
                         capturedRounds[i] = ssRounds[i]
                     end
                     rec.shuffle.rounds = capturedRounds
-                    AI.DebugInsights("shuffle: full per-round capture (", total, "rounds)")
+                    AI.DebugInsights("shuffle: per-round capture (", #ssRounds, "/", total, "rounds)")
                 else
-                    AI.DebugInsights("shuffle: partial capture (", #ssRounds, "/", total,
-                        ") — omitting rounds[], totals only")
+                    AI.DebugInsights("shuffle: no round state transitions captured — totals only")
                 end
                 ssRounds        = {}
                 ssRoundStart    = nil
