@@ -434,11 +434,13 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
     -- ---- SS match start: init per-round state ----
     elseif event == "PVP_MATCH_ACTIVE" then
         local isSS = C_PvP and C_PvP.IsSoloShuffle and C_PvP.IsSoloShuffle()
-        -- SS fires PVP_MATCH_ACTIVE on every round zone-in; IsSoloShuffle() returns false
-        -- during the zone transition. If we already confirmed this is SS (hint set from a
-        -- prior round's state-change recovery), preserve accumulated rounds and re-arm.
-        if not isSS and matchBracketHint == AI.BRACKET_SOLO_SHUFFLE then
-            ssActive = true
+        -- SS fires PVP_MATCH_ACTIVE on every round zone-in. Preserve accumulated rounds
+        -- whenever we have prior rounds AND this looks like SS — handles both the case
+        -- where IsSoloShuffle() returns false (brief loading screen) AND true (fast zone-in).
+        -- Guard on #ssRounds > 0 so a fresh non-SS match after SS resets correctly.
+        if #ssRounds > 0 and (isSS or matchBracketHint == AI.BRACKET_SOLO_SHUFFLE) then
+            ssActive         = true
+            matchBracketHint = AI.BRACKET_SOLO_SHUFFLE
             AI.DebugInsights("PVP_MATCH_ACTIVE: SS round zone-in, preserving state rounds=", #ssRounds)
             return
         end
