@@ -983,7 +983,7 @@ RefreshRows = function()
 
         local preMMR = rec.prematchMMR or 0
         if preMMR > 0 then
-            row.mmrText:SetText(tostring(preMMR + (rec.mmrChange or 0)))
+            row.mmrText:SetText(tostring(preMMR))
             row.mmrText:SetTextColor(0.75, 0.75, 0.75)
         else
             row.mmrText:SetText("Skirm")

@@ -527,7 +527,8 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
             C_Timer.After(0.2, function()
                 ssRoundPrevWins = GetMyCurrentWins()
                 AI.DebugInsights("Round start wins snapshot:", ssRoundPrevWins)
-                -- Capture per-round 3v3 team comp from scoreboard faction field
+                -- Capture per-round SS team comp from scoreboard faction field.
+                -- specID is not a direct field on GetScoreInfo — resolve from classToken+talentSpec.
                 local myFac = GetBattlefieldArenaFaction and tonumber(GetBattlefieldArenaFaction()) or -1
                 local allies, enemies = {}, {}
                 local n = GetNumBattlefieldScores and GetNumBattlefieldScores() or 0
@@ -535,10 +536,11 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
                     local si = C_PvP.GetScoreInfo and C_PvP.GetScoreInfo(i)
                     if si and not si.isSelf then
                         local fac = tonumber(si.faction) or -1
+                        local sid = ResolveSpecID(si.classToken, si.talentSpec)
                         if myFac ~= -1 and fac == myFac then
-                            allies[#allies + 1] = si.specID
+                            allies[#allies + 1] = sid
                         elseif myFac ~= -1 and fac ~= -1 and fac ~= myFac then
-                            enemies[#enemies + 1] = si.specID
+                            enemies[#enemies + 1] = sid
                         end
                     end
                 end
