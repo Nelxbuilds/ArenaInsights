@@ -31,12 +31,15 @@ Load order: Core.lua → Currency.lua → Challenges.lua
 - Data-only module: no CreateFrame, no UI widgets, no print() chat output
 - AI.GetMatches() — returns ArenaInsightsDB.matches or {}; does not mutate; sole read accessor (no other file reads ArenaInsightsDB.matches directly)
 - AI.InsightsDebug — set true via `/run AI.InsightsDebug = true` to dump event payloads and score data to chat; defaults false
-- Events: ADDON_LOADED (bootstrap), PVP_MATCH_ACTIVE (SS round state init), PLAYER_LEAVING_WORLD (bracket snapshot + defensive SS reset), ARENA_PREP_OPPONENT_SPECIALIZATIONS (enemy specs), PVP_MATCH_STATE_CHANGED (SS per-round tracking: state 3=Engaged/round start, state 4/5=PostRound/Complete/round end), PVP_MATCH_COMPLETE (Stage 1: stash pendingRecord), UPDATE_BATTLEFIELD_SCORE (Stage 2: read C_PvP.GetScoreInfo()), PVP_RATED_STATS_UPDATE (Stage 3: finalize, bracket detect, write record)
+- Events: ADDON_LOADED (bootstrap), PVP_MATCH_ACTIVE (SS round state init), PLAYER_LEAVING_WORLD (bracket snapshot + defensive SS reset), ARENA_PREP_OPPONENT_SPECIALIZATIONS (enemy specs), PVP_MATCH_STATE_CHANGED (SS per-round tracking: state 3=Engaged/round start, state 4/5=PostRound/Complete/round end), COMBAT_LOG_EVENT_UNFILTERED (SS per-round death capture; registered only while a round is engaged), PVP_MATCH_COMPLETE (Stage 1: stash pendingRecord), UPDATE_BATTLEFIELD_SCORE (Stage 2: read C_PvP.GetScoreInfo()), PVP_RATED_STATS_UPDATE (Stage 3: finalize, bracket detect, write record)
+- SS per-round capture is live (scoreboard is empty mid-round): at state 3 (Engaged), StartRoundCapture() reads comp + GUID->{name,specID} maps from unit APIs (player spec via GetSpecialization; party1/2 via GetInspectSpecialization best-effort; arena1..N via GetArenaOpponentSpec). COMBAT_LOG_EVENT_UNFILTERED UNIT_DIED records deaths for the 6 player GUIDs only. At round end, outcome derived from death counts (eliminated team has more deaths -> the other side wins).
 - Three-stage capture: score data attempted on UPDATE_BATTLEFIELD_SCORE, retried + bracket detected on PVP_RATED_STATS_UPDATE (after Core.lua writes new ratings)
 - Match record written to ArenaInsightsDB.matches[]: { timestamp, bracketIndex, charKey, specID, outcome, rating, ratingChange, prematchMMR, mmrChange, wonRounds, enemySpecs, allySpecs, shuffle? }
 - allySpecs={} — teammate spec IDs for 2v2/3v3 (captured via GetInspectSpecialization at ARENA_PREP; best-effort, may contain nil entries if inspect cache unpopulated)
 - outcome: SS uses wonRounds (>3 "win", <3 "loss", ==3 "draw"); all other brackets use ratingChange sign
 - wonRounds — SS only (top-level): total rounds won, from C_PvP.GetScoreInfo().stats[1].pvpStatValue
-- shuffle — SS only: { wonRounds, totalRounds=6, rounds=[{num, outcome, duration}] }
-  - rounds[i].outcome resolved ~0.8s after round end via C_Timer chain; mutates in-place after record written (safe — Lua table refs)
+- shuffle — SS only: { wonRounds, lostRounds, totalRounds=6, rounds? }
+  - rounds[i] = { num, outcome, duration, allySpecs, enemySpecs, deaths }; stored when any rounds captured (#ssRounds > 0), so partial/DNF matches keep what was seen
+  - rounds[i].outcome resolved at round end from live death counts (win = enemy team eliminated); no longer scoreboard-derived
+  - rounds[i].deaths = [{ name, specID, side ("ally"/"enemy"), t }] — ordered kill log, t = seconds into round. Captured for all 6 players. UI not yet built (data-only for now).
 - enemySpecs={} for Blitz BG (ARENA_PREP_OPPONENT_SPECIALIZATIONS does not fire)
