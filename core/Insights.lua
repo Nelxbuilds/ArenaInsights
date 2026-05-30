@@ -422,15 +422,19 @@ local function StartRoundCapture()
         end
     end
 
-    -- Enemies arena1..N — spec from GetArenaOpponentSpec, paired by index
-    local n = GetNumArenaOpponentSpecs and GetNumArenaOpponentSpecs() or 0
-    for i = 1, n do
+    -- Enemies arena1..5 — GUID read straight off the unit token (reliable for any
+    -- existing unit). GetArenaOpponentSpec is best-effort for the spec ID only: its
+    -- index range is the prep-phase opponent-spec system and can read 0 mid-round, so
+    -- it must NOT gate enemy GUID capture — death attribution depends on those GUIDs.
+    for i = 1, 5 do
         local tok = "arena" .. i
-        local g   = UnitGUID(tok)
-        local sid = GetArenaOpponentSpec and GetArenaOpponentSpec(i)
-        sid = (sid and sid ~= 0) and sid or nil
-        if g then enemyGUIDs[g] = { name = UnitName(tok), specID = sid } end
-        if sid then enemySpecs[#enemySpecs + 1] = sid end
+        if UnitExists(tok) then
+            local g   = UnitGUID(tok)
+            local sid = GetArenaOpponentSpec and GetArenaOpponentSpec(i)
+            sid = (sid and sid ~= 0) and sid or nil
+            if g then enemyGUIDs[g] = { name = UnitName(tok), specID = sid } end
+            if sid then enemySpecs[#enemySpecs + 1] = sid end
+        end
     end
 
     ssRoundComp   = { allySpecs = allySpecs, enemySpecs = enemySpecs }
@@ -573,8 +577,6 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
             local roundNum = #ssRounds + 1
 
             if roundNum <= 6 then
-                -- Derive outcome from death counts: the eliminated team has the
-                -- higher death count (round ends on a full team wipe).
                 local allyDead, enemyDead = 0, 0
                 for _, d in ipairs(ssRoundDeaths or {}) do
                     if d.side == "ally" then
@@ -583,8 +585,19 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
                         enemyDead = enemyDead + 1
                     end
                 end
+                -- A round ends when one full team is eliminated. Prefer full-wipe
+                -- detection (ally side is reliably mapped: self always logs UNIT_DIED
+                -- and party GUIDs are stable), and fall back to raw death-count compare.
+                local allySize  = AI.TableCount(ssAllyGUIDs or {})
+                local enemySize = AI.TableCount(ssEnemyGUIDs or {})
+                local allyWiped  = allySize  > 0 and allyDead  >= allySize
+                local enemyWiped = enemySize > 0 and enemyDead >= enemySize
                 local outcome = "unknown"
-                if enemyDead > allyDead then
+                if enemyWiped and not allyWiped then
+                    outcome = "win"
+                elseif allyWiped and not enemyWiped then
+                    outcome = "loss"
+                elseif enemyDead > allyDead then
                     outcome = "win"
                 elseif allyDead > enemyDead then
                     outcome = "loss"
@@ -825,6 +838,16 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
                     end
                     rec.shuffle.rounds = capturedRounds
                     AI.DebugInsights("shuffle: per-round capture (", #ssRounds, "/", total, "rounds)")
+                    if AI.InsightsDebug then
+                        local derivedWins = 0
+                        for _, r in ipairs(capturedRounds) do
+                            if r.outcome == "win" then derivedWins = derivedWins + 1 end
+                        end
+                        if derivedWins ~= won then
+                            AI.DebugInsights("WARN: per-round wins", derivedWins,
+                                "!= scoreboard wonRounds", won, "(per-round outcomes suspect)")
+                        end
+                    end
                 else
                     AI.DebugInsights("shuffle: no round state transitions captured — totals only")
                 end
