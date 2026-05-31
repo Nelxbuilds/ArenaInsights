@@ -202,7 +202,9 @@ local function BuildSpecLookup()
 end
 
 local function ResolveSpecID(classToken, talentSpecName)
-    if not classToken or not talentSpecName or talentSpecName == "" then return nil end
+    if not classToken or not talentSpecName then return nil end
+    if issecretvalue and issecretvalue(talentSpecName) then return nil end
+    if talentSpecName == "" then return nil end
     if not specLookup then BuildSpecLookup() end
     return specLookup[classToken:upper() .. "_" .. tostring(talentSpecName):lower()]
 end
