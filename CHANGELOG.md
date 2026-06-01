@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.3.0] -- 2026-06-01
+
+### Added
+- Spec filter below character selector in Insights
+
 ## [2.2.0] -- 2026-05-09
 
 ### Added
