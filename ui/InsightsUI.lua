@@ -10,6 +10,7 @@ local ICON_SZ   = 14
 local ICON_STEP = 16   -- icon size + 2px gap
 
 local FILTER_H      = 28
+local SPEC_ROW_H    = 24
 local STATS_BAR_H   = 46
 local HEADER_H      = 20
 local GAP           = 4
@@ -59,6 +60,7 @@ local OUTCOME_HOVER = {
 
 local insightsCharKey = nil   -- nil = show all chars
 local filterBrackets  = {}    -- [bracketIndex]=true; empty set = show all
+local filterSpecID    = nil   -- nil = show all specs
 
 -- ============================================================================
 -- Module state
@@ -79,10 +81,14 @@ local ddClickCatcher
 local charButton
 local bracketToggleBtns = {}
 local bracketStatBlocks = {}
+local specBar           = nil
+local specIconBtns      = {}
 
 -- Forward declarations
 local RefreshRows
 local RefreshCharDropdownEntries
+local UpdateSpecToggleAppearance
+local UpdateSpecBar
 
 -- ============================================================================
 -- Spec helpers
@@ -135,6 +141,14 @@ local function BuildSortedCharList()
     end)
 
     return list
+end
+
+local function GetClassIDFromFileName(classFileName)
+    if not classFileName or not AI.classData then return nil end
+    for classID, cd in pairs(AI.classData) do
+        if cd.classFileName == classFileName then return classID end
+    end
+    return nil
 end
 
 local function FormatRaceIcon(char)
@@ -242,9 +256,11 @@ RefreshCharDropdownEntries = function()
         entry.label:SetText(data.display)
         entry:SetScript("OnClick", function()
             insightsCharKey = data.key
-            expandedIndex = nil
+            filterSpecID    = nil
+            expandedIndex   = nil
             charButton.label:SetText(FormatCharButtonLabel(data.char))
             charButton.label:SetJustifyH("LEFT")
+            UpdateSpecBar()
             RefreshRows()
             HideAllDropdowns()
         end)
@@ -307,6 +323,97 @@ local function UpdateBracketToggles()
             btn.label:SetTextColor(dim, dim, dim)
         end
     end
+end
+
+UpdateSpecToggleAppearance = function()
+    local anyActive = filterSpecID ~= nil
+    for _, btn in ipairs(specIconBtns) do
+        if btn:IsShown() then
+            local isActive = (filterSpecID == btn.specID)
+            if isActive then
+                btn:SetBackdropColor(0.7, 0.1, 0.1, 0.8)
+                btn:SetBackdropBorderColor(0.9, 0.15, 0.15, 1)
+                btn.iconTex:SetVertexColor(1, 1, 1)
+            else
+                btn:SetBackdropColor(0.10, 0.10, 0.10, 0.6)
+                btn:SetBackdropBorderColor(0.3, 0.3, 0.3, 0.5)
+                btn.iconTex:SetVertexColor(anyActive and 0.45 or 1, anyActive and 0.45 or 1, anyActive and 0.45 or 1)
+            end
+        end
+    end
+end
+
+UpdateSpecBar = function()
+    for _, btn in ipairs(specIconBtns) do btn:Hide() end
+
+    if not specBar or not insightsCharKey then return end
+
+    local char = ArenaInsightsDB.characters[insightsCharKey]
+    if not char or not char.classFileName then return end
+
+    local classID = GetClassIDFromFileName(char.classFileName)
+    if not classID then return end
+
+    local numSpecs = GetNumSpecializationsForClassID(classID)
+    if not numSpecs or numSpecs == 0 then return end
+
+    local activeSpecID = nil
+    if insightsCharKey == AI.currentCharKey then
+        local specIndex = GetSpecialization()
+        if specIndex then
+            activeSpecID = select(1, GetSpecializationInfo(specIndex))
+        end
+    end
+
+    local SPEC_SZ  = 20
+    local SPEC_GAP = 4
+    local x = 0
+
+    for i = 1, numSpecs do
+        local specID, specName, _, icon = GetSpecializationInfoForClassID(classID, i)
+        if not specIconBtns[i] then
+            local btn = CreateFrame("Button", nil, specBar, "BackdropTemplate")
+            btn:SetSize(SPEC_SZ, SPEC_SZ)
+            btn:SetBackdrop({
+                bgFile   = "Interface\\Buttons\\WHITE8x8",
+                edgeFile = "Interface\\Buttons\\WHITE8x8",
+                edgeSize = 1,
+            })
+            btn.iconTex = btn:CreateTexture(nil, "ARTWORK")
+            btn.iconTex:SetPoint("TOPLEFT",     btn, "TOPLEFT",     1, -1)
+            btn.iconTex:SetPoint("BOTTOMRIGHT",  btn, "BOTTOMRIGHT", -1,  1)
+            btn.iconTex:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+            btn:SetScript("OnEnter", function(self)
+                GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+                GameTooltip:AddLine(self.specName or "Unknown", 1, 1, 1)
+                GameTooltip:Show()
+            end)
+            btn:SetScript("OnLeave", function() GameTooltip:Hide() end)
+            btn:SetScript("OnClick", function(self)
+                filterSpecID = (filterSpecID == self.specID) and nil or self.specID
+                UpdateSpecToggleAppearance()
+                expandedIndex = nil
+                RefreshRows()
+            end)
+            specIconBtns[i] = btn
+        end
+
+        local btn = specIconBtns[i]
+        btn.specID   = specID
+        btn.specName = specName or "Unknown"
+        btn.iconTex:SetTexture(icon)
+        btn:ClearAllPoints()
+        btn:SetPoint("LEFT", specBar, "LEFT", x, 0)
+        btn:Show()
+
+        if filterSpecID == nil and activeSpecID and specID == activeSpecID then
+            filterSpecID = specID
+        end
+
+        x = x + SPEC_SZ + SPEC_GAP
+    end
+
+    UpdateSpecToggleAppearance()
 end
 
 -- ============================================================================
@@ -790,6 +897,12 @@ local function BuildFilteredList()
             end
         end
 
+        if pass and filterSpecID then
+            if rec.specID ~= filterSpecID then
+                pass = false
+            end
+        end
+
         if pass then
             filteredList[#filteredList + 1] = rec
         end
@@ -808,7 +921,9 @@ local function RefreshStats()
             local w, l = 0, 0
             local isSS = (bi == AI.BRACKET_SOLO_SHUFFLE)
             for _, rec in ipairs(AI.GetMatches()) do
-                if (not insightsCharKey or rec.charKey == insightsCharKey) and rec.bracketIndex == bi then
+                if (not insightsCharKey or rec.charKey == insightsCharKey)
+                   and rec.bracketIndex == bi
+                   and (not filterSpecID or rec.specID == filterSpecID) then
                     if isSS then
                         local won = (rec.shuffle and rec.shuffle.wonRounds) or rec.wonRounds
                         if won ~= nil then
@@ -1050,11 +1165,17 @@ function AI.CreateInsightsPanel(parent)
     countLabel:SetPoint("RIGHT", filterBar, "RIGHT", 0, 0)
     countLabel:SetTextColor(0.45, 0.45, 0.45)
 
-    -- Stats bar (W/D/L per bracket, below filter bar)
+    -- Spec filter bar (below character button; icons populated by UpdateSpecBar)
+    specBar = CreateFrame("Frame", nil, parent)
+    specBar:SetHeight(SPEC_ROW_H)
+    specBar:SetPoint("TOPLEFT", PAD, -(PAD + FILTER_H + GAP))
+    specBar:SetPoint("TOPRIGHT", -PAD, -(PAD + FILTER_H + GAP))
+
+    -- Stats bar (W/D/L per bracket, below spec bar)
     local statsBar = CreateFrame("Frame", nil, parent)
     statsBar:SetHeight(STATS_BAR_H)
-    statsBar:SetPoint("TOPLEFT", PAD, -(PAD + FILTER_H + GAP))
-    statsBar:SetPoint("TOPRIGHT", -PAD, -(PAD + FILTER_H + GAP))
+    statsBar:SetPoint("TOPLEFT", PAD, -(PAD + FILTER_H + GAP + SPEC_ROW_H + GAP))
+    statsBar:SetPoint("TOPRIGHT", -PAD, -(PAD + FILTER_H + GAP + SPEC_ROW_H + GAP))
 
     local bracketCount = #AI.TRACKED_BRACKETS
     for i, bi in ipairs(AI.TRACKED_BRACKETS) do
@@ -1132,17 +1253,18 @@ function AI.CreateInsightsPanel(parent)
     end)
 
     -- Separator under stats bar
+    local BELOW_FILTERS = PAD + FILTER_H + GAP + SPEC_ROW_H + GAP + STATS_BAR_H + GAP
     local sep1 = parent:CreateTexture(nil, "BORDER")
     sep1:SetHeight(1)
-    sep1:SetPoint("TOPLEFT", PAD, -(PAD + FILTER_H + GAP + STATS_BAR_H + GAP))
-    sep1:SetPoint("TOPRIGHT", -PAD, -(PAD + FILTER_H + GAP + STATS_BAR_H + GAP))
+    sep1:SetPoint("TOPLEFT", PAD, -BELOW_FILTERS)
+    sep1:SetPoint("TOPRIGHT", -PAD, -BELOW_FILTERS)
     sep1:SetColorTexture(unpack(AI.COLORS.CRIMSON_DIM))
 
     -- Column headers
     local headerRow = CreateFrame("Frame", nil, parent)
     headerRow:SetHeight(HEADER_H)
-    headerRow:SetPoint("TOPLEFT", PAD, -(PAD + FILTER_H + GAP + STATS_BAR_H + GAP + 2))
-    headerRow:SetPoint("TOPRIGHT", -PAD, -(PAD + FILTER_H + GAP + STATS_BAR_H + GAP + 2))
+    headerRow:SetPoint("TOPLEFT", PAD, -(BELOW_FILTERS + 2))
+    headerRow:SetPoint("TOPRIGHT", -PAD, -(BELOW_FILTERS + 2))
 
     local function MkHeader(text, xOff)
         local fs = headerRow:CreateFontString(nil, "OVERLAY", "GameFontNormalTiny")
@@ -1157,7 +1279,7 @@ function AI.CreateInsightsPanel(parent)
     MkHeader("MMR",     COL_MMR)
     MkHeader("Team",    COL_TEAM)
 
-    local hlineTop = PAD + FILTER_H + GAP + STATS_BAR_H + GAP + 2 + HEADER_H
+    local hlineTop = BELOW_FILTERS + 2 + HEADER_H
     local hline = parent:CreateTexture(nil, "BORDER")
     hline:SetHeight(1)
     hline:SetPoint("TOPLEFT", PAD, -hlineTop)
@@ -1213,6 +1335,7 @@ function AI.CreateInsightsPanel(parent)
                 charButton.label:SetJustifyH("LEFT")
             end
         end
+        UpdateSpecBar()
         RefreshRows()
     end)
 
