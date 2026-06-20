@@ -8,7 +8,15 @@ minimapFrame:SetScript("OnEvent", function(self, event)
 
     if not ArenaInsightsDB or not ArenaInsightsDB.settings then return end
 
-    ArenaInsightsDB.settings.minimapPosition = ArenaInsightsDB.settings.minimapPosition or {}
+    local minimapPos = ArenaInsightsDB.settings.minimapPosition or {}
+    ArenaInsightsDB.settings.minimapPosition = minimapPos
+
+    -- LibDBIcon owns visibility/position via this table (hide, minimapPos).
+    -- Sync hide from the user setting so the library honours it natively on
+    -- register and on its own refreshes (otherwise it re-shows a hidden button).
+    local show = ArenaInsightsDB.settings.showMinimapButton
+    if show == nil then show = true end
+    minimapPos.hide = not show
 
     local LDB = LibStub and LibStub:GetLibrary("LibDataBroker-1.1", true)
     local LDBIcon = LibStub and LibStub:GetLibrary("LibDBIcon-1.0", true)
@@ -36,13 +44,5 @@ minimapFrame:SetScript("OnEvent", function(self, event)
         end,
     })
 
-    LDBIcon:Register("ArenaInsights", dataObject, ArenaInsightsDB.settings.minimapPosition)
-
-    local show = ArenaInsightsDB.settings.showMinimapButton
-    if show == nil then show = true end
-    if show then
-        LDBIcon:Show("ArenaInsights")
-    else
-        LDBIcon:Hide("ArenaInsights")
-    end
+    LDBIcon:Register("ArenaInsights", dataObject, minimapPos)
 end)

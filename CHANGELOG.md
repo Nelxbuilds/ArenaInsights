@@ -1,5 +1,14 @@
 # Changelog
 
+## [2.4.0] -- 2026-06-20
+
+### Changed
+- Bump interface version to WoW 12.0.7
+
+### Fixed
+- Minimap button "Show minimap button" setting now persists and is honoured by LibDBIcon (no longer re-shows on refresh)
+- Unify minimap button visibility and saved position on one table so hiding and moving no longer conflict
+
 ## [2.3.0] -- 2026-06-01
 
 ### Added

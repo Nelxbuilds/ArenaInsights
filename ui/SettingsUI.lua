@@ -417,12 +417,13 @@ local function BuildGeneralContent(parent)
     showMinimapCheckbox = CreateCheckRow(f, "Show minimap button", y,
         "showMinimapButton", function(checked)
             local LDBIcon = LibStub and LibStub:GetLibrary("LibDBIcon-1.0", true)
-            if LDBIcon then
-                if checked then
-                    LDBIcon:Show("ArenaInsights")
-                else
-                    LDBIcon:Hide("ArenaInsights")
-                end
+            if not LDBIcon then return end
+            ArenaInsightsDB.settings.minimapPosition = ArenaInsightsDB.settings.minimapPosition or {}
+            ArenaInsightsDB.settings.minimapPosition.hide = not checked
+            if checked then
+                LDBIcon:Show("ArenaInsights")
+            else
+                LDBIcon:Hide("ArenaInsights")
             end
         end)
     y = y + 34
