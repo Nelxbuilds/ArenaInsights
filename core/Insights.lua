@@ -10,9 +10,13 @@ local pendingAllySpecs  = {}  -- teammate specs captured at ARENA_PREP (best-eff
 local pendingRecord    = nil  -- partial record held between PVP_MATCH_COMPLETE and PVP_RATED_STATS_UPDATE
 
 -- Solo Shuffle per-round tracking
-local ssRounds        = {}    -- accumulated per-round records: { num, outcome, duration }
+local ssRounds        = {}    -- accumulated per-round records: { num, outcome, duration, allySpecs, enemySpecs, deaths }
 local ssRoundStart    = nil   -- GetTime() at state-3 onset for current round
-local ssRoundPrevWins = 0     -- wins snapshot taken at round start
+local ssRoundComp     = nil   -- { allySpecs={}, enemySpecs={} } captured at round start
+local ssRoundDeaths   = nil   -- ordered death list for current round: { {name, specID, side, t}, ... }
+local ssAllyGUIDs     = nil   -- GUID -> { name, specID } for player + party1/party2 this round
+local ssEnemyGUIDs    = nil   -- GUID -> { name, specID } for arena1..N this round
+local ssDeadGUIDs     = nil   -- set of GUIDs already recorded dead this round (dedup)
 local ssActive        = false -- true only inside a confirmed SS match
 local matchBracketHint = nil  -- bracket captured early as fallback for DB-diff detection
 
@@ -198,7 +202,9 @@ local function BuildSpecLookup()
 end
 
 local function ResolveSpecID(classToken, talentSpecName)
-    if not classToken or not talentSpecName or talentSpecName == "" then return nil end
+    if not classToken or not talentSpecName then return nil end
+    if issecretvalue and issecretvalue(talentSpecName) then return nil end
+    if talentSpecName == "" then return nil end
     if not specLookup then BuildSpecLookup() end
     return specLookup[classToken:upper() .. "_" .. tostring(talentSpecName):lower()]
 end
@@ -219,9 +225,9 @@ local function SplitName(full)
 end
 
 -- Pull rating, MMR, specs, and ally/enemy split entirely from scoreboard.
--- Mirrors the working ArenaHistoryAnalytics approach: combine C_PvP.GetScoreInfo
--- with legacy GetBattlefieldScore for faction; resolve specID from talentSpec name;
--- fallback MMR to GetBattlefieldTeamInfo for arena 2v2/3v3.
+-- Combine C_PvP.GetScoreInfo with legacy GetBattlefieldScore for faction;
+-- resolve specID from talentSpec name; fallback MMR to GetBattlefieldTeamInfo
+-- for arena 2v2/3v3.
 -- Returns true on success (self row found and parsed).
 local function CaptureFromScoreboard(rec)
     if not C_PvP or not C_PvP.GetScoreInfo then return false end
@@ -388,25 +394,58 @@ local function CaptureFromScoreboard(rec)
     return true
 end
 
--- Read the player's current Solo Shuffle round-win count from the scoreboard.
--- Caller should invoke RequestBattlefieldScoreData() before this if available.
--- Returns a number (0 on miss) — never nil, safe to compare with ssRoundPrevWins.
-local function GetMyCurrentWins()
-    if not C_PvP or not C_PvP.GetScoreInfo then return 0 end
-    local playerName     = UnitName("player")
-    local playerFullName = playerName and (playerName .. "-" .. GetRealmName()) or nil
-    local n              = (GetNumBattlefieldScores and GetNumBattlefieldScores()) or 0
-    for i = 1, n do
-        local info = C_PvP.GetScoreInfo(i)
-        if not info then break end
-        if info.isSelf or info.name == playerName or info.name == playerFullName then
-            if info.stats and info.stats[1] and type(info.stats[1].pvpStatValue) == "number" then
-                return info.stats[1].pvpStatValue
-            end
-            return 0
+-- Capture the current SS round's comp and per-player GUID->{name, specID} maps
+-- from live unit APIs. The battlefield scoreboard is NOT populated mid-round, so
+-- per-round data must come from arena/party units, not C_PvP.GetScoreInfo.
+-- Enemy specs from GetArenaOpponentSpec (paired by arena index); ally specs are
+-- best-effort (player's own is reliable, teammates depend on the inspect cache).
+local function StartRoundCapture()
+    local allyGUIDs, enemyGUIDs = {}, {}
+    local allySpecs, enemySpecs = {}, {}
+
+    -- Player (self) — reliable spec
+    local pGUID = UnitGUID("player")
+    local specIdx = GetSpecialization and GetSpecialization()
+    local pSpecID = specIdx and GetSpecializationInfo(specIdx) or nil
+    if pGUID then
+        allyGUIDs[pGUID] = { name = UnitName("player"), specID = pSpecID }
+        if pSpecID then allySpecs[#allySpecs + 1] = pSpecID end
+    end
+
+    -- Teammates party1/party2 — spec best-effort via inspect cache
+    for i = 1, 2 do
+        local tok = "party" .. i
+        if UnitExists(tok) then
+            local g   = UnitGUID(tok)
+            local sid = GetInspectSpecialization and GetInspectSpecialization(tok)
+            sid = (sid and sid ~= 0) and sid or nil
+            if g then allyGUIDs[g] = { name = UnitName(tok), specID = sid } end
+            if sid then allySpecs[#allySpecs + 1] = sid end
         end
     end
-    return 0
+
+    -- Enemies arena1..5 — GUID read straight off the unit token (reliable for any
+    -- existing unit). GetArenaOpponentSpec is best-effort for the spec ID only: its
+    -- index range is the prep-phase opponent-spec system and can read 0 mid-round, so
+    -- it must NOT gate enemy GUID capture — death attribution depends on those GUIDs.
+    for i = 1, 5 do
+        local tok = "arena" .. i
+        if UnitExists(tok) then
+            local g   = UnitGUID(tok)
+            local sid = GetArenaOpponentSpec and GetArenaOpponentSpec(i)
+            sid = (sid and sid ~= 0) and sid or nil
+            if g then enemyGUIDs[g] = { name = UnitName(tok), specID = sid } end
+            if sid then enemySpecs[#enemySpecs + 1] = sid end
+        end
+    end
+
+    ssRoundComp   = { allySpecs = allySpecs, enemySpecs = enemySpecs }
+    ssAllyGUIDs   = allyGUIDs
+    ssEnemyGUIDs  = enemyGUIDs
+    ssRoundDeaths = {}
+    ssDeadGUIDs   = {}
+    AI.DebugInsights("Round capture: allySpecs=", #allySpecs, "enemySpecs=", #enemySpecs,
+        "allyGUIDs=", AI.TableCount(allyGUIDs), "enemyGUIDs=", AI.TableCount(enemyGUIDs))
 end
 
 -- ============================================================================
@@ -433,11 +472,13 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
     -- ---- SS match start: init per-round state ----
     elseif event == "PVP_MATCH_ACTIVE" then
         local isSS = C_PvP and C_PvP.IsSoloShuffle and C_PvP.IsSoloShuffle()
-        -- SS fires PVP_MATCH_ACTIVE on every round zone-in; IsSoloShuffle() returns false
-        -- during the zone transition. If we already confirmed this is SS (hint set from a
-        -- prior round's state-change recovery), preserve accumulated rounds and re-arm.
-        if not isSS and matchBracketHint == AI.BRACKET_SOLO_SHUFFLE then
-            ssActive = true
+        -- SS fires PVP_MATCH_ACTIVE on every round zone-in. Preserve accumulated rounds
+        -- whenever we have prior rounds AND this looks like SS — handles both the case
+        -- where IsSoloShuffle() returns false (brief loading screen) AND true (fast zone-in).
+        -- Guard on #ssRounds > 0 so a fresh non-SS match after SS resets correctly.
+        if #ssRounds > 0 and (isSS or matchBracketHint == AI.BRACKET_SOLO_SHUFFLE) then
+            ssActive         = true
+            matchBracketHint = AI.BRACKET_SOLO_SHUFFLE
             AI.DebugInsights("PVP_MATCH_ACTIVE: SS round zone-in, preserving state rounds=", #ssRounds)
             return
         end
@@ -445,7 +486,11 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
         matchBracketHint   = DetectActiveBracket() or (isSS and AI.BRACKET_SOLO_SHUFFLE or nil)
         ssRounds           = {}
         ssRoundStart       = nil
-        ssRoundPrevWins    = 0
+        ssRoundComp        = nil
+        ssRoundDeaths      = nil
+        ssAllyGUIDs        = nil
+        ssEnemyGUIDs       = nil
+        ssDeadGUIDs        = nil
         AI.DebugInsights("PVP_MATCH_ACTIVE isSS=", tostring(ssActive))
 
     -- ---- I-2: DB snapshot before zone transition (no API restriction risk) ----
@@ -454,6 +499,7 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
         if ssActive then
             -- SS zones between every round — preserve accumulated ssRounds across zone-outs.
             -- Only clear per-round timing; ssActive re-armed at next state=3.
+            self:UnregisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
             ssRoundStart = nil
             ssActive     = false
             AI.DebugInsights("PLAYER_LEAVING_WORLD: SS inter-round zone, preserving", #ssRounds, "rounds")
@@ -468,9 +514,14 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
             pendingEnemySpecs[i] = (specID and specID ~= 0) and specID or 0
         end
         AI.DebugInsights("enemy specs captured, count=", count)
-        -- Authoritative bracket signal for arena: opponent count maps directly to size
-        if count == 2 then
-            matchBracketHint = AI.BRACKET_2V2
+        -- IsSoloShuffle() may return true during prep even if false at PVP_MATCH_ACTIVE.
+        -- count==2 is NOT a reliable 2v2 signal: SS also shows 2 opponents per round in prep.
+        -- Leave 2v2 bracket detection to DetectActiveBracket() at PVP_RATED_STATS_UPDATE.
+        local isSSNow = C_PvP and C_PvP.IsSoloShuffle and C_PvP.IsSoloShuffle()
+        if isSSNow then
+            matchBracketHint = AI.BRACKET_SOLO_SHUFFLE
+            ssActive         = true
+            AI.DebugInsights("ARENA_PREP: SS detected via IsSoloShuffle, ssActive armed")
         elseif count == 3 then
             matchBracketHint = AI.BRACKET_3V3
         end
@@ -510,54 +561,103 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
             end
         end
 
-        if newState == 2 then
-            -- Enum.PvPMatchState.Engaged (Midnight: 2) — round starting
+        if newState == 3 then
+            -- Enum.PvPMatchState.Engaged (Midnight: 3) — round combat begins.
+            -- Capture comp + per-player GUIDs from live unit APIs, then listen for
+            -- deaths. The scoreboard is empty mid-round, so it cannot be used here.
             ssRoundStart = GetTime()
-            if RequestBattlefieldScoreData then RequestBattlefieldScoreData() end
-            C_Timer.After(0.2, function()
-                ssRoundPrevWins = GetMyCurrentWins()
-                AI.DebugInsights("Round start wins snapshot:", ssRoundPrevWins)
-            end)
+            StartRoundCapture()
+            self:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
 
         elseif ssRoundStart ~= nil then
             -- Any non-Engaged state while a round was active = round ended.
             -- Avoids hardcoding PostRound value (3? 4?) which varies by build.
-            local capturedStart = ssRoundStart
-            if not capturedStart then
-                AI.DebugInsights("state", newState, "but no ssRoundStart — skipping")
-                return
-            end
+            self:UnregisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
 
+            local duration = math.floor(GetTime() - ssRoundStart)
             ssRoundStart = nil  -- clear immediately to prevent double-capture
-
-            local roundNum  = #ssRounds + 1
-            local duration  = math.floor(GetTime() - capturedStart)
-            local prevWins  = ssRoundPrevWins
+            local roundNum = #ssRounds + 1
 
             if roundNum <= 6 then
-                -- Insert placeholder; outcome resolved after scoreboard delay
-                local roundEntry = { num = roundNum, outcome = "unknown", duration = duration }
-                ssRounds[roundNum] = roundEntry
+                local allyDead, enemyDead = 0, 0
+                for _, d in ipairs(ssRoundDeaths or {}) do
+                    if d.side == "ally" then
+                        allyDead = allyDead + 1
+                    elseif d.side == "enemy" then
+                        enemyDead = enemyDead + 1
+                    end
+                end
+                -- A round ends when one full team is eliminated. Prefer full-wipe
+                -- detection (ally side is reliably mapped: self always logs UNIT_DIED
+                -- and party GUIDs are stable), and fall back to raw death-count compare.
+                local allySize  = AI.TableCount(ssAllyGUIDs or {})
+                local enemySize = AI.TableCount(ssEnemyGUIDs or {})
+                local allyWiped  = allySize  > 0 and allyDead  >= allySize
+                local enemyWiped = enemySize > 0 and enemyDead >= enemySize
+                local outcome = "unknown"
+                if enemyWiped and not allyWiped then
+                    outcome = "win"
+                elseif allyWiped and not enemyWiped then
+                    outcome = "loss"
+                elseif enemyDead > allyDead then
+                    outcome = "win"
+                elseif allyDead > enemyDead then
+                    outcome = "loss"
+                end
 
-                C_Timer.After(0.6, function()
-                    if RequestBattlefieldScoreData then RequestBattlefieldScoreData() end
-                    C_Timer.After(0.2, function()
-                        local newWins = GetMyCurrentWins()
-                        local ok, won = pcall(function() return newWins > prevWins end)
-                        roundEntry.outcome = ok and (won and "win" or "loss") or "unknown"
-                        ssRoundPrevWins    = newWins
-                        AI.DebugInsights("Round", roundNum, "outcome:", roundEntry.outcome,
-                            "wins:", prevWins, "->", newWins)
-                    end)
-                end)
+                ssRounds[roundNum] = {
+                    num        = roundNum,
+                    outcome    = outcome,
+                    duration   = duration,
+                    allySpecs  = ssRoundComp and ssRoundComp.allySpecs or {},
+                    enemySpecs = ssRoundComp and ssRoundComp.enemySpecs or {},
+                    deaths     = ssRoundDeaths or {},
+                }
+                AI.DebugInsights("Round", roundNum, "outcome:", outcome,
+                    "allyDead:", allyDead, "enemyDead:", enemyDead,
+                    "deaths:", #(ssRoundDeaths or {}))
             else
                 AI.DebugInsights("roundNum > 6, skipping (roundNum=", roundNum, ")")
             end
+
+            ssRoundComp   = nil
+            ssRoundDeaths = nil
+            ssAllyGUIDs   = nil
+            ssEnemyGUIDs  = nil
+            ssDeadGUIDs   = nil
         end
+
+    -- ---- SS per-round death capture (live, only while a round is engaged) ----
+    elseif event == "COMBAT_LOG_EVENT_UNFILTERED" then
+        if not ssRoundStart then return end
+        local _, subevent, _, _, _, _, _, destGUID, destName = CombatLogGetCurrentEventInfo()
+        if subevent ~= "UNIT_DIED" or not destGUID then return end
+        if ssDeadGUIDs and ssDeadGUIDs[destGUID] then return end
+
+        local side, info
+        if ssAllyGUIDs and ssAllyGUIDs[destGUID] then
+            side, info = "ally", ssAllyGUIDs[destGUID]
+        elseif ssEnemyGUIDs and ssEnemyGUIDs[destGUID] then
+            side, info = "enemy", ssEnemyGUIDs[destGUID]
+        else
+            return  -- pet/totem/non-participant
+        end
+
+        ssDeadGUIDs   = ssDeadGUIDs or {}
+        ssRoundDeaths = ssRoundDeaths or {}
+        ssDeadGUIDs[destGUID] = true
+        ssRoundDeaths[#ssRoundDeaths + 1] = {
+            name   = info.name or destName,
+            specID = info.specID,
+            side   = side,
+            t      = math.floor(GetTime() - ssRoundStart),
+        }
+        AI.DebugInsights("Death:", info.name or destName, side, "t=", math.floor(GetTime() - ssRoundStart))
 
     -- ---- I-4 Stage 1: Stash partial record ----
     elseif event == "PVP_MATCH_COMPLETE" then
         -- Match is over — no more rounds will start; stop processing state changes
+        self:UnregisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
         ssActive = false
 
         local winner, duration = ...
@@ -628,7 +728,7 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
 
         -- Delay finalize ~1.5s: per-player scoreboard MMR fields and faction
         -- partitioning aren't reliably populated immediately after
-        -- PVP_RATED_STATS_UPDATE. ArenaHistoryAnalytics uses the same delay.
+        -- PVP_RATED_STATS_UPDATE.
         C_Timer.After(1.5, function()
             -- Final scoreboard read (always re-capture; scoreboard now stable)
             CaptureFromScoreboard(rec)
@@ -722,9 +822,9 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
             end
             rec.directOutcome = nil
 
-            -- SS shuffle data: trust scoreboard totals (reliable), only include
-            -- rounds[] breakdown when state-change tracking captured all 6
-            -- (per-round states don't fire reliably in Midnight 12.x).
+            -- SS shuffle data: trust scoreboard totals (reliable), include rounds[]
+            -- for any partial capture (per-round states don't fire for every round
+            -- in Midnight 12.x, so we store whatever was captured rather than all-or-nothing).
             if rec.bracketIndex == AI.BRACKET_SOLO_SHUFFLE then
                 local won   = rec.wonRounds or 0
                 local total = 6
@@ -733,21 +833,34 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
                     lostRounds  = total - won,
                     totalRounds = total,
                 }
-                if #ssRounds == total then
+                if #ssRounds > 0 then
                     local capturedRounds = {}
-                    for i = 1, total do
+                    for i = 1, #ssRounds do
                         capturedRounds[i] = ssRounds[i]
                     end
                     rec.shuffle.rounds = capturedRounds
-                    AI.DebugInsights("shuffle: full per-round capture (", total, "rounds)")
+                    AI.DebugInsights("shuffle: per-round capture (", #ssRounds, "/", total, "rounds)")
+                    if AI.InsightsDebug then
+                        local derivedWins = 0
+                        for _, r in ipairs(capturedRounds) do
+                            if r.outcome == "win" then derivedWins = derivedWins + 1 end
+                        end
+                        if derivedWins ~= won then
+                            AI.DebugInsights("WARN: per-round wins", derivedWins,
+                                "!= scoreboard wonRounds", won, "(per-round outcomes suspect)")
+                        end
+                    end
                 else
-                    AI.DebugInsights("shuffle: partial capture (", #ssRounds, "/", total,
-                        ") — omitting rounds[], totals only")
+                    AI.DebugInsights("shuffle: no round state transitions captured — totals only")
                 end
-                ssRounds        = {}
-                ssRoundStart    = nil
-                ssRoundPrevWins = 0
-                ssActive        = false
+                ssRounds      = {}
+                ssRoundStart  = nil
+                ssRoundComp   = nil
+                ssRoundDeaths = nil
+                ssAllyGUIDs   = nil
+                ssEnemyGUIDs  = nil
+                ssDeadGUIDs   = nil
+                ssActive      = false
             end
 
             rec.scoreLoaded = nil  -- don't persist internal flag
