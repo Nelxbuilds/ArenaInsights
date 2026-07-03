@@ -216,14 +216,14 @@ function AI.SyncSelfTest()
     -- Reassemble
     local reassembled = table.concat(chunks)
     if reassembled ~= payload then
-        print("|cffE6D200ArenaInsights|r sync selftest: FAIL — chunk reassembly mismatch")
+        print("|cffE6D200ArenaInsights|r sync selftest: FAIL - chunk reassembly mismatch")
         return
     end
 
     -- Parse
     local characters = AI.ParseCharactersForSync(reassembled)
     if not characters then
-        print("|cffE6D200ArenaInsights|r sync selftest: FAIL — parse returned nil")
+        print("|cffE6D200ArenaInsights|r sync selftest: FAIL - parse returned nil")
         return
     end
 
@@ -234,7 +234,7 @@ function AI.SyncSelfTest()
     local added, updated, skipped = AI.MergeCharacters(characters)
 
     print(string.format(
-        "|cffE6D200ArenaInsights|r sync selftest: OK — %d chars serialized, %d chunks, %d parsed, merge: +%d ~%d skip%d",
+        "|cffE6D200ArenaInsights|r sync selftest: OK - %d chars serialized, %d chunks, %d parsed, merge: +%d ~%d skip%d",
         charCount, #chunks, parsedCount, added, updated, skipped
     ))
 end

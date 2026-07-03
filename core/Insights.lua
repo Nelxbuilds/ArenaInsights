@@ -18,6 +18,7 @@ local ssAllyGUIDs     = nil   -- GUID -> { name, specID } for player + party1/pa
 local ssEnemyGUIDs    = nil   -- GUID -> { name, specID } for arena1..N this round
 local ssDeadGUIDs     = nil   -- set of GUIDs already recorded dead this round (dedup)
 local ssActive        = false -- true only inside a confirmed SS match
+local ssMatchOver     = false -- set at PVP_MATCH_COMPLETE; next PVP_MATCH_ACTIVE is a new match, never a round zone-in
 local matchBracketHint = nil  -- bracket captured early as fallback for DB-diff detection
 
 AI.InsightsDebug = false
@@ -32,7 +33,9 @@ end
 
 -- Only callable with InsightsDebug=true.
 -- Removes records with no bracket or no rating.
--- For SS records: clears shuffle.rounds if captured rounds < 6 (keeps match-level data).
+-- For SS records: clears shuffle.rounds captured by the legacy scoreboard-based
+-- tracker (entries lack the deaths field; their outcomes are unreliable).
+-- Partial round captures from the live tracker are valid and kept.
 function AI.PurgeCorruptMatches()
     if not AI.InsightsDebug then
         print("[AI] PurgeCorruptMatches requires InsightsDebug=true")
@@ -46,8 +49,9 @@ function AI.PurgeCorruptMatches()
         if not r.bracketIndex or not r.rating then
             removed = removed + 1
         else
-            if r.shuffle and r.shuffle.rounds and #r.shuffle.rounds < 6 then
-                r.shuffle.rounds = {}
+            if r.shuffle and r.shuffle.rounds and #r.shuffle.rounds > 0
+                and not r.shuffle.rounds[1].deaths then
+                r.shuffle.rounds = nil
                 fixed = fixed + 1
             end
             kept[#kept + 1] = r
@@ -55,7 +59,7 @@ function AI.PurgeCorruptMatches()
     end
 
     ArenaInsightsDB.matches = kept
-    print(("[AI] Purge complete — removed %d, fixed %d SS round tables, kept %d"):format(
+    print(("[AI] Purge complete - removed %d, fixed %d SS round tables, kept %d"):format(
         removed, fixed, #kept))
 end
 
@@ -403,13 +407,14 @@ local function StartRoundCapture()
     local allyGUIDs, enemyGUIDs = {}, {}
     local allySpecs, enemySpecs = {}, {}
 
-    -- Player (self) — reliable spec
+    -- Player (self) — GUID map only. allySpecs holds teammates exclusively:
+    -- the UI renders the player's own spec from rec.specID, so including it
+    -- here would draw the self icon twice and drop the second teammate.
     local pGUID = UnitGUID("player")
     local specIdx = GetSpecialization and GetSpecialization()
     local pSpecID = specIdx and GetSpecializationInfo(specIdx) or nil
     if pGUID then
         allyGUIDs[pGUID] = { name = UnitName("player"), specID = pSpecID }
-        if pSpecID then allySpecs[#allySpecs + 1] = pSpecID end
     end
 
     -- Teammates party1/party2 — spec best-effort via inspect cache
@@ -448,6 +453,65 @@ local function StartRoundCapture()
         "allyGUIDs=", AI.TableCount(allyGUIDs), "enemyGUIDs=", AI.TableCount(enemyGUIDs))
 end
 
+-- Close out the engaged round: derive outcome from recorded deaths, append to
+-- ssRounds, clear per-round state. No-op when no round is engaged, so it is
+-- safe to call from both the round-end state transition and (defensively)
+-- PVP_MATCH_COMPLETE — whichever fires first wins, the other is skipped.
+local function FinalizeRound()
+    if not ssRoundStart then return end
+    local duration = math.floor(GetTime() - ssRoundStart)
+    ssRoundStart = nil  -- clear immediately to prevent double-capture
+    local roundNum = #ssRounds + 1
+
+    if roundNum <= 6 then
+        local allyDead, enemyDead = 0, 0
+        for _, d in ipairs(ssRoundDeaths or {}) do
+            if d.side == "ally" then
+                allyDead = allyDead + 1
+            elseif d.side == "enemy" then
+                enemyDead = enemyDead + 1
+            end
+        end
+        -- A round ends when one full team is eliminated. Prefer full-wipe
+        -- detection (ally side is reliably mapped: self always logs UNIT_DIED
+        -- and party GUIDs are stable), and fall back to raw death-count compare.
+        local allySize  = AI.TableCount(ssAllyGUIDs or {})
+        local enemySize = AI.TableCount(ssEnemyGUIDs or {})
+        local allyWiped  = allySize  > 0 and allyDead  >= allySize
+        local enemyWiped = enemySize > 0 and enemyDead >= enemySize
+        local outcome = "unknown"
+        if enemyWiped and not allyWiped then
+            outcome = "win"
+        elseif allyWiped and not enemyWiped then
+            outcome = "loss"
+        elseif enemyDead > allyDead then
+            outcome = "win"
+        elseif allyDead > enemyDead then
+            outcome = "loss"
+        end
+
+        ssRounds[roundNum] = {
+            num        = roundNum,
+            outcome    = outcome,
+            duration   = duration,
+            allySpecs  = ssRoundComp and ssRoundComp.allySpecs or {},
+            enemySpecs = ssRoundComp and ssRoundComp.enemySpecs or {},
+            deaths     = ssRoundDeaths or {},
+        }
+        AI.DebugInsights("Round", roundNum, "outcome:", outcome,
+            "allyDead:", allyDead, "enemyDead:", enemyDead,
+            "deaths:", #(ssRoundDeaths or {}))
+    else
+        AI.DebugInsights("roundNum > 6, skipping (roundNum=", roundNum, ")")
+    end
+
+    ssRoundComp   = nil
+    ssRoundDeaths = nil
+    ssAllyGUIDs   = nil
+    ssEnemyGUIDs  = nil
+    ssDeadGUIDs   = nil
+end
+
 -- ============================================================================
 -- Event frame
 -- ============================================================================
@@ -476,12 +540,16 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
         -- whenever we have prior rounds AND this looks like SS — handles both the case
         -- where IsSoloShuffle() returns false (brief loading screen) AND true (fast zone-in).
         -- Guard on #ssRounds > 0 so a fresh non-SS match after SS resets correctly.
-        if #ssRounds > 0 and (isSS or matchBracketHint == AI.BRACKET_SOLO_SHUFFLE) then
+        -- ssMatchOver: the previous SS match completed but may not have finalized
+        -- (left before PVP_RATED_STATS_UPDATE) — this ACTIVE is a new match, so any
+        -- leftover ssRounds are stale and must NOT be preserved.
+        if not ssMatchOver and #ssRounds > 0 and (isSS or matchBracketHint == AI.BRACKET_SOLO_SHUFFLE) then
             ssActive         = true
             matchBracketHint = AI.BRACKET_SOLO_SHUFFLE
             AI.DebugInsights("PVP_MATCH_ACTIVE: SS round zone-in, preserving state rounds=", #ssRounds)
             return
         end
+        ssMatchOver        = false
         ssActive           = isSS and true or false
         matchBracketHint   = DetectActiveBracket() or (isSS and AI.BRACKET_SOLO_SHUFFLE or nil)
         ssRounds           = {}
@@ -551,6 +619,10 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
             "ssActive=", tostring(ssActive), "liveSS=", tostring(liveSS),
             "rounds so far=", #ssRounds)
 
+        -- Match already completed — round was finalized at PVP_MATCH_COMPLETE;
+        -- don't let post-match state changes re-arm tracking.
+        if ssMatchOver then return end
+
         -- IsSoloShuffle() can return false at PVP_MATCH_ACTIVE time — check live as fallback
         if not ssActive then
             if liveSS then
@@ -573,58 +645,7 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
             -- Any non-Engaged state while a round was active = round ended.
             -- Avoids hardcoding PostRound value (3? 4?) which varies by build.
             self:UnregisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
-
-            local duration = math.floor(GetTime() - ssRoundStart)
-            ssRoundStart = nil  -- clear immediately to prevent double-capture
-            local roundNum = #ssRounds + 1
-
-            if roundNum <= 6 then
-                local allyDead, enemyDead = 0, 0
-                for _, d in ipairs(ssRoundDeaths or {}) do
-                    if d.side == "ally" then
-                        allyDead = allyDead + 1
-                    elseif d.side == "enemy" then
-                        enemyDead = enemyDead + 1
-                    end
-                end
-                -- A round ends when one full team is eliminated. Prefer full-wipe
-                -- detection (ally side is reliably mapped: self always logs UNIT_DIED
-                -- and party GUIDs are stable), and fall back to raw death-count compare.
-                local allySize  = AI.TableCount(ssAllyGUIDs or {})
-                local enemySize = AI.TableCount(ssEnemyGUIDs or {})
-                local allyWiped  = allySize  > 0 and allyDead  >= allySize
-                local enemyWiped = enemySize > 0 and enemyDead >= enemySize
-                local outcome = "unknown"
-                if enemyWiped and not allyWiped then
-                    outcome = "win"
-                elseif allyWiped and not enemyWiped then
-                    outcome = "loss"
-                elseif enemyDead > allyDead then
-                    outcome = "win"
-                elseif allyDead > enemyDead then
-                    outcome = "loss"
-                end
-
-                ssRounds[roundNum] = {
-                    num        = roundNum,
-                    outcome    = outcome,
-                    duration   = duration,
-                    allySpecs  = ssRoundComp and ssRoundComp.allySpecs or {},
-                    enemySpecs = ssRoundComp and ssRoundComp.enemySpecs or {},
-                    deaths     = ssRoundDeaths or {},
-                }
-                AI.DebugInsights("Round", roundNum, "outcome:", outcome,
-                    "allyDead:", allyDead, "enemyDead:", enemyDead,
-                    "deaths:", #(ssRoundDeaths or {}))
-            else
-                AI.DebugInsights("roundNum > 6, skipping (roundNum=", roundNum, ")")
-            end
-
-            ssRoundComp   = nil
-            ssRoundDeaths = nil
-            ssAllyGUIDs   = nil
-            ssEnemyGUIDs  = nil
-            ssDeadGUIDs   = nil
+            FinalizeRound()
         end
 
     -- ---- SS per-round death capture (live, only while a round is engaged) ----
@@ -656,9 +677,13 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
 
     -- ---- I-4 Stage 1: Stash partial record ----
     elseif event == "PVP_MATCH_COMPLETE" then
-        -- Match is over — no more rounds will start; stop processing state changes
+        -- Match is over — no more rounds will start; stop processing state changes.
+        -- If the final round is still engaged (its end state-change never fired),
+        -- finalize it now so it isn't lost.
         self:UnregisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
-        ssActive = false
+        FinalizeRound()
+        ssActive    = false
+        ssMatchOver = true
 
         local winner, duration = ...
 
@@ -709,7 +734,7 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
 
         pendingEnemySpecs = {}
         pendingAllySpecs  = {}
-        AI.DebugInsights("Stage 1 complete — charKey=", charKey)
+        AI.DebugInsights("Stage 1 complete - charKey=", charKey)
 
     -- ---- I-4 Stage 2: Accumulate score data (best-effort) ----
     elseif event == "UPDATE_BATTLEFIELD_SCORE" then
@@ -757,7 +782,7 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
                 or DetectActiveBracket()
             rec.bracketHint   = nil
             rec.opponentCount = nil
-            AI.DebugInsights("bracket detected —", tostring(rec.bracketIndex))
+            AI.DebugInsights("bracket detected -", tostring(rec.bracketIndex))
 
             -- Authoritative rating + ratingChange from DB diff: scoreboard sometimes
             -- returns 0/nil ratingChange (mislabels losses as draws). DB has ground truth.
@@ -851,7 +876,7 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
                         end
                     end
                 else
-                    AI.DebugInsights("shuffle: no round state transitions captured — totals only")
+                    AI.DebugInsights("shuffle: no round state transitions captured - totals only")
                 end
                 ssRounds      = {}
                 ssRoundStart  = nil
@@ -866,7 +891,7 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
             rec.scoreLoaded = nil  -- don't persist internal flag
 
             ArenaInsightsDB.matches[#ArenaInsightsDB.matches + 1] = rec
-            AI.DebugInsights("match recorded — bracket=", tostring(rec.bracketIndex),
+            AI.DebugInsights("match recorded - bracket=", tostring(rec.bracketIndex),
                 "outcome=", rec.outcome,
                 "rating=", tostring(rec.rating))
 

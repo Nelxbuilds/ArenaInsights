@@ -377,7 +377,7 @@ local function BuildGeneralContent(parent)
     syncDesc:SetTextColor(0.78, 0.75, 0.73)
     syncDesc:SetText(
         "Merges character rating data across all ArenaInsights accounts in your party.\n" ..
-        "Designed for multi-account play — join a party with your alt account, press\n" ..
+        "Designed for multi-account play - join a party with your alt account, press\n" ..
         "Sync, and both accounts end up with the combined data. Newer ratings win."
     )
     y = y + 52

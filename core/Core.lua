@@ -114,7 +114,7 @@ local function InitDB()
     ArenaInsightsDB.matches               = ArenaInsightsDB.matches or {}
 
     RunMigrations(ArenaInsightsDB)
-    AI.Debug("InitDB complete — schema", ArenaInsightsDB.schemaVersion,
+    AI.Debug("InitDB complete - schema", ArenaInsightsDB.schemaVersion,
         "| chars:", AI.TableCount(ArenaInsightsDB.characters),
         "| challenges:", #ArenaInsightsDB.challenges)
 
@@ -277,7 +277,7 @@ local function CapturePvPStats()
             captured = captured + 1
         else
             AI.Debug("  bracket", AI.BRACKET_NAMES[bracketIndex] or bracketIndex,
-                "— rating:", tostring(rating), "(skipped)")
+                "- rating:", tostring(rating), "(skipped)")
         end
     end
     AI.Debug("CapturePvPStats: saved", captured, "brackets")
@@ -342,7 +342,7 @@ eventFrame:SetScript("OnEvent", function(self, event, ...)
             AI.migrationDismissed = ArenaInsightsDB.migrationDismissed or false
             if AI.BuildSpecData then AI.BuildSpecData() end
             if AI.InitChallenges then AI.InitChallenges() end
-            AI.Debug("ADDON_LOADED complete — specs loaded:",
+            AI.Debug("ADDON_LOADED complete - specs loaded:",
                 AI.TableCount(AI.specData), "| active challenge:",
                 AI.GetActiveChallenge and AI.GetActiveChallenge() and AI.GetActiveChallenge().name or "none")
             self:UnregisterEvent("ADDON_LOADED")
@@ -380,14 +380,14 @@ SlashCmdList["ARENAINSIGHTS"] = function(msg)
     local cmd = (msg or ""):lower():match("^%s*(%S+)") or ""
     if cmd == "help" then
         print("|cffE6D200ArenaInsights|r commands:")
-        print("  /ai — Open the main window")
-        print("  /ai overlay — Toggle overlay visibility")
-        print("  /ai lock — Lock overlay position")
-        print("  /ai unlock — Unlock overlay position")
-        print("  /ai sync — Sync with other ArenaInsights accounts in party")
-        print("  /ai sync selftest — Test serialize/chunk/parse/merge pipeline locally")
-        print("  /ai debug — Toggle debug logging")
-        print("  /ai help — Show this help")
+        print("  /ai - Open the main window")
+        print("  /ai overlay - Toggle overlay visibility")
+        print("  /ai lock - Lock overlay position")
+        print("  /ai unlock - Unlock overlay position")
+        print("  /ai sync - Sync with other ArenaInsights accounts in party")
+        print("  /ai sync selftest - Test serialize/chunk/parse/merge pipeline locally")
+        print("  /ai debug - Toggle debug logging")
+        print("  /ai help - Show this help")
         return
     end
     if cmd == "debug" then

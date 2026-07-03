@@ -63,6 +63,7 @@ local OUTCOME_HOVER = {
 local insightsCharKey = nil   -- nil = show all chars
 local filterBrackets  = {}    -- [bracketIndex]=true; empty set = show all
 local filterSpecID    = nil   -- nil = show all specs
+local specBarCharKey  = nil   -- char the spec bar was last built for (auto-select guard)
 
 -- ============================================================================
 -- Module state
@@ -348,6 +349,12 @@ end
 UpdateSpecBar = function()
     for _, btn in ipairs(specIconBtns) do btn:Hide() end
 
+    -- Auto-select the active spec only when the bar is built for a different
+    -- character. Re-running for the same char (e.g. tab OnShow) must not
+    -- clobber a filter the user explicitly cleared.
+    local isNewChar = insightsCharKey ~= specBarCharKey
+    specBarCharKey  = insightsCharKey
+
     if not specBar or not insightsCharKey then return end
 
     local char = ArenaInsightsDB.characters[insightsCharKey]
@@ -408,7 +415,7 @@ UpdateSpecBar = function()
         btn:SetPoint("LEFT", specBar, "LEFT", x, 0)
         btn:Show()
 
-        if filterSpecID == nil and activeSpecID and specID == activeSpecID then
+        if isNewChar and filterSpecID == nil and activeSpecID and specID == activeSpecID then
             filterSpecID = specID
         end
 
@@ -520,6 +527,10 @@ local function PopulateDetailPlayers(detail)
         else
             detail.hdrMMR:Hide()
         end
+        -- Column is hidden for non-SS — its invisible click zone must not sort
+        if detail.mmrSortBtn then
+            detail.mmrSortBtn:EnableMouse(detail.isSS and true or false)
+        end
     end
 end
 
@@ -598,9 +609,27 @@ local function PositionRoundRow(rr, yOff)
     rr.durText:SetPoint("TOPLEFT", ROUND_DUR_X, yOff - 3)
 end
 
+-- Hide round rows from fromIdx onward — detail frames are recycled across
+-- records, so rows populated for a previous match must not linger.
+local function HideRoundRows(detail, fromIdx)
+    for i = fromIdx, #detail.roundRows do
+        local rr = detail.roundRows[i]
+        rr.label:Hide()
+        rr.myIcon:Hide()
+        rr.vsLabel:Hide()
+        rr.outcomeText:Hide()
+        rr.durText:Hide()
+        for _, ico in ipairs(rr.allyIcons) do ico:Hide() end
+        for _, ico in ipairs(rr.enemyIcons) do ico:Hide() end
+    end
+end
+
 local function PopulateRoundRows(detail, rec, playerCount)
     local sh = rec.shuffle
-    if not (sh and sh.rounds and #sh.rounds > 0) then return end
+    if not (sh and sh.rounds and #sh.rounds > 0) then
+        HideRoundRows(detail, 1)
+        return
+    end
 
     local myIcon = GetSpecIcon(rec.specID)
     local baseY  = -(DETAIL_PAD_V + DETAIL_HDR_H + playerCount * DETAIL_PLINE_H + 4)
@@ -609,6 +638,11 @@ local function PopulateRoundRows(detail, rec, playerCount)
         local rr   = GetOrCreateRoundRow(detail, i)
         local yOff = baseY - (i - 1) * ROUND_ROW_H
         PositionRoundRow(rr, yOff)
+
+        rr.label:Show()
+        rr.vsLabel:Show()
+        rr.outcomeText:Show()
+        rr.durText:Show()
 
         rr.label:SetText("R" .. r.num)
 
@@ -646,6 +680,8 @@ local function PopulateRoundRows(detail, rec, playerCount)
 
         rr.durText:SetText(r.duration and ("(" .. r.duration .. "s)") or "")
     end
+
+    HideRoundRows(detail, #sh.rounds + 1)
 end
 
 -- ============================================================================
@@ -768,11 +804,12 @@ local function CreateRow(parent)
             end
             PopulateDetailPlayers(row.detail)
         end)
+        return btn
     end
     MkSortBtn(PLINE_DMG_X,  PLINE_HEAL_X - PLINE_DMG_X,  "dmg")
     MkSortBtn(PLINE_HEAL_X, PLINE_KB_X   - PLINE_HEAL_X, "heal")
     MkSortBtn(PLINE_KB_X,   PLINE_MMR_X  - PLINE_KB_X,   "kb")
-    MkSortBtn(PLINE_MMR_X,  55,                           "mmr")
+    row.detail.mmrSortBtn = MkSortBtn(PLINE_MMR_X, 55, "mmr")
 
     -- Absorb clicks on the detail area so they don't collapse the row
     row.detail:EnableMouse(true)
@@ -1137,6 +1174,9 @@ RefreshRows = function()
 
             row.detail.playerData = players
             row.detail.isSS = isSS
+            if not isSS and row.detail.sortKey == "mmr" then
+                row.detail.sortKey = nil  -- recycled detail sorted by a column non-SS doesn't have
+            end
             PopulateDetailPlayers(row.detail)
             local playerCount = math.min(#players, 6)
 
@@ -1152,6 +1192,7 @@ RefreshRows = function()
                 detailH = detailH + roundCount * ROUND_ROW_H + 4
             elseif isSS and sh and sh.wonRounds ~= nil then
                 -- No per-round state data — show won/lost summary as fallback
+                HideRoundRows(row.detail, 1)
                 local summaryY = -(DETAIL_PAD_V + DETAIL_HDR_H + playerCount * DETAIL_PLINE_H + 4)
                 local won  = sh.wonRounds or 0
                 local lost = (sh.totalRounds or 6) - won
@@ -1162,6 +1203,7 @@ RefreshRows = function()
                 row.detail.wonRoundsText:Show()
                 detailH = detailH + ROUND_ROW_H
             else
+                HideRoundRows(row.detail, 1)
                 row.detail.wonRoundsText:Hide()
             end
 

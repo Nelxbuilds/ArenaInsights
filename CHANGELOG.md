@@ -1,5 +1,23 @@
 # Changelog
 
+## [2.5.0-beta1] -- 2026-07-04
+
+Test build: merge of wip/ss-round-capture into main (v2.4.0) plus fixes.
+
+### Added
+- Solo Shuffle per-round capture from live unit/CLEU sources: per-round comp, outcome, duration, and ordered death log
+- Insights detail view: per-round comp rows with WIN/LOSS and duration, MMR column (SS only, sortable), fallback W/L summary when round data is missing
+- Prematch MMR shown in the Insights MMR column (was post-match)
+
+### Fixed
+- SS round comp no longer duplicates your own spec icon and no longer drops the second teammate
+- Recycled match-detail frames no longer show stale round rows from a previously expanded match
+- Final SS round is captured even if its end-of-round state change never fires (finalized at match complete)
+- Stale rounds from an unfinalized SS match can no longer leak into the next match's record
+- Hidden MMR sort click-zone disabled for non-SS match details
+- Insights spec filter: revisiting the tab no longer re-applies the auto spec filter after you cleared it
+- Replaced non-ASCII dashes in user-facing chat/UI strings (could render as boxes in some WoW fonts)
+
 ## [2.4.0] -- 2026-06-20
 
 ### Changed
