@@ -47,3 +47,11 @@ Load order: Core.lua → Currency.lua → Challenges.lua
 - AI.GetLatestSession(charKey) — matches of the most recent play session (consecutive gaps < 1h), chronological; charKey nil = across all characters
 - Death recap (settings.deathRecapEnabled): damage taken by the 6 tracked GUIDs is buffered during SS rounds; on UNIT_DIED, deaths[i].recap = { window, killingBlow = {src, spell, amount}, lines = top-6 {src, spell, hits, amount} by total }. All CLEU fields secret-value guarded; recap nil when nothing readable was buffered
 - After match write, nil-guarded UI hooks fire: AI.OnMatchRecorded(rec) (SessionUI popup), AI.RefreshInsights()
+- rec.season tagged at write via GetCurrentArenaSeason() (guarded; nil if API unavailable) — reserved for future archiving/pruning
+- AI.PrintCaptureHealth() — /ai health; per-field capture-quality summary over non-simulated matches
+
+## Simulator.lua
+- Dev tooling: /ai sim [n] fabricates complete match records (rounds, deaths, recaps) tagged simulated=true, through the same write path + UI hooks as live capture; /ai sim clear removes them all
+- Tests ALL UI surfaces without queueing; does NOT exercise live event capture (handlers read live APIs)
+- AI.SimulateMatches(n) (capped 50), AI.ClearSimulatedMatches()
+- Simulated and live records never mix in aggregations (checks rec.simulated)

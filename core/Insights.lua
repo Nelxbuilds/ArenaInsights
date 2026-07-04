@@ -88,6 +88,46 @@ function AI.PurgeCorruptMatches()
         removed, fixed, #kept))
 end
 
+-- Capture-quality summary: how many recorded matches have full data vs holes.
+-- Simulated records excluded. Wired to /ai health.
+function AI.PrintCaptureHealth()
+    local total, unknownOut, noRating, noMMR = 0, 0, 0, 0
+    local ssTotal, ssFull, ssPartial = 0, 0, 0
+    for _, r in ipairs(AI.GetMatches()) do
+        if not r.simulated then
+            total = total + 1
+            if not r.outcome or r.outcome == "unknown" then unknownOut = unknownOut + 1 end
+            if not r.rating then noRating = noRating + 1 end
+            if not r.prematchMMR or r.prematchMMR == 0 then noMMR = noMMR + 1 end
+            if r.bracketIndex == AI.BRACKET_SOLO_SHUFFLE then
+                ssTotal = ssTotal + 1
+                local rounds = r.shuffle and r.shuffle.rounds
+                if rounds and #rounds >= 6 then
+                    ssFull = ssFull + 1
+                elseif rounds and #rounds > 0 then
+                    ssPartial = ssPartial + 1
+                end
+            end
+        end
+    end
+    print("|cffE6D200ArenaInsights|r capture health (" .. total .. " matches):")
+    if total == 0 then
+        print("  no live matches recorded yet")
+        return
+    end
+    local function line(label, bad)
+        local pct = math.floor(bad / total * 100 + 0.5)
+        print(("  %s: %d (%d%%)"):format(label, bad, pct))
+    end
+    line("unknown outcome", unknownOut)
+    line("missing rating", noRating)
+    line("missing MMR", noMMR)
+    if ssTotal > 0 then
+        print(("  SS round capture: %d/%d full, %d partial, %d none")
+            :format(ssFull, ssTotal, ssPartial, ssTotal - ssFull - ssPartial))
+    end
+end
+
 -- ============================================================================
 -- Internal helpers
 -- ============================================================================
@@ -1012,6 +1052,9 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
             end
 
             rec.scoreLoaded = nil  -- don't persist internal flag
+
+            -- Season tag for future archiving/pruning (nil if API unavailable)
+            rec.season = (GetCurrentArenaSeason and GetCurrentArenaSeason()) or nil
 
             ArenaInsightsDB.matches[#ArenaInsightsDB.matches + 1] = rec
             AI.DebugInsights("match recorded - bracket=", tostring(rec.bracketIndex),

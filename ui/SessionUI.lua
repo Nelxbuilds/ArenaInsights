@@ -145,8 +145,29 @@ function AI.ShowSessionSummary(charKey)
     local per = Summarize(session)
 
     local who = charKey and (charKey:match("^(.+)-") or charKey) or "All characters"
-    popup.subtitle:SetText(who .. "  -  " .. #session
-        .. (#session == 1 and " match" or " matches") .. " this session")
+    local sub = who .. "  -  " .. #session
+        .. (#session == 1 and " match" or " matches") .. " this session"
+
+    -- Current streak: trailing run of same win/loss outcome
+    local streakOutcome = session[#session] and session[#session].outcome
+    local streak = 0
+    if streakOutcome == "win" or streakOutcome == "loss" then
+        for i = #session, 1, -1 do
+            if session[i].outcome == streakOutcome then
+                streak = streak + 1
+            else
+                break
+            end
+        end
+    end
+    if streak >= 2 then
+        if streakOutcome == "win" then
+            sub = sub .. "  |cff22cc22W" .. streak .. " streak|r"
+        else
+            sub = sub .. "  |cffcc2222L" .. streak .. " streak|r"
+        end
+    end
+    popup.subtitle:SetText(sub)
 
     local y = PAD + 44
     local shown = 0

@@ -392,7 +392,23 @@ SlashCmdList["ARENAINSIGHTS"] = function(msg)
         print("  /ai sync - Sync with other ArenaInsights accounts in party")
         print("  /ai sync selftest - Test serialize/chunk/parse/merge pipeline locally")
         print("  /ai debug - Toggle debug logging")
+        print("  /ai sim [n] - Add n simulated matches (UI testing)")
+        print("  /ai sim clear - Remove all simulated matches")
+        print("  /ai health - Capture-quality summary of recorded matches")
         print("  /ai help - Show this help")
+        return
+    end
+    if cmd == "sim" then
+        local sub = (msg or ""):lower():match("^%s*%S+%s+(%S+)") or ""
+        if sub == "clear" then
+            if AI.ClearSimulatedMatches then AI.ClearSimulatedMatches() end
+        else
+            if AI.SimulateMatches then AI.SimulateMatches(tonumber(sub) or 1) end
+        end
+        return
+    end
+    if cmd == "health" then
+        if AI.PrintCaptureHealth then AI.PrintCaptureHealth() end
         return
     end
     if cmd == "debug" then

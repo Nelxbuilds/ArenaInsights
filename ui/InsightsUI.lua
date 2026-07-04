@@ -443,10 +443,53 @@ local function FormatStat(n)
     return tostring(n)
 end
 
+-- Bracket + sorted enemy specs -> stable comp key. Arena brackets only:
+-- SS enemy specs are the whole lobby, Blitz has none.
+local function CompKey(rec)
+    if rec.bracketIndex ~= AI.BRACKET_2V2 and rec.bracketIndex ~= AI.BRACKET_3V3 then
+        return nil
+    end
+    local specs = {}
+    for _, sid in ipairs(rec.enemySpecs or {}) do
+        if sid and sid ~= 0 then specs[#specs + 1] = sid end
+    end
+    if #specs < 2 then return nil end
+    table.sort(specs)
+    return rec.bracketIndex .. ":" .. table.concat(specs, "-")
+end
+
+-- Lifetime W-L of this character against the exact enemy comp of rec.
+-- Simulated and live records never mix.
+local function CompRecord(rec)
+    local key = CompKey(rec)
+    if not key then return nil end
+    local w, l = 0, 0
+    for _, r in ipairs(AI.GetMatches()) do
+        if r.charKey == rec.charKey
+            and (not r.simulated) == (not rec.simulated)
+            and CompKey(r) == key then
+            if r.outcome == "win" then
+                w = w + 1
+            elseif r.outcome == "loss" then
+                l = l + 1
+            end
+        end
+    end
+    if w + l == 0 then return nil end
+    return w, l
+end
+
 local function ShowMatchTooltip(anchor, rec)
     GameTooltip:SetOwner(anchor, "ANCHOR_RIGHT")
     local bName = AI.BRACKET_NAMES[rec.bracketIndex] or ("Bracket " .. tostring(rec.bracketIndex))
     GameTooltip:AddLine(bName .. "  -  " .. date("%b %d, %H:%M", rec.timestamp or 0), 0.65, 0.65, 0.65)
+    if rec.simulated then
+        GameTooltip:AddLine("Simulated match (/ai sim clear removes)", 0.45, 0.55, 0.75)
+    end
+    local w, l = CompRecord(rec)
+    if w then
+        GameTooltip:AddLine("Vs this comp: |cffffffff" .. w .. "-" .. l .. "|r lifetime", 0.65, 0.65, 0.65)
+    end
     GameTooltip:AddLine("Click to expand", 0.40, 0.40, 0.40)
     GameTooltip:Show()
 end
@@ -1183,7 +1226,11 @@ RefreshRows = function()
         row.rowIndex  = i
 
         row.dateText:SetText(date("%b %d  %H:%M", rec.timestamp or 0))
-        row.dateText:SetTextColor(0.65, 0.65, 0.65)
+        if rec.simulated then
+            row.dateText:SetTextColor(0.45, 0.55, 0.75)  -- steel blue = simulated
+        else
+            row.dateText:SetTextColor(0.65, 0.65, 0.65)
+        end
 
         local out = rec.outcome or "unknown"
         local baseColor  = OUTCOME_BASE[out]  or OUTCOME_BASE.unknown

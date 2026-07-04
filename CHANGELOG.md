@@ -1,5 +1,14 @@
 # Changelog
 
+## [2.5.0-beta3] -- 2026-07-04
+
+### Added
+- Match simulator for UI testing: `/ai sim [n]` adds tagged fake matches through the real write path (rounds, deaths, recaps included); `/ai sim clear` removes them; simulated rows marked steel-blue
+- `/ai health` capture-quality summary (unknown outcomes, missing rating/MMR, SS round completeness)
+- Comp record: 2v2/3v3 row tooltip shows lifetime W-L vs that exact enemy comp
+- Win/loss streak in the session summary popup
+- Match records tagged with the current PvP season for future pruning
+
 ## [2.5.0-beta2] -- 2026-07-04
 
 ### Added

@@ -37,3 +37,21 @@ proven live.
 - [ ] Setting "Capture death recaps during rounds" disables buffering entirely
 - [ ] Recaps persist in SavedVariables and are inspectable after reload
 - [ ] VERIFY: enemy damage/spell names are readable (not secret) in rated SS; if secret, recap lines show "Unknown" and this story needs rescoping
+
+## Story 4: Match simulator (dev tooling)
+
+- [ ] `/ai sim` adds 1 simulated match; `/ai sim 10` adds 10 spread over one session
+- [ ] Simulated rows show steel-blue date + "(simulated)" tooltip line
+- [ ] Session popup, Session filter, round rows, and death-recap tooltips all render from simulated data
+- [ ] `/ai sim clear` removes every simulated record, live data untouched
+
+## Story 5: Capture health + season tagging
+
+- [ ] `/ai health` prints unknown-outcome / missing-rating / missing-MMR counts and SS round-capture completeness
+- [ ] New records carry rec.season when GetCurrentArenaSeason() is available (VERIFY in-game: `/dump GetCurrentArenaSeason()`)
+- [ ] Simulated matches excluded from health stats
+
+## Story 6: Comp record + streak
+
+- [ ] 2v2/3v3 row tooltip shows "Vs this comp: W-L lifetime" (same char, exact enemy comp)
+- [ ] Session popup shows current W/L streak when >= 2
