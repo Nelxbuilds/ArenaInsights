@@ -417,14 +417,18 @@ local function StartRoundCapture()
         allyGUIDs[pGUID] = { name = UnitName("player"), specID = pSpecID }
     end
 
-    -- Teammates party1/party2 — spec best-effort via inspect cache
+    -- Teammates party1/party2 — spec best-effort via inspect cache.
+    -- Midnight secret-value guard: a secret GUID/name is useless for death
+    -- attribution (can't be compared), so skip rather than store it.
     for i = 1, 2 do
         local tok = "party" .. i
         if UnitExists(tok) then
             local g   = UnitGUID(tok)
+            local nm  = UnitName(tok)
+            if IsSecret(nm) then nm = nil end
             local sid = GetInspectSpecialization and GetInspectSpecialization(tok)
             sid = (sid and sid ~= 0) and sid or nil
-            if g then allyGUIDs[g] = { name = UnitName(tok), specID = sid } end
+            if g and not IsSecret(g) then allyGUIDs[g] = { name = nm, specID = sid } end
             if sid then allySpecs[#allySpecs + 1] = sid end
         end
     end
@@ -437,9 +441,11 @@ local function StartRoundCapture()
         local tok = "arena" .. i
         if UnitExists(tok) then
             local g   = UnitGUID(tok)
+            local nm  = UnitName(tok)
+            if IsSecret(nm) then nm = nil end
             local sid = GetArenaOpponentSpec and GetArenaOpponentSpec(i)
             sid = (sid and sid ~= 0) and sid or nil
-            if g then enemyGUIDs[g] = { name = UnitName(tok), specID = sid } end
+            if g and not IsSecret(g) then enemyGUIDs[g] = { name = nm, specID = sid } end
             if sid then enemySpecs[#enemySpecs + 1] = sid end
         end
     end
@@ -484,10 +490,16 @@ local function FinalizeRound()
             outcome = "win"
         elseif allyWiped and not enemyWiped then
             outcome = "loss"
-        elseif enemyDead > allyDead then
-            outcome = "win"
-        elseif allyDead > enemyDead then
-            outcome = "loss"
+        elseif allySize > 0 and enemySize > 0 then
+            -- Raw death-count compare is only meaningful when BOTH teams' GUIDs
+            -- were identifiable. If enemy identity was restricted (secret values,
+            -- enemyGUIDs empty), ally deaths alone would mislabel won rounds as
+            -- losses — leave outcome "unknown" instead.
+            if enemyDead > allyDead then
+                outcome = "win"
+            elseif allyDead > enemyDead then
+                outcome = "loss"
+            end
         end
 
         ssRounds[roundNum] = {
@@ -567,7 +579,7 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
         if ssActive then
             -- SS zones between every round — preserve accumulated ssRounds across zone-outs.
             -- Only clear per-round timing; ssActive re-armed at next state=3.
-            self:UnregisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
+            pcall(self.UnregisterEvent, self, "COMBAT_LOG_EVENT_UNFILTERED")
             ssRoundStart = nil
             ssActive     = false
             AI.DebugInsights("PLAYER_LEAVING_WORLD: SS inter-round zone, preserving", #ssRounds, "rounds")
@@ -639,12 +651,18 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
             -- deaths. The scoreboard is empty mid-round, so it cannot be used here.
             ssRoundStart = GetTime()
             StartRoundCapture()
-            self:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
+            -- Midnight 12.0 API notes claim CLEU registration can error in some
+            -- contexts. pcall so a blocked combat log only disables death capture
+            -- (outcomes fall back to "unknown") instead of breaking round tracking.
+            local ok = pcall(self.RegisterEvent, self, "COMBAT_LOG_EVENT_UNFILTERED")
+            if not ok then
+                AI.DebugInsights("CLEU registration blocked - death capture disabled this round")
+            end
 
         elseif ssRoundStart ~= nil then
             -- Any non-Engaged state while a round was active = round ended.
             -- Avoids hardcoding PostRound value (3? 4?) which varies by build.
-            self:UnregisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
+            pcall(self.UnregisterEvent, self, "COMBAT_LOG_EVENT_UNFILTERED")
             FinalizeRound()
         end
 
@@ -652,7 +670,11 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
     elseif event == "COMBAT_LOG_EVENT_UNFILTERED" then
         if not ssRoundStart then return end
         local _, subevent, _, _, _, _, _, destGUID, destName = CombatLogGetCurrentEventInfo()
-        if subevent ~= "UNIT_DIED" or not destGUID then return end
+        if IsSecret(subevent) or subevent ~= "UNIT_DIED" then return end
+        -- Secret destGUID can't be compared against captured unit GUIDs (and
+        -- would be unusable as a table key) — drop the event.
+        if not destGUID or IsSecret(destGUID) then return end
+        if IsSecret(destName) then destName = nil end
         if ssDeadGUIDs and ssDeadGUIDs[destGUID] then return end
 
         local side, info
@@ -680,7 +702,7 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
         -- Match is over — no more rounds will start; stop processing state changes.
         -- If the final round is still engaged (its end state-change never fired),
         -- finalize it now so it isn't lost.
-        self:UnregisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
+        pcall(self.UnregisterEvent, self, "COMBAT_LOG_EVENT_UNFILTERED")
         FinalizeRound()
         ssActive    = false
         ssMatchOver = true

@@ -17,6 +17,8 @@ Test build: merge of wip/ss-round-capture into main (v2.4.0) plus fixes.
 - Hidden MMR sort click-zone disabled for non-SS match details
 - Insights spec filter: revisiting the tab no longer re-applies the auto spec filter after you cleared it
 - Replaced non-ASCII dashes in user-facing chat/UI strings (could render as boxes in some WoW fonts)
+- Midnight secret-value guards on round capture: secret GUIDs/names are skipped instead of stored; CLEU registration failures degrade to "round outcome unknown" instead of breaking tracking
+- Round outcome death-count fallback requires both teams' GUIDs to be identifiable — prevents won rounds being mislabeled as losses when enemy identity is API-restricted
 
 ## [2.4.0] -- 2026-06-20
 
