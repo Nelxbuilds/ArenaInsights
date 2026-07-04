@@ -82,6 +82,17 @@ Nil-safe requirements:
 - `GetSpecializationInfo(GetSpecialization())` returns nil with no spec — always guard
 - `UnitName("player")` returns nil before player loads — only use in safe event handlers
 
+## Testing
+
+Headless test suite under `tests/` — run `lua tests/run.lua` from the repo root (no dependencies; any Lua 5.2+). CI runs it on every push and gates releases.
+
+- `tests/wow_stub.lua` — sandboxed WoW API environment; loads addon files unmodified, test controls every API return and fires events
+- `tests/helpers.lua` — scripted Solo Shuffle match helpers shared by specs
+- `tests/*_spec.lua` — specs; `test(name, fn)` + `eq/ok` asserts (globals from run.lua)
+- Record/replay: `/ai trace` in-game records the real event stream + API snapshots to `ArenaInsightsDB.trace` (core/Tracer.lua); copy from SavedVariables into `tests/fixtures/<name>.lua` (`return { ... }`); `tests/fixtures_spec.lua` replays every fixture through the unmodified pipeline
+- Synthetic event chains encode ASSUMPTIONS about Blizzard behavior; recorded traces supersede them. After a game patch, re-record a trace and diff.
+- Bug fix workflow: reproduce as a failing spec first, then fix (see regression tests in `tests/insights_pipeline_spec.lua`)
+
 ## Stories and Epics
 
 Active epic docs in `docs/epic-*.md`. Delete when complete — source of truth is code, git history preserves the rest.
@@ -182,9 +193,12 @@ Packaging ignore list:
 - `.claude`
 - `.github`
 - `docs`
+- `tests`
 - `.blocked-paths`
 - `.gitignore`
 - `CLAUDE.md`
+
+Release gating: pushing a `v*` tag runs the test suite first; CurseForge packaging only runs if tests pass on that commit (`.github/workflows/release.yml`).
 
 Manual steps before any release:
 1. Verify interface number in-game: `/run print(select(4, GetBuildInfo()))`

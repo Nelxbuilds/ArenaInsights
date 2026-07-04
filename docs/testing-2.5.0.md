@@ -21,6 +21,8 @@
 
 ## C. One Solo Shuffle with `/ai debug` ON (the pipeline test)
 
+- [ ] Before queueing, also run `/ai trace` -- after the match run `/ai trace` again to stop; the recorded trace becomes a permanent test fixture (copy ArenaInsightsDB.trace from your SavedVariables file into tests/fixtures/)
+
 - [ ] 14. Chat during rounds: "Round capture: ... enemyGUIDs=3" (arena unit tokens readable)
 - [ ] 15. Chat on kills: "Death: <name> enemy" AND "ally" lines (CLEU + GUID attribution works)
 - [ ] 16. After match: rating + MMR recorded; round rows show real comps and outcomes matching what happened

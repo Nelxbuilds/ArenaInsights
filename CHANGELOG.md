@@ -1,5 +1,15 @@
 # Changelog
 
+## [2.5.0-beta4] -- 2026-07-04
+
+### Added
+- Headless test suite (tests/, `lua tests/run.lua`): stubbed WoW environment drives the unmodified capture pipeline; 9 specs including regression tests for every bug fixed in beta1
+- Trace recorder: `/ai trace` records the real in-game event stream + API values as replayable test fixtures; secrets marked
+- CI: tests run on every push; releases (v* tags) only package after tests pass on that commit
+
+### Fixed
+- Tracer scoreboard snapshot dropped the SS round-win stat (caught by the new round-trip test before it ever ran in-game)
+
 ## [2.5.0-beta3] -- 2026-07-04
 
 ### Added

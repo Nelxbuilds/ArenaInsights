@@ -50,6 +50,11 @@ Load order: Core.lua → Currency.lua → Challenges.lua
 - rec.season tagged at write via GetCurrentArenaSeason() (guarded; nil if API unavailable) — reserved for future archiving/pruning
 - AI.PrintCaptureHealth() — /ai health; per-field capture-quality summary over non-simulated matches
 
+## Tracer.lua
+- Dev tooling: /ai trace toggles recording of the event stream + API snapshots Insights consumes, into ArenaInsightsDB.trace (stub-api shape, replayable via tests/replay.lua); /ai trace clear deletes
+- Secret values recorded as "<<SECRET>>" strings; CLEU volume-filtered to player deaths + player damage; 4000-event cap
+- AI.TraceToggle(), AI.TraceClear()
+
 ## Simulator.lua
 - Dev tooling: /ai sim [n] fabricates complete match records (rounds, deaths, recaps) tagged simulated=true, through the same write path + UI hooks as live capture; /ai sim clear removes them all
 - Tests ALL UI surfaces without queueing; does NOT exercise live event capture (handlers read live APIs)

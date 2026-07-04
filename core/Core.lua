@@ -395,6 +395,8 @@ SlashCmdList["ARENAINSIGHTS"] = function(msg)
         print("  /ai sim [n] - Add n simulated matches (UI testing)")
         print("  /ai sim clear - Remove all simulated matches")
         print("  /ai health - Capture-quality summary of recorded matches")
+        print("  /ai trace - Start/stop recording an event trace (test fixtures)")
+        print("  /ai trace clear - Delete the recorded trace")
         print("  /ai help - Show this help")
         return
     end
@@ -409,6 +411,15 @@ SlashCmdList["ARENAINSIGHTS"] = function(msg)
     end
     if cmd == "health" then
         if AI.PrintCaptureHealth then AI.PrintCaptureHealth() end
+        return
+    end
+    if cmd == "trace" then
+        local sub = (msg or ""):lower():match("^%s*%S+%s+(%S+)") or ""
+        if sub == "clear" then
+            if AI.TraceClear then AI.TraceClear() end
+        else
+            if AI.TraceToggle then AI.TraceToggle() end
+        end
         return
     end
     if cmd == "debug" then

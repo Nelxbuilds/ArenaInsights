@@ -2,6 +2,7 @@ package-as: ArenaInsights
 
 ignore:
   - .claude
+  - tests
   - .github
   - docs
   - .blocked-paths
