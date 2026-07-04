@@ -1,8 +1,8 @@
-# Test checklist v2.5.0-beta1 -> beta3
+# Test checklist v2.5.0-beta1 -> beta4
 
 ## A. At the desk (5 min, no queue)
 
-- [ ] 1. Addon loads without errors; version shows 2.5.0-beta3; `/ai` opens
+- [ ] 1. Addon loads without errors; version shows 2.5.0-beta4; `/ai` opens
 - [ ] 2. `/ai sim 10` -> session popup appears: per-bracket scores (SS as rounds), net rating/MMR, colored match blocks, streak label
 - [ ] 3. Insights: simulated rows have steel-blue dates; tooltip says "Simulated match"
 - [ ] 4. "Session" toggle (right of spec icons) filters list AND stats bar; toggle off restores all
@@ -21,17 +21,28 @@
 
 ## C. One Solo Shuffle with `/ai debug` ON (the pipeline test)
 
-- [ ] Before queueing, also run `/ai trace` -- after the match run `/ai trace` again to stop; the recorded trace becomes a permanent test fixture (copy ArenaInsightsDB.trace from your SavedVariables file into tests/fixtures/)
+- [ ] 14. Before queueing: `/ai trace` (chat confirms "trace STARTED")
+- [ ] 15. Chat during rounds: "Round capture: ... enemyGUIDs=3" (arena unit tokens readable)
+- [ ] 16. Chat on kills: "Death: <name> enemy" AND "ally" lines (CLEU + GUID attribution works)
+- [ ] 17. After match: rating + MMR recorded; round rows show real comps and outcomes matching what happened
+- [ ] 18. Recap tooltip shows real spell/source names -- "Unknown" everywhere means secret values, report back
+- [ ] 19. Leave arena -> session popup with real data
+- [ ] 20. `/ai trace` again to STOP recording (chat confirms event count)
+- [ ] 21. `/ai health` -> SS round capture counts look right (full/partial)
+- [ ] 22. `/dump GetCurrentArenaSeason()` -- note the value (season tagging)
 
-- [ ] 14. Chat during rounds: "Round capture: ... enemyGUIDs=3" (arena unit tokens readable)
-- [ ] 15. Chat on kills: "Death: <name> enemy" AND "ally" lines (CLEU + GUID attribution works)
-- [ ] 16. After match: rating + MMR recorded; round rows show real comps and outcomes matching what happened
-- [ ] 17. Recap tooltip shows real spell/source names -- "Unknown" everywhere means secret values, report back
-- [ ] 18. Leave arena -> session popup with real data
-- [ ] 19. `/ai health` -> SS round capture counts look right (full/partial)
-- [ ] 20. `/dump GetCurrentArenaSeason()` -- note the value (season tagging)
+## D. Turn the trace into a permanent test fixture (after logging out)
 
-## D. Regression (one game, any time)
+- [ ] 23. Log out fully (SavedVariables only flush to disk on logout/exit)
+- [ ] 24. Open `WTF/Account/<ACCOUNT>/SavedVariables/ArenaInsights.lua` and find the `["trace"]` table inside ArenaInsightsDB
+- [ ] 25. In the repo, create `tests/fixtures/ss-match-1.lua` containing exactly:
+      `return { ...paste the trace table contents here... }`
+      (i.e. the value of `["trace"]`, starting at its `{` and ending at its `}`)
+- [ ] 26. From the repo root run `lua tests/run.lua` -> a new "replay tests/fixtures/ss-match-1.lua" test appears and passes
+- [ ] 27. Commit the fixture -- from now on CI replays the real Blizzard event chain on every push
+- [ ] 28. `/ai trace clear` in-game to free the SavedVariables space
 
-- [ ] 21. One 2v2 or 3v3: recorded with rating/MMR/enemy specs, detail has no SS artifacts
-- [ ] 22. /reload + relog: no lua errors, overlay + challenges unchanged
+## E. Regression (one game, any time)
+
+- [ ] 29. One 2v2 or 3v3: recorded with rating/MMR/enemy specs, detail has no SS artifacts
+- [ ] 30. /reload + relog: no lua errors, overlay + challenges unchanged
