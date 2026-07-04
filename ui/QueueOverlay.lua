@@ -74,7 +74,7 @@ local function BuildFrame()
         local ln = {}
         ln.name = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
         ln.name:SetPoint("TOPLEFT", PAD, -(TITLE_H + (i - 1) * LINE_H))
-        ln.name:SetWidth(FRAME_W - 70)
+        ln.name:SetWidth(FRAME_W - 115)
         ln.name:SetJustifyH("LEFT")
         ln.name:SetWordWrap(false)
         ln.name:SetTextColor(0.78, 0.75, 0.73)
@@ -83,6 +83,11 @@ local function BuildFrame()
         ln.time:SetJustifyH("RIGHT")
         ln.time:SetTextColor(1, 1, 1)
         lines[i] = ln
+    end
+
+    local function FmtMS(ms)
+        local s = math.floor(ms / 1000)
+        return string.format("%d:%02d", math.floor(s / 60), s % 60)
     end
 
     -- Elapsed-time ticker, throttled to twice a second
@@ -102,8 +107,14 @@ local function BuildFrame()
                     lines[i].time:SetText("?")
                     lines[i].time:SetTextColor(0.48, 0.45, 0.43)
                 else
-                    local s = math.floor(ms / 1000)
-                    lines[i].time:SetText(string.format("%d:%02d", math.floor(s / 60), s % 60))
+                    local txt = FmtMS(ms)
+                    -- Average wait, same source the default client tooltip uses
+                    local avg = GetBattlefieldEstimatedWaitTime
+                        and GetBattlefieldEstimatedWaitTime(q.index)
+                    if not IsSecretV(avg) and type(avg) == "number" and avg > 0 then
+                        txt = txt .. " |cff777777~" .. FmtMS(avg) .. "|r"
+                    end
+                    lines[i].time:SetText(txt)
                     lines[i].time:SetTextColor(1, 1, 1)
                 end
             end

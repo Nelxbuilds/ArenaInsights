@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.5.0-beta5] -- 2026-07-05
+
+### Fixed
+- Queue overlay shows average wait time (dimmed, next to elapsed) like the default client
+- Session summary popup is draggable; position persists
+
 ## [2.5.0-beta4] -- 2026-07-04
 
 ### Added

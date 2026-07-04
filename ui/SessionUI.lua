@@ -64,10 +64,19 @@ local function Summarize(session)
     return per
 end
 
+local function RestorePopupPosition()
+    local pos = ArenaInsightsDB.settings and ArenaInsightsDB.settings.sessionPopupPos
+    popup:ClearAllPoints()
+    if pos and pos.point then
+        popup:SetPoint(pos.point, UIParent, pos.point, pos.x or 0, pos.y or 0)
+    else
+        popup:SetPoint("CENTER", 0, 120)
+    end
+end
+
 local function BuildPopup()
     popup = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
     popup:SetWidth(POPUP_W)
-    popup:SetPoint("CENTER", 0, 120)
     popup:SetFrameStrata("DIALOG")
     popup:SetBackdrop({
         bgFile   = "Interface\\Buttons\\WHITE8x8",
@@ -77,6 +86,22 @@ local function BuildPopup()
     popup:SetBackdropColor(0.04, 0.04, 0.06, 0.95)
     popup:SetBackdropBorderColor(0.60, 0.15, 0.12, 1)
     popup:EnableMouse(true)  -- absorb clicks under the popup
+
+    popup:SetMovable(true)
+    popup:RegisterForDrag("LeftButton")
+    popup:SetScript("OnDragStart", function(self) self:StartMoving() end)
+    popup:SetScript("OnDragStop", function(self)
+        self:StopMovingOrSizing()
+        local point, _, _, x, y = self:GetPoint()
+        ArenaInsightsDB.settings.sessionPopupPos = { point = point, x = x, y = y }
+    end)
+    popup:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_TOP")
+        GameTooltip:AddLine("Drag to move", 0.7, 0.7, 0.7)
+        GameTooltip:Show()
+    end)
+    popup:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    RestorePopupPosition()
 
     popup.title = popup:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
     popup.title:SetPoint("TOPLEFT", PAD, -PAD)

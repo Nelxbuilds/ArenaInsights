@@ -82,6 +82,7 @@ local SETTINGS_DEFAULTS = {
     hiddenItems              = {},
     insightsBracketFilter    = {},
     sessionPopupEnabled      = true,
+    sessionPopupPos          = {},
     queueOverlayEnabled      = true,
     queueOverlayPos          = {},
     deathRecapEnabled        = true,
