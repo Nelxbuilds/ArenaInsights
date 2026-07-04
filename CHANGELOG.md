@@ -1,5 +1,14 @@
 # Changelog
 
+## [2.5.0-beta2] -- 2026-07-04
+
+### Added
+- Session summary popup after leaving arena/BG: per-bracket score (SS as rounds), net rating/MMR, per-match outcome strip; toggleable, `/run AI.ShowSessionSummary()` to preview
+- "Session" filter toggle in Insights: restrict list and stats to the latest play session (matches with less than 1h between them)
+- Queue timer overlay: shows active PvP queues with live elapsed time and Ready state; draggable, toggleable
+- Death recap (Solo Shuffle): last-X-seconds damage aggregation per death with killing blow, shown in round-row hover tooltip; window adjustable in settings
+- New Settings tab "Insights" with the four new controls
+
 ## [2.5.0-beta1] -- 2026-07-04
 
 Test build: merge of wip/ss-round-capture into main (v2.4.0) plus fixes.

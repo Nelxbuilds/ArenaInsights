@@ -17,6 +17,7 @@ local ssRoundDeaths   = nil   -- ordered death list for current round: { {name, 
 local ssAllyGUIDs     = nil   -- GUID -> { name, specID } for player + party1/party2 this round
 local ssEnemyGUIDs    = nil   -- GUID -> { name, specID } for arena1..N this round
 local ssDeadGUIDs     = nil   -- set of GUIDs already recorded dead this round (dedup)
+local ssDmgBuffer     = nil   -- rolling damage-taken buffer for death recaps (nil = recap disabled)
 local ssActive        = false -- true only inside a confirmed SS match
 local ssMatchOver     = false -- set at PVP_MATCH_COMPLETE; next PVP_MATCH_ACTIVE is a new match, never a round zone-in
 local matchBracketHint = nil  -- bracket captured early as fallback for DB-diff detection
@@ -29,6 +30,30 @@ AI.InsightsDebug = false
 
 function AI.GetMatches()
     return ArenaInsightsDB.matches or {}
+end
+
+-- A session = consecutive matches with less than SESSION_GAP between them.
+local SESSION_GAP = 3600
+
+-- Matches of the most recent play session, chronological order.
+-- charKey filters to one character; nil = across all characters.
+function AI.GetLatestSession(charKey)
+    local matches = AI.GetMatches()
+    local session = {}
+    local prevTs
+    for i = #matches, 1, -1 do
+        local rec = matches[i]
+        if not charKey or rec.charKey == charKey then
+            local ts = rec.timestamp or 0
+            if prevTs and (prevTs - ts) > SESSION_GAP then break end
+            session[#session + 1] = rec
+            prevTs = ts
+        end
+    end
+    for i = 1, math.floor(#session / 2) do
+        session[i], session[#session - i + 1] = session[#session - i + 1], session[i]
+    end
+    return session
 end
 
 -- Only callable with InsightsDebug=true.
@@ -455,8 +480,48 @@ local function StartRoundCapture()
     ssEnemyGUIDs  = enemyGUIDs
     ssRoundDeaths = {}
     ssDeadGUIDs   = {}
+    local recapOn = ArenaInsightsDB.settings and ArenaInsightsDB.settings.deathRecapEnabled
+    ssDmgBuffer   = recapOn and {} or nil
     AI.DebugInsights("Round capture: allySpecs=", #allySpecs, "enemySpecs=", #enemySpecs,
         "allyGUIDs=", AI.TableCount(allyGUIDs), "enemyGUIDs=", AI.TableCount(enemyGUIDs))
+end
+
+local function GetRecapWindow()
+    local w = ArenaInsightsDB.settings and ArenaInsightsDB.settings.deathRecapWindow
+    return (type(w) == "number" and w >= 1) and w or 8
+end
+
+-- Aggregate the damage buffer for one victim GUID over the recap window into
+-- a compact recap: top damage lines by total + the killing blow. Returns nil
+-- when nothing was buffered for the victim (recap disabled, or all damage
+-- fields were secret/unreadable).
+local function BuildDeathRecap(guid)
+    if not ssDmgBuffer then return nil end
+    local cutoff = GetTime() - GetRecapWindow()
+    local agg, order, last = {}, {}, nil
+    for _, e in ipairs(ssDmgBuffer) do
+        if e.dest == guid and e.t >= cutoff then
+            local key = (e.src or "?") .. "|" .. e.spell
+            local a = agg[key]
+            if not a then
+                a = { src = e.src, spell = e.spell, hits = 0, amount = 0 }
+                agg[key] = a
+                order[#order + 1] = a
+            end
+            a.hits   = a.hits + 1
+            a.amount = a.amount + e.amt
+            last = e
+        end
+    end
+    if not last then return nil end
+    table.sort(order, function(a, b) return a.amount > b.amount end)
+    local lines = {}
+    for i = 1, math.min(#order, 6) do lines[i] = order[i] end
+    return {
+        window      = GetRecapWindow(),
+        killingBlow = { src = last.src, spell = last.spell, amount = last.amt },
+        lines       = lines,
+    }
 end
 
 -- Close out the engaged round: derive outcome from recorded deaths, append to
@@ -522,6 +587,7 @@ local function FinalizeRound()
     ssAllyGUIDs   = nil
     ssEnemyGUIDs  = nil
     ssDeadGUIDs   = nil
+    ssDmgBuffer   = nil
 end
 
 -- ============================================================================
@@ -571,6 +637,7 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
         ssAllyGUIDs        = nil
         ssEnemyGUIDs       = nil
         ssDeadGUIDs        = nil
+        ssDmgBuffer        = nil
         AI.DebugInsights("PVP_MATCH_ACTIVE isSS=", tostring(ssActive))
 
     -- ---- I-2: DB snapshot before zone transition (no API restriction risk) ----
@@ -669,11 +736,44 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
     -- ---- SS per-round death capture (live, only while a round is engaged) ----
     elseif event == "COMBAT_LOG_EVENT_UNFILTERED" then
         if not ssRoundStart then return end
-        local _, subevent, _, _, _, _, _, destGUID, destName = CombatLogGetCurrentEventInfo()
-        if IsSecret(subevent) or subevent ~= "UNIT_DIED" then return end
+        local _, subevent, _, _, srcName, _, _, destGUID, destName, _, _, p1, p2, _, p4 =
+            CombatLogGetCurrentEventInfo()
+        if IsSecret(subevent) then return end
         -- Secret destGUID can't be compared against captured unit GUIDs (and
         -- would be unusable as a table key) — drop the event.
         if not destGUID or IsSecret(destGUID) then return end
+        local tracked = (ssAllyGUIDs and ssAllyGUIDs[destGUID])
+            or (ssEnemyGUIDs and ssEnemyGUIDs[destGUID])
+
+        -- Death recap: buffer damage taken by any of the 6 tracked players.
+        if ssDmgBuffer and tracked then
+            local spell, amount
+            if subevent == "SWING_DAMAGE" then
+                spell, amount = "Melee", p1
+            elseif subevent == "SPELL_DAMAGE" or subevent == "SPELL_PERIODIC_DAMAGE"
+                or subevent == "RANGE_DAMAGE" then
+                spell, amount = p2, p4
+            end
+            if spell then
+                if IsSecret(spell) or type(spell) ~= "string" then spell = "Unknown" end
+                if IsSecret(amount) or type(amount) ~= "number" then amount = 0 end
+                if IsSecret(srcName) or type(srcName) ~= "string" then srcName = nil end
+                ssDmgBuffer[#ssDmgBuffer + 1] = {
+                    t = GetTime(), dest = destGUID, src = srcName, spell = spell, amt = amount,
+                }
+                -- Bound memory: drop entries older than the recap window
+                if #ssDmgBuffer > 400 then
+                    local cutoff = GetTime() - (GetRecapWindow() + 2)
+                    local kept = {}
+                    for _, e in ipairs(ssDmgBuffer) do
+                        if e.t >= cutoff then kept[#kept + 1] = e end
+                    end
+                    ssDmgBuffer = kept
+                end
+            end
+        end
+
+        if subevent ~= "UNIT_DIED" then return end
         if IsSecret(destName) then destName = nil end
         if ssDeadGUIDs and ssDeadGUIDs[destGUID] then return end
 
@@ -694,6 +794,7 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
             specID = info.specID,
             side   = side,
             t      = math.floor(GetTime() - ssRoundStart),
+            recap  = BuildDeathRecap(destGUID),
         }
         AI.DebugInsights("Death:", info.name or destName, side, "t=", math.floor(GetTime() - ssRoundStart))
 
@@ -916,6 +1017,10 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
             AI.DebugInsights("match recorded - bracket=", tostring(rec.bracketIndex),
                 "outcome=", rec.outcome,
                 "rating=", tostring(rec.rating))
+
+            -- Nil-guarded UI hooks — no load-order coupling to ui/
+            if AI.OnMatchRecorded then AI.OnMatchRecorded(rec) end
+            if AI.RefreshInsights then AI.RefreshInsights() end
 
             snapshot = {}
         end)

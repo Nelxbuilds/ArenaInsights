@@ -64,6 +64,8 @@ local insightsCharKey = nil   -- nil = show all chars
 local filterBrackets  = {}    -- [bracketIndex]=true; empty set = show all
 local filterSpecID    = nil   -- nil = show all specs
 local specBarCharKey  = nil   -- char the spec bar was last built for (auto-select guard)
+local filterSession   = false -- true = only matches of the latest play session
+local sessionSet      = nil   -- identity set of session recs, rebuilt in BuildFilteredList
 
 -- ============================================================================
 -- Module state
@@ -544,6 +546,58 @@ local ROUND_ENEMY_START = 24 + 3 * (ROUND_ICON_S + 2) + VS_W  -- x of first enem
 local ROUND_OUTCOME_X   = 24 + 6 * (ROUND_ICON_S + 2) + VS_W + 8
 local ROUND_DUR_X       = ROUND_OUTCOME_X + 40
 
+-- Hover tooltip for a round row: outcome header, kill feed with killing blows,
+-- and a damage breakdown for the player's own death (when a recap was captured).
+local function ShowRoundTooltip(hitBox)
+    local r = hitBox.roundData
+    if not r then return end
+    GameTooltip:SetOwner(hitBox, "ANCHOR_RIGHT")
+    local header = "Round " .. tostring(r.num or "?") .. " - " .. tostring(r.outcome or "?"):upper()
+    if r.duration then header = header .. " (" .. r.duration .. "s)" end
+    GameTooltip:AddLine(header, 1, 1, 1)
+
+    local deaths = r.deaths
+    if deaths and #deaths > 0 then
+        GameTooltip:AddLine(" ")
+        GameTooltip:AddLine("Kill feed:", 0.65, 0.65, 0.65)
+        for _, d in ipairs(deaths) do
+            local t  = d.t or 0
+            local ts = string.format("%d:%02d", math.floor(t / 60), t % 60)
+            local who = d.name or GetSpecName(d.specID)
+            if d.side == "enemy" then
+                GameTooltip:AddLine(ts .. "  " .. who .. " died", 0.13, 0.80, 0.13)
+            else
+                GameTooltip:AddLine(ts .. "  " .. who .. " died", 0.80, 0.13, 0.13)
+            end
+            if d.recap and d.recap.killingBlow then
+                local kb = d.recap.killingBlow
+                local kbLine = "    KB: " .. (kb.spell or "?")
+                if kb.src then kbLine = kbLine .. " (" .. kb.src .. ")" end
+                GameTooltip:AddLine(kbLine, 0.48, 0.45, 0.43)
+            end
+        end
+        for _, d in ipairs(deaths) do
+            if d.side == "ally" and hitBox.myName and d.name == hitBox.myName
+                and d.recap and d.recap.lines and #d.recap.lines > 0 then
+                GameTooltip:AddLine(" ")
+                GameTooltip:AddLine("Your death - last " .. (d.recap.window or 8) .. "s:",
+                    0.65, 0.65, 0.65)
+                for _, ln in ipairs(d.recap.lines) do
+                    local txt = "  " .. (ln.spell or "?")
+                    if ln.src then txt = txt .. " - " .. ln.src end
+                    txt = txt .. ": " .. FormatStat(ln.amount) .. " (" .. (ln.hits or 1) .. "x)"
+                    GameTooltip:AddLine(txt, 0.85, 0.85, 0.85)
+                end
+                break
+            end
+        end
+    else
+        GameTooltip:AddLine(" ")
+        GameTooltip:AddLine("No death data captured", 0.48, 0.45, 0.43)
+    end
+    GameTooltip:Show()
+end
+
 local function GetOrCreateRoundRow(detail, idx)
     if detail.roundRows[idx] then return detail.roundRows[idx] end
 
@@ -584,6 +638,12 @@ local function GetOrCreateRoundRow(detail, idx)
     rr.durText:SetJustifyH("LEFT")
     rr.durText:SetTextColor(0.38, 0.38, 0.38)
 
+    rr.hitBox = CreateFrame("Frame", nil, detail)
+    rr.hitBox:SetSize(ROUND_DUR_X + 44, ROUND_ROW_H)
+    rr.hitBox:EnableMouse(true)
+    rr.hitBox:SetScript("OnEnter", ShowRoundTooltip)
+    rr.hitBox:SetScript("OnLeave", function() GameTooltip:Hide() end)
+
     detail.roundRows[idx] = rr
     return rr
 end
@@ -607,6 +667,8 @@ local function PositionRoundRow(rr, yOff)
     rr.outcomeText:SetPoint("TOPLEFT", ROUND_OUTCOME_X, yOff - 3)
     rr.durText:ClearAllPoints()
     rr.durText:SetPoint("TOPLEFT", ROUND_DUR_X, yOff - 3)
+    rr.hitBox:ClearAllPoints()
+    rr.hitBox:SetPoint("TOPLEFT", 0, yOff)
 end
 
 -- Hide round rows from fromIdx onward — detail frames are recycled across
@@ -619,6 +681,8 @@ local function HideRoundRows(detail, fromIdx)
         rr.vsLabel:Hide()
         rr.outcomeText:Hide()
         rr.durText:Hide()
+        rr.hitBox:Hide()
+        rr.hitBox.roundData = nil
         for _, ico in ipairs(rr.allyIcons) do ico:Hide() end
         for _, ico in ipairs(rr.enemyIcons) do ico:Hide() end
     end
@@ -643,6 +707,9 @@ local function PopulateRoundRows(detail, rec, playerCount)
         rr.vsLabel:Show()
         rr.outcomeText:Show()
         rr.durText:Show()
+        rr.hitBox:Show()
+        rr.hitBox.roundData = r
+        rr.hitBox.myName    = rec.charKey and rec.charKey:match("^(.+)-") or nil
 
         rr.label:SetText("R" .. r.num)
 
@@ -998,12 +1065,25 @@ end
 
 local function BuildFilteredList()
     filteredList = {}
+
+    sessionSet = nil
+    if filterSession then
+        sessionSet = {}
+        for _, rec in ipairs(AI.GetLatestSession(insightsCharKey)) do
+            sessionSet[rec] = true
+        end
+    end
+
     local all = AI.GetMatches()
     for i = #all, 1, -1 do
         local rec  = all[i]
         local pass = true
 
         if insightsCharKey and rec.charKey ~= insightsCharKey then
+            pass = false
+        end
+
+        if pass and sessionSet and not sessionSet[rec] then
             pass = false
         end
 
@@ -1039,7 +1119,8 @@ local function RefreshStats()
             for _, rec in ipairs(AI.GetMatches()) do
                 if (not insightsCharKey or rec.charKey == insightsCharKey)
                    and rec.bracketIndex == bi
-                   and (not filterSpecID or rec.specID == filterSpecID) then
+                   and (not filterSpecID or rec.specID == filterSpecID)
+                   and (not sessionSet or sessionSet[rec]) then
                     if isSS then
                         local won = (rec.shuffle and rec.shuffle.wonRounds) or rec.wonRounds
                         if won ~= nil then
@@ -1296,6 +1377,47 @@ function AI.CreateInsightsPanel(parent)
     specBar:SetHeight(SPEC_ROW_H)
     specBar:SetPoint("TOPLEFT", PAD, -(PAD + FILTER_H + GAP))
     specBar:SetPoint("TOPRIGHT", -PAD, -(PAD + FILTER_H + GAP))
+
+    -- Session filter toggle (latest play session only), right end of the spec bar row
+    local sessBtn = CreateFrame("Button", nil, specBar, "BackdropTemplate")
+    sessBtn:SetSize(62, SPEC_ROW_H - 4)
+    sessBtn:SetPoint("RIGHT", specBar, "RIGHT", 0, 0)
+    sessBtn:SetBackdrop({
+        bgFile   = "Interface\\Buttons\\WHITE8x8",
+        edgeFile = "Interface\\Buttons\\WHITE8x8",
+        edgeSize = 1,
+    })
+    sessBtn.label = sessBtn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    sessBtn.label:SetPoint("CENTER")
+    sessBtn.label:SetText("Session")
+
+    local function UpdateSessionToggle()
+        if filterSession then
+            sessBtn:SetBackdropColor(0.7, 0.1, 0.1, 0.8)
+            sessBtn:SetBackdropBorderColor(0.9, 0.15, 0.15, 1)
+            sessBtn.label:SetTextColor(1, 1, 1)
+        else
+            sessBtn:SetBackdropColor(0.15, 0.15, 0.15, 0.8)
+            sessBtn:SetBackdropBorderColor(0.3, 0.3, 0.3, 0.5)
+            sessBtn.label:SetTextColor(0.7, 0.7, 0.7)
+        end
+    end
+    UpdateSessionToggle()
+
+    sessBtn:SetScript("OnClick", function()
+        filterSession = not filterSession
+        expandedIndex = nil
+        UpdateSessionToggle()
+        RefreshRows()
+    end)
+    sessBtn:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:AddLine("Session filter", 1, 1, 1)
+        GameTooltip:AddLine("Show only the latest play session (matches", 0.7, 0.7, 0.7)
+        GameTooltip:AddLine("with less than 1 hour between them).", 0.7, 0.7, 0.7)
+        GameTooltip:Show()
+    end)
+    sessBtn:SetScript("OnLeave", function() GameTooltip:Hide() end)
 
     -- Stats bar (W/D/L per bracket, below spec bar)
     local statsBar = CreateFrame("Frame", nil, parent)

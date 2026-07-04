@@ -98,7 +98,7 @@ end
 -- Tab system
 -- ============================================================================
 
-local TAB_NAMES  = { "General", "Overlay", "History", "Currency", "Import/Export" }
+local TAB_NAMES  = { "General", "Overlay", "Insights", "History", "Currency", "Import/Export" }
 local tabButtons        = {}
 local tabContent        = {}
 local activeTab         = 1
@@ -525,6 +525,71 @@ local function BuildCurrencySettingsContent(parent)
     return f
 end
 
+local sessionPopupCheckbox
+local queueOverlayCheckbox
+local deathRecapCheckbox
+local recapWindowSlider
+
+local function BuildInsightsSettingsContent(parent)
+    local f = CreateFrame("Frame", nil, parent)
+    f:SetPoint("TOPLEFT", 0, 0)
+    f:SetPoint("BOTTOMRIGHT", 0, 0)
+
+    local y = 8
+
+    local sessHeader = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    sessHeader:SetPoint("TOPLEFT", 8, -y)
+    sessHeader:SetText("Session")
+    sessHeader:SetTextColor(0.96, 0.92, 0.90)
+    y = y + 24
+
+    sessionPopupCheckbox = CreateCheckRow(f, "Show session summary after leaving arena", y,
+        "sessionPopupEnabled", nil)
+    y = y + 38
+
+    local div1 = f:CreateTexture(nil, "ARTWORK")
+    div1:SetHeight(1)
+    div1:SetPoint("TOPLEFT", f, "TOPLEFT", 8, -y)
+    div1:SetPoint("TOPRIGHT", f, "TOPRIGHT", -8, -y)
+    div1:SetColorTexture(unpack(AI.COLORS.CRIMSON_DIM))
+    y = y + 14
+
+    local queueHeader = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    queueHeader:SetPoint("TOPLEFT", 8, -y)
+    queueHeader:SetText("Queue Timer")
+    queueHeader:SetTextColor(0.96, 0.92, 0.90)
+    y = y + 24
+
+    queueOverlayCheckbox = CreateCheckRow(f, "Show queue timer overlay while queued", y,
+        "queueOverlayEnabled", function()
+            if AI.QueueOverlay and AI.QueueOverlay.Refresh then AI.QueueOverlay.Refresh() end
+        end)
+    y = y + 38
+
+    local div2 = f:CreateTexture(nil, "ARTWORK")
+    div2:SetHeight(1)
+    div2:SetPoint("TOPLEFT", f, "TOPLEFT", 8, -y)
+    div2:SetPoint("TOPRIGHT", f, "TOPRIGHT", -8, -y)
+    div2:SetColorTexture(unpack(AI.COLORS.CRIMSON_DIM))
+    y = y + 14
+
+    local recapHeader = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    recapHeader:SetPoint("TOPLEFT", 8, -y)
+    recapHeader:SetText("Death Recap (Solo Shuffle)")
+    recapHeader:SetTextColor(0.96, 0.92, 0.90)
+    y = y + 24
+
+    deathRecapCheckbox = CreateCheckRow(f, "Capture death recaps during rounds", y,
+        "deathRecapEnabled", nil)
+    y = y + 38
+
+    recapWindowSlider = CreateSliderRow(f, "Recap window (seconds before death)", y,
+        "deathRecapWindow", nil,
+        { min = 3, max = 15, step = 1, default = 8, format = "%ds", formatMultiplier = 1 })
+
+    return f
+end
+
 local function BuildImportExportContent(parent)
     local f = CreateFrame("Frame", nil, parent)
     f:SetPoint("TOPLEFT", 0, 0)
@@ -567,9 +632,10 @@ function AI.CreateSettingsPanel(parent)
 
     tabContent[1] = BuildGeneralContent(contentFrame)
     tabContent[2] = BuildOverlayContent(contentFrame)
-    tabContent[3] = BuildHistoryContent(contentFrame)
-    tabContent[4] = BuildCurrencySettingsContent(contentFrame)
-    tabContent[5] = BuildImportExportContent(contentFrame)
+    tabContent[3] = BuildInsightsSettingsContent(contentFrame)
+    tabContent[4] = BuildHistoryContent(contentFrame)
+    tabContent[5] = BuildCurrencySettingsContent(contentFrame)
+    tabContent[6] = BuildImportExportContent(contentFrame)
 
     -- Default to General tab
     SelectTab(1)
@@ -591,10 +657,15 @@ function AI.CreateSettingsPanel(parent)
         else
             overlayToggleBtn.label:SetText("Show Overlay")
         end
+        -- Insights tab state
+        sessionPopupCheckbox:SetChecked(ArenaInsightsDB.settings.sessionPopupEnabled ~= false)
+        queueOverlayCheckbox:SetChecked(ArenaInsightsDB.settings.queueOverlayEnabled ~= false)
+        deathRecapCheckbox:SetChecked(ArenaInsightsDB.settings.deathRecapEnabled ~= false)
+        recapWindowSlider:SetValue(ArenaInsightsDB.settings.deathRecapWindow or 8)
         -- History tab state
-        tabContent[3].UpdateChartColorLabel()
+        tabContent[4].UpdateChartColorLabel()
         -- Currency settings tab state
-        tabContent[4].RefreshChecks()
+        tabContent[5].RefreshChecks()
         -- General tab state
         accountInput:SetText(ArenaInsightsDB.settings.accountName or "")
         showMinimapCheckbox:SetChecked(ArenaInsightsDB.settings.showMinimapButton ~= false)

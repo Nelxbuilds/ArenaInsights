@@ -81,6 +81,11 @@ local SETTINGS_DEFAULTS = {
     hiddenCurrencies         = {},
     hiddenItems              = {},
     insightsBracketFilter    = {},
+    sessionPopupEnabled      = true,
+    queueOverlayEnabled      = true,
+    queueOverlayPos          = {},
+    deathRecapEnabled        = true,
+    deathRecapWindow         = 8,
 }
 
 local CURRENT_SCHEMA = 2

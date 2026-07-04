@@ -44,3 +44,6 @@ Load order: Core.lua → Currency.lua → Challenges.lua
   - rounds[i].outcome resolved at round end from live death counts (win = enemy team eliminated); no longer scoreboard-derived
   - rounds[i].deaths = [{ name, specID, side ("ally"/"enemy"), t }] — ordered kill log, t = seconds into round. Captured for all 6 players. UI not yet built (data-only for now).
 - enemySpecs={} for Blitz BG (ARENA_PREP_OPPONENT_SPECIALIZATIONS does not fire)
+- AI.GetLatestSession(charKey) — matches of the most recent play session (consecutive gaps < 1h), chronological; charKey nil = across all characters
+- Death recap (settings.deathRecapEnabled): damage taken by the 6 tracked GUIDs is buffered during SS rounds; on UNIT_DIED, deaths[i].recap = { window, killingBlow = {src, spell, amount}, lines = top-6 {src, spell, hits, amount} by total }. All CLEU fields secret-value guarded; recap nil when nothing readable was buffered
+- After match write, nil-guarded UI hooks fire: AI.OnMatchRecorded(rec) (SessionUI popup), AI.RefreshInsights()

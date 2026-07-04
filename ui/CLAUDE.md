@@ -19,6 +19,19 @@ CRITICAL: ui/MainFrame.lua MUST be last in ui/ TOC order — it calls AI.Create*
 - Reads AI.specData, AI.classData (from core/Challenges.lua)
 - Lint D1: opacity=0 → EnableMouse(false) on all interactive sub-frames
 
+## SessionUI.lua
+- Session summary popup — not a tab; shows after leaving a PvP instance when a match was recorded
+- AI.ShowSessionSummary(charKey) — manual trigger, charKey nil = all chars (`/run AI.ShowSessionSummary()` to test)
+- AI.OnMatchRecorded(rec) — called nil-guarded by core/Insights.lua after each match write; defers popup while inside arena/BG (PLAYER_ENTERING_WORLD releases it)
+- Reads AI.GetLatestSession() from core/Insights.lua; SS scores shown as rounds, other brackets as match W-L
+- Setting: sessionPopupEnabled
+
+## QueueOverlay.lua
+- Independent floating frame; auto-shows while in any PvP queue, hides when none
+- Events: UPDATE_BATTLEFIELD_STATUS, PLAYER_ENTERING_WORLD; APIs GetBattlefieldStatus/GetBattlefieldTimeWaited (pcall + secret-value guarded, unverified in Midnight)
+- AI.QueueOverlay.Refresh() — re-evaluates queues + enabled setting (called by SettingsUI toggle)
+- Drag position saved to settings.queueOverlayPos; setting: queueOverlayEnabled
+
 ## Tab panel contract
 Each panel file must:
 - Expose AI.Create*Panel(parentFrame) called by MainFrame.lua
