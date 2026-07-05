@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.5.0-beta6] -- 2026-07-05
+
+### Added
+- Queue overlay shows current rating and last-known MMR for rated queues (per-spec for Solo Shuffle/Blitz); the game exposes no live MMR in queue, so MMR is derived from your latest recorded match and marked with ~
+
 ## [2.5.0-beta5] -- 2026-07-05
 
 ### Fixed

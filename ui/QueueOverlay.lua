@@ -61,6 +61,8 @@ local function BuildFrame()
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
         GameTooltip:AddLine("ArenaInsights Queue Timer", 1, 1, 1)
         GameTooltip:AddLine("Drag to move. Disable in Settings.", 0.7, 0.7, 0.7)
+        GameTooltip:AddLine("MMR is your last recorded value - the game", 0.48, 0.45, 0.43)
+        GameTooltip:AddLine("exposes no live MMR while queued.", 0.48, 0.45, 0.43)
         GameTooltip:Show()
     end)
     frame:SetScript("OnLeave", function() GameTooltip:Hide() end)
@@ -73,15 +75,17 @@ local function BuildFrame()
     for i = 1, MAX_LINES do
         local ln = {}
         ln.name = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-        ln.name:SetPoint("TOPLEFT", PAD, -(TITLE_H + (i - 1) * LINE_H))
         ln.name:SetWidth(FRAME_W - 115)
         ln.name:SetJustifyH("LEFT")
         ln.name:SetWordWrap(false)
         ln.name:SetTextColor(0.78, 0.75, 0.73)
         ln.time = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-        ln.time:SetPoint("TOPRIGHT", -PAD, -(TITLE_H + (i - 1) * LINE_H))
         ln.time:SetJustifyH("RIGHT")
         ln.time:SetTextColor(1, 1, 1)
+        -- Rating / last-known MMR for rated queues (second, dimmer row)
+        ln.info = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalTiny")
+        ln.info:SetJustifyH("LEFT")
+        ln.info:SetTextColor(0.48, 0.45, 0.43)
         lines[i] = ln
     end
 
@@ -140,6 +144,47 @@ local function CollectQueues()
     return out
 end
 
+-- Queue name -> bracket index, best-effort substring match on the localized
+-- queue name. Unknown names simply get no rating/MMR line.
+local BRACKET_PATTERNS = {
+    { "shuffle", 7 },
+    { "blitz",   4 },
+    { "2v2",     1 },
+    { "3v3",     2 },
+}
+
+local function GuessBracket(name)
+    local n = name:lower()
+    for _, p in ipairs(BRACKET_PATTERNS) do
+        if n:find(p[1], 1, true) then return p[2] end
+    end
+    return nil
+end
+
+local function BuildInfoText(q)
+    local bi = GuessBracket(q.name)
+    if not bi or not AI.currentCharKey then return nil end
+
+    local specID
+    if AI.PER_SPEC_BRACKETS and AI.PER_SPEC_BRACKETS[bi] then
+        local idx = GetSpecialization and GetSpecialization()
+        specID = idx and GetSpecializationInfo and GetSpecializationInfo(idx) or nil
+        if not specID then return nil end
+    end
+
+    local parts = {}
+    local data = AI.GetRating and AI.GetRating(AI.currentCharKey, bi, specID)
+    if data and data.rating then
+        parts[#parts + 1] = "CR " .. data.rating
+    end
+    local mmr = AI.GetLastKnownMMR and AI.GetLastKnownMMR(AI.currentCharKey, bi, specID)
+    if mmr then
+        parts[#parts + 1] = "MMR ~" .. mmr
+    end
+    if #parts == 0 then return nil end
+    return table.concat(parts, "   ")
+end
+
 function AI.QueueOverlay.Refresh()
     if not ArenaInsightsDB or not ArenaInsightsDB.settings then return end
     queues = CollectQueues()
@@ -153,19 +198,38 @@ function AI.QueueOverlay.Refresh()
     if not frame then BuildFrame() end
 
     local n = math.min(#queues, MAX_LINES)
+    local y = TITLE_H
     for i = 1, MAX_LINES do
-        local q = queues[i]
+        local q  = queues[i]
+        local ln = lines[i]
         if i <= n and q then
-            lines[i].name:SetText(q.name)
-            lines[i].time:SetText(q.ready and "Ready!" or "0:00")
-            lines[i].name:Show()
-            lines[i].time:Show()
+            ln.name:ClearAllPoints()
+            ln.name:SetPoint("TOPLEFT", PAD, -y)
+            ln.time:ClearAllPoints()
+            ln.time:SetPoint("TOPRIGHT", -PAD, -y)
+            ln.name:SetText(q.name)
+            ln.time:SetText(q.ready and "Ready!" or "0:00")
+            ln.name:Show()
+            ln.time:Show()
+            y = y + LINE_H
+
+            local info = BuildInfoText(q)
+            if info then
+                ln.info:ClearAllPoints()
+                ln.info:SetPoint("TOPLEFT", PAD + 4, -y + 2)
+                ln.info:SetText(info)
+                ln.info:Show()
+                y = y + 12
+            else
+                ln.info:Hide()
+            end
         else
-            lines[i].name:Hide()
-            lines[i].time:Hide()
+            ln.name:Hide()
+            ln.time:Hide()
+            ln.info:Hide()
         end
     end
-    frame:SetHeight(TITLE_H + n * LINE_H + 6)
+    frame:SetHeight(y + 6)
     frame:Show()
 end
 

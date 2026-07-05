@@ -88,6 +88,25 @@ function AI.PurgeCorruptMatches()
         removed, fixed, #kept))
 end
 
+-- Last-known MMR for a char/bracket, derived from the newest recorded match
+-- (prematchMMR + mmrChange). There is NO live MMR API outside a match, so
+-- this is the best available approximation. specID filters per-spec brackets.
+-- Simulated records are ignored. Returns nil when no match has MMR data.
+function AI.GetLastKnownMMR(charKey, bracketIndex, specID)
+    local matches = AI.GetMatches()
+    for i = #matches, 1, -1 do
+        local r = matches[i]
+        if not r.simulated
+            and r.charKey == charKey
+            and r.bracketIndex == bracketIndex
+            and (not specID or r.specID == specID)
+            and type(r.prematchMMR) == "number" and r.prematchMMR > 0 then
+            return r.prematchMMR + (r.mmrChange or 0)
+        end
+    end
+    return nil
+end
+
 -- Capture-quality summary: how many recorded matches have full data vs holes.
 -- Simulated records excluded. Wired to /ai health.
 function AI.PrintCaptureHealth()

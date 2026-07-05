@@ -171,6 +171,22 @@ test("2v2: bracket from opponent count, outcome from winner arg, rating from DB 
     eq(rec.season, 39, "season tag")
 end)
 
+test("GetLastKnownMMR: newest real match, per-spec filter, skips simulated", function()
+    local w = H.newEnv()
+    w.env.ArenaInsightsDB.matches = {
+        { charKey = "Tester-TestRealm", bracketIndex = 7, specID = 250,
+          prematchMMR = 2000, mmrChange = 20 },
+        { charKey = "Tester-TestRealm", bracketIndex = 7, specID = 251,
+          prematchMMR = 1800, mmrChange = -10 },
+        { charKey = "Tester-TestRealm", bracketIndex = 7, specID = 250,
+          prematchMMR = 2100, mmrChange = 15, simulated = true },
+    }
+    eq(w.AI.GetLastKnownMMR("Tester-TestRealm", 7, 250), 2020, "newest real match for spec")
+    eq(w.AI.GetLastKnownMMR("Tester-TestRealm", 7, 251), 1790, "other spec")
+    eq(w.AI.GetLastKnownMMR("Tester-TestRealm", 7), 1790, "no spec filter = newest real")
+    eq(w.AI.GetLastKnownMMR("Tester-TestRealm", 1), nil, "no data for bracket")
+end)
+
 test("session grouping splits on 1h gaps and filters by character", function()
     local w = H.newEnv()
     local base = 1750000000
