@@ -35,24 +35,6 @@ local function SimName(i)
     return SIM_NAMES[((i - 1) % #SIM_NAMES) + 1] .. i
 end
 
-local function BuildRecap(victimName)
-    local lines = {}
-    for i = 1, math.random(2, 4) do
-        lines[i] = {
-            src    = SimName(math.random(1, 3)),
-            spell  = SIM_SPELLS[math.random(#SIM_SPELLS)],
-            hits   = math.random(1, 6),
-            amount = math.random(80000, 900000),
-        }
-    end
-    table.sort(lines, function(a, b) return a.amount > b.amount end)
-    return {
-        window      = (ArenaInsightsDB.settings and ArenaInsightsDB.settings.deathRecapWindow) or 8,
-        killingBlow = { src = lines[1].src, spell = lines[1].spell, amount = lines[1].amount },
-        lines       = lines,
-    }
-end
-
 local function BuildRounds(wonRounds)
     local rounds = {}
     local outcomes = {}
@@ -68,13 +50,11 @@ local function BuildRounds(wonRounds)
         for d = 1, math.random(1, 2) do
             local side = (outcomes[i] == "win") and "enemy" or "ally"
             if d == 2 then side = (side == "enemy") and "ally" or "enemy" end
-            local nm = SimName(math.random(1, 6))
             deaths[d] = {
-                name   = nm,
+                name   = SimName(math.random(1, 6)),
                 specID = RandomSpecID(),
                 side   = side,
                 t      = math.random(15, 80),
-                recap  = BuildRecap(nm),
             }
         end
         table.sort(deaths, function(a, b) return a.t < b.t end)

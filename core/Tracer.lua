@@ -29,7 +29,6 @@ local TRACKED_EVENTS = {
     "PVP_MATCH_COMPLETE",
     "UPDATE_BATTLEFIELD_SCORE",
     "PVP_RATED_STATS_UPDATE",
-    "COMBAT_LOG_EVENT_UNFILTERED",
     "UNIT_DIED",
 }
 
@@ -40,7 +39,13 @@ end
 
 local function SnapUnit(tok)
     if not UnitExists(tok) then return nil end
-    return { guid = Scrub(UnitGUID(tok)), name = Scrub(UnitName(tok)) }
+    local classToken
+    if UnitClass then
+        local _, ct = UnitClass(tok)
+        classToken = ct and Scrub(ct) or nil
+    end
+    return { guid = Scrub(UnitGUID(tok)), name = Scrub(UnitName(tok)),
+        classToken = classToken }
 end
 
 local function SnapUnits()
@@ -64,6 +69,34 @@ local function SnapSpecs()
         end
     end
     return arenaSpecs, inspectSpecs
+end
+
+-- The indexed scoreboard redacts even the player's own row mid-match
+-- (recorded trace: all fields secret between rounds). Snapshot the by-GUID
+-- self row separately — it may be exempt from redaction, which would make
+-- live round-outcome sampling possible. Next trace verifies.
+local function SnapSelfScore()
+    local g = UnitGUID and UnitGUID("player")
+    if not g or not (C_PvP and C_PvP.GetScoreInfoByPlayerGuid) then return nil end
+    local ok, si = pcall(C_PvP.GetScoreInfoByPlayerGuid, g)
+    if not ok or type(si) ~= "table" then return nil end
+    local stats
+    if si.stats then
+        stats = {}
+        for k, st in ipairs(si.stats) do
+            stats[k] = {
+                pvpStatID    = Scrub(st.pvpStatID),
+                name         = Scrub(st.name),
+                pvpStatValue = Scrub(st.pvpStatValue),
+            }
+        end
+    end
+    return {
+        name = Scrub(si.name), isSelf = Scrub(si.isSelf),
+        rating = Scrub(si.rating), ratingChange = Scrub(si.ratingChange),
+        prematchMMR = Scrub(si.prematchMMR), postmatchMMR = Scrub(si.postmatchMMR),
+        stats = stats,
+    }
 end
 
 local function SnapScoreboard()
@@ -125,52 +158,41 @@ local function Record(event, ...)
 
     local entry = { t = GetTime() - traceStart, e = event }
 
-    if event == "COMBAT_LOG_EVENT_UNFILTERED" then
-        local c = { CombatLogGetCurrentEventInfo() }
-        local subevent = Scrub(c[2])
-        local destGUID = Scrub(c[8])
-        -- Volume control: only rows the pipeline consumes — player deaths and
-        -- damage taken by players.
-        local isPlayerDest = type(destGUID) == "string" and destGUID:find("^Player%-")
-        if subevent ~= "UNIT_DIED" and not (isPlayerDest and type(subevent) == "string"
-            and (subevent:find("_DAMAGE$") or subevent == "SWING_DAMAGE")) then
-            return
+    entry.args = { ... }
+    entry.api = {
+        isSoloShuffle = Scrub(C_PvP and C_PvP.IsSoloShuffle and C_PvP.IsSoloShuffle()),
+        matchState    = Scrub(C_PvP and C_PvP.GetActiveMatchState and C_PvP.GetActiveMatchState()),
+        instanceType  = select(2, GetInstanceInfo()),
+    }
+    if event == "PVP_MATCH_STATE_CHANGED" then
+        entry.api.units = SnapUnits()
+        entry.api.arenaSpecs, entry.api.inspectSpecs = SnapSpecs()
+    elseif event == "ARENA_PREP_OPPONENT_SPECIALIZATIONS" then
+        entry.api.numArenaOpponentSpecs = GetNumArenaOpponentSpecs()
+        entry.api.arenaSpecs, entry.api.inspectSpecs = SnapSpecs()
+        entry.api.units = SnapUnits()
+    elseif event == "PVP_MATCH_COMPLETE" or event == "UPDATE_BATTLEFIELD_SCORE"
+        or event == "PVP_RATED_STATS_UPDATE" then
+        entry.api.scoreboard   = SnapScoreboard()
+        entry.api.arenaFaction = GetBattlefieldArenaFaction and Scrub(GetBattlefieldArenaFaction()) or nil
+        if event == "PVP_RATED_STATS_UPDATE" then
+            entry.api.dbRatings = SnapDBRatings()
         end
-        local cleu = {}
-        for i = 1, 15 do cleu[i] = Scrub(c[i]) end
-        entry.cleu = cleu
-    else
-        entry.args = { ... }
-        entry.api = {
-            isSoloShuffle = Scrub(C_PvP and C_PvP.IsSoloShuffle and C_PvP.IsSoloShuffle()),
-            matchState    = Scrub(C_PvP and C_PvP.GetActiveMatchState and C_PvP.GetActiveMatchState()),
-            instanceType  = select(2, GetInstanceInfo()),
-        }
-        if event == "PVP_MATCH_STATE_CHANGED" then
-            entry.api.units = SnapUnits()
-            entry.api.arenaSpecs, entry.api.inspectSpecs = SnapSpecs()
-        elseif event == "ARENA_PREP_OPPONENT_SPECIALIZATIONS" then
-            entry.api.numArenaOpponentSpecs = GetNumArenaOpponentSpecs()
-            entry.api.arenaSpecs, entry.api.inspectSpecs = SnapSpecs()
-            entry.api.units = SnapUnits()
-        elseif event == "PVP_MATCH_COMPLETE" or event == "UPDATE_BATTLEFIELD_SCORE"
-            or event == "PVP_RATED_STATS_UPDATE" then
-            entry.api.scoreboard   = SnapScoreboard()
-            entry.api.arenaFaction = GetBattlefieldArenaFaction and Scrub(GetBattlefieldArenaFaction()) or nil
-            if event == "PVP_RATED_STATS_UPDATE" then
-                entry.api.dbRatings = SnapDBRatings()
-            end
-        elseif event == "UNIT_DIED" then
-            -- Direct death event (unit token arg): snapshot the resolved unit
-            -- + the between-rounds scoreboard so the rounds-won sampling and
-            -- death attribution can be verified from the trace.
-            local tok = ...
-            if type(tok) == "string" then entry.api.diedUnit = SnapUnit(tok) end
-            entry.api.scoreboard = SnapScoreboard()
+    elseif event == "UNIT_DIED" then
+        -- Direct death event (GUID arg in live Midnight): snapshot the
+        -- between-rounds scoreboard so death attribution and rounds-won
+        -- sampling can be verified from the trace.
+        local tok = ...
+        if type(tok) == "string" and not tok:find("^Player%-") then
+            entry.api.diedUnit = SnapUnit(tok)
         end
-        if C_PvP and C_PvP.GetCustomVictoryStatID then
-            entry.api.victoryStatID = Scrub(C_PvP.GetCustomVictoryStatID())
-        end
+        entry.api.scoreboard = SnapScoreboard()
+    end
+    if event ~= "PVP_MATCH_ACTIVE" then
+        entry.api.selfScore = SnapSelfScore()
+    end
+    if C_PvP and C_PvP.GetCustomVictoryStatID then
+        entry.api.victoryStatID = Scrub(C_PvP.GetCustomVictoryStatID())
     end
 
     trace.events[#trace.events + 1] = entry

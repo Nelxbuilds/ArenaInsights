@@ -17,11 +17,14 @@ local ssRoundDeaths   = nil   -- ordered death list for current round: { {name, 
 local ssAllyGUIDs     = nil   -- GUID -> { name, specID } for player + party1/party2 this round
 local ssEnemyGUIDs    = nil   -- GUID -> { name, specID } for arena1..N this round
 local ssDeadGUIDs     = nil   -- set of GUIDs already recorded dead this round (dedup)
-local ssDmgBuffer     = nil   -- rolling damage-taken buffer for death recaps (nil = recap disabled)
 local ssActive        = false -- true only inside a confirmed SS match
 local ssMatchOver     = false -- set at PVP_MATCH_COMPLETE; next PVP_MATCH_ACTIVE is a new match, never a round zone-in
 local ssPrevWins      = 0     -- self round-wins confirmed so far this match (scoreboard)
-local ssRoundStartWins = nil  -- ssPrevWins snapshot when the round engaged
+local ssWinsExact     = true  -- false after a round whose scoreboard read failed:
+                              -- ssPrevWins is then a stale lower bound and the
+                              -- next delta cannot be attributed to one round
+local ssRoundStartWins  = nil -- ssPrevWins snapshot when the round engaged
+local ssRoundStartExact = nil -- ssWinsExact snapshot when the round engaged
 local matchBracketHint = nil  -- bracket captured early as fallback for DB-diff detection
 
 AI.InsightsDebug = false
@@ -698,54 +701,13 @@ local function StartRoundCapture()
     ssEnemyGUIDs  = enemyGUIDs
     ssRoundDeaths = {}
     ssDeadGUIDs   = {}
-    local recapOn = ArenaInsightsDB.settings and ArenaInsightsDB.settings.deathRecapEnabled
-    ssDmgBuffer   = recapOn and {} or nil
     AI.DebugInsights("Round capture: allySpecs=", #allySpecs, "enemySpecs=", #enemySpecs,
         "allyGUIDs=", AI.TableCount(allyGUIDs), "enemyGUIDs=", AI.TableCount(enemyGUIDs))
 end
 
-local function GetRecapWindow()
-    local w = ArenaInsightsDB.settings and ArenaInsightsDB.settings.deathRecapWindow
-    return (type(w) == "number" and w >= 1) and w or 8
-end
-
--- Aggregate the damage buffer for one victim GUID over the recap window into
--- a compact recap: top damage lines by total + the killing blow. Returns nil
--- when nothing was buffered for the victim (recap disabled, or all damage
--- fields were secret/unreadable).
-local function BuildDeathRecap(guid)
-    if not ssDmgBuffer then return nil end
-    local cutoff = GetTime() - GetRecapWindow()
-    local agg, order, last = {}, {}, nil
-    for _, e in ipairs(ssDmgBuffer) do
-        if e.dest == guid and e.t >= cutoff then
-            local key = (e.src or "?") .. "|" .. e.spell
-            local a = agg[key]
-            if not a then
-                a = { src = e.src, spell = e.spell, hits = 0, amount = 0 }
-                agg[key] = a
-                order[#order + 1] = a
-            end
-            a.hits   = a.hits + 1
-            a.amount = a.amount + e.amt
-            last = e
-        end
-    end
-    if not last then return nil end
-    table.sort(order, function(a, b) return a.amount > b.amount end)
-    local lines = {}
-    for i = 1, math.min(#order, 6) do lines[i] = order[i] end
-    return {
-        window      = GetRecapWindow(),
-        killingBlow = { src = last.src, spell = last.spell, amount = last.amt },
-        lines       = lines,
-    }
-end
-
--- Record one participant death for the engaged round. Shared by the two
--- death sources: the combat log (registration is protected for addons in
--- Midnight 12.x, so it rarely arms in live play) and the direct UNIT_DIED
--- event. Dedup by GUID so double-reports collapse into one entry.
+-- Record one participant death for the engaged round, from the direct
+-- UNIT_DIED event (the combat log is protected for addons in Midnight 12.x
+-- and is not used). Dedup by GUID so double-reports collapse into one entry.
 local function RecordRoundDeath(destGUID, destName)
     if not ssRoundStart then return end
     if ssDeadGUIDs and ssDeadGUIDs[destGUID] then return end
@@ -754,6 +716,13 @@ local function RecordRoundDeath(destGUID, destName)
         side, info = "ally", ssAllyGUIDs[destGUID]
     elseif ssEnemyGUIDs and ssEnemyGUIDs[destGUID] then
         side, info = "enemy", ssEnemyGUIDs[destGUID]
+    elseif ssAllyGUIDs and next(ssAllyGUIDs)
+        and ssEnemyGUIDs and not next(ssEnemyGUIDs)
+        and type(destGUID) == "string" and destGUID:find("^Player%-") then
+        -- Enemy unit GUIDs read as secret at round start in Midnight, leaving
+        -- the enemy map empty. Inside SS only the 6 participants exist, so a
+        -- player GUID that is not a tracked ally must be an enemy.
+        side, info = "enemy", {}
     else
         return  -- pet/totem/non-participant
     end
@@ -765,7 +734,6 @@ local function RecordRoundDeath(destGUID, destName)
         specID = info.specID,
         side   = side,
         t      = math.floor(GetTime() - ssRoundStart),
-        recap  = BuildDeathRecap(destGUID),
     }
     AI.DebugInsights("Death:", info.name or destName, side,
         "t=", math.floor(GetTime() - ssRoundStart))
@@ -834,9 +802,11 @@ local function FinalizeRound()
     if not ssRoundStart then return end
     local duration = math.floor(GetTime() - ssRoundStart)
     ssRoundStart = nil  -- clear immediately to prevent double-capture
-    local roundNum = #ssRounds + 1
-    local baseWins = ssRoundStartWins
-    ssRoundStartWins = nil
+    local roundNum  = #ssRounds + 1
+    local baseWins  = ssRoundStartWins
+    local baseExact = ssRoundStartExact
+    ssRoundStartWins  = nil
+    ssRoundStartExact = nil
 
     if roundNum <= 6 then
         RefreshRoundCompAtEnd()
@@ -902,11 +872,22 @@ local function FinalizeRound()
                 C_Timer.After(0.1 * i, function()
                     if ssRounds[roundNum] ~= entry then return end  -- new match started
                     sample()
-                    if i == 4 and bestSeen >= 0 then
-                        entry.outcome = (bestSeen > baseWins) and "win" or "loss"
-                        ssPrevWins = math.max(bestSeen, baseWins)
-                        AI.DebugInsights("Round", roundNum, "outcome from wins delta:",
-                            entry.outcome, "(", baseWins, "->", bestSeen, ")")
+                    if i ~= 4 then return end
+                    if bestSeen >= 0 then
+                        -- Attribute the delta to this round only when the
+                        -- baseline was actually observed — after a failed
+                        -- read ssPrevWins is a stale lower bound and the
+                        -- delta spans several rounds (reconcile handles it).
+                        if baseExact then
+                            entry.outcome = (bestSeen > baseWins) and "win" or "loss"
+                            AI.DebugInsights("Round", roundNum, "outcome from wins delta:",
+                                entry.outcome, "(", baseWins, "->", bestSeen, ")")
+                        end
+                        ssPrevWins  = math.max(bestSeen, baseWins)
+                        ssWinsExact = true  -- a successful read re-anchors the count
+                    else
+                        ssWinsExact = false
+                        AI.DebugInsights("Round", roundNum, "wins unreadable - outcome deferred")
                     end
                 end)
             end
@@ -920,7 +901,6 @@ local function FinalizeRound()
     ssAllyGUIDs   = nil
     ssEnemyGUIDs  = nil
     ssDeadGUIDs   = nil
-    ssDmgBuffer   = nil
 end
 
 -- ============================================================================
@@ -966,13 +946,14 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
         ssRounds           = {}
         ssRoundStart       = nil
         ssPrevWins         = 0
+        ssWinsExact        = true
         ssRoundStartWins   = nil
+        ssRoundStartExact  = nil
         ssRoundComp        = nil
         ssRoundDeaths      = nil
         ssAllyGUIDs        = nil
         ssEnemyGUIDs       = nil
         ssDeadGUIDs        = nil
-        ssDmgBuffer        = nil
         AI.DebugInsights("PVP_MATCH_ACTIVE isSS=", tostring(ssActive))
 
     -- ---- I-2: DB snapshot before zone transition (no API restriction risk) ----
@@ -982,7 +963,6 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
             -- SS zones between every round — preserve accumulated ssRounds and
             -- ssPrevWins across zone-outs. Only clear per-round timing; ssActive
             -- re-armed at next state=3.
-            pcall(self.UnregisterEvent, self, "COMBAT_LOG_EVENT_UNFILTERED")
             pcall(self.UnregisterEvent, self, "UNIT_DIED")
             ssRoundStart     = nil
             ssRoundStartWins = nil
@@ -1054,81 +1034,37 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
             -- Enum.PvPMatchState.Engaged (Midnight: 3) — round combat begins.
             -- Capture comp + per-player GUIDs from live unit APIs and snapshot
             -- the confirmed rounds-won count (baseline for outcome detection).
-            ssRoundStart     = GetTime()
-            ssRoundStartWins = ssPrevWins
+            ssRoundStart      = GetTime()
+            ssRoundStartWins  = ssPrevWins
+            ssRoundStartExact = ssWinsExact
             StartRoundCapture()
-            -- CLEU registration is protected for addons in Midnight 12.x — the
-            -- pcall almost always fails in live play, which only disables the
-            -- death-recap damage buffer. Deaths themselves come from the direct
-            -- UNIT_DIED event below; round outcomes from scoreboard sampling.
-            local ok = pcall(self.RegisterEvent, self, "COMBAT_LOG_EVENT_UNFILTERED")
-            if not ok then
-                AI.DebugInsights("CLEU registration blocked - recap damage capture disabled")
-            end
-            -- Direct death event: fires with a unit token argument in Midnight.
+            -- Direct death event; registering the combat log instead is
+            -- protected for addons in Midnight 12.x (raises
+            -- ADDON_ACTION_FORBIDDEN even inside pcall) and is not used.
             pcall(self.RegisterEvent, self, "UNIT_DIED")
 
         elseif ssRoundStart ~= nil then
             -- Any non-Engaged state while a round was active = round ended.
             -- Avoids hardcoding PostRound value (3? 4?) which varies by build.
-            pcall(self.UnregisterEvent, self, "COMBAT_LOG_EVENT_UNFILTERED")
             pcall(self.UnregisterEvent, self, "UNIT_DIED")
             FinalizeRound()
         end
 
-    -- ---- SS per-round death capture (live, only while a round is engaged) ----
-    elseif event == "COMBAT_LOG_EVENT_UNFILTERED" then
-        if not ssRoundStart then return end
-        local _, subevent, _, _, srcName, _, _, destGUID, destName, _, _, p1, p2, _, p4 =
-            CombatLogGetCurrentEventInfo()
-        if IsSecret(subevent) then return end
-        -- Secret destGUID can't be compared against captured unit GUIDs (and
-        -- would be unusable as a table key) — drop the event.
-        if not destGUID or IsSecret(destGUID) then return end
-        local tracked = (ssAllyGUIDs and ssAllyGUIDs[destGUID])
-            or (ssEnemyGUIDs and ssEnemyGUIDs[destGUID])
-
-        -- Death recap: buffer damage taken by any of the 6 tracked players.
-        if ssDmgBuffer and tracked then
-            local spell, amount
-            if subevent == "SWING_DAMAGE" then
-                spell, amount = "Melee", p1
-            elseif subevent == "SPELL_DAMAGE" or subevent == "SPELL_PERIODIC_DAMAGE"
-                or subevent == "RANGE_DAMAGE" then
-                spell, amount = p2, p4
-            end
-            if spell then
-                if IsSecret(spell) or type(spell) ~= "string" then spell = "Unknown" end
-                if IsSecret(amount) or type(amount) ~= "number" then amount = 0 end
-                if IsSecret(srcName) or type(srcName) ~= "string" then srcName = nil end
-                ssDmgBuffer[#ssDmgBuffer + 1] = {
-                    t = GetTime(), dest = destGUID, src = srcName, spell = spell, amt = amount,
-                }
-                -- Bound memory: drop entries older than the recap window
-                if #ssDmgBuffer > 400 then
-                    local cutoff = GetTime() - (GetRecapWindow() + 2)
-                    local kept = {}
-                    for _, e in ipairs(ssDmgBuffer) do
-                        if e.t >= cutoff then kept[#kept + 1] = e end
-                    end
-                    ssDmgBuffer = kept
-                end
-            end
-        end
-
-        if subevent ~= "UNIT_DIED" then return end
-        if IsSecret(destName) then destName = nil end
-        RecordRoundDeath(destGUID, destName)
-
-    -- ---- SS death capture via direct event: CLEU registration is protected
-    -- for addons in Midnight 12.x, so this is the death source in live play.
-    -- The event passes a unit token; resolve it to a GUID and reuse the same
-    -- recording path (GUID dedup collapses double-reports with CLEU). ----
+    -- ---- SS death capture (live, only while a round is engaged). The event
+    -- passes the dead player's GUID in live Midnight; unit-token form kept
+    -- as fallback. ----
     elseif event == "UNIT_DIED" then
         if not ssRoundStart then return end
         local unitId = ...
         if not unitId or IsSecret(unitId) then return end
-        -- Unit APIs can throw on secret/tainted tokens in Midnight — pcall.
+        if type(unitId) == "string" and unitId:find("^Player%-") then
+            -- Live Midnight passes the dead player's GUID, not a unit token
+            -- (confirmed by recorded trace) — use it directly.
+            RecordRoundDeath(unitId, nil)
+            return
+        end
+        -- Unit-token form: resolve to GUID. Unit APIs can throw on
+        -- secret/tainted tokens in Midnight — pcall.
         local g, nm
         local ok = pcall(function()
             g  = UnitGUID(unitId)
@@ -1143,7 +1079,6 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
         -- Match is over — no more rounds will start; stop processing state changes.
         -- If the final round is still engaged (its end state-change never fired),
         -- finalize it now so it isn't lost.
-        pcall(self.UnregisterEvent, self, "COMBAT_LOG_EVENT_UNFILTERED")
         pcall(self.UnregisterEvent, self, "UNIT_DIED")
         FinalizeRound()
         ssActive    = false
@@ -1373,7 +1308,9 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
                 ssDeadGUIDs   = nil
                 ssActive      = false
                 ssPrevWins    = 0
-                ssRoundStartWins = nil
+                ssWinsExact   = true
+                ssRoundStartWins  = nil
+                ssRoundStartExact = nil
             end
 
             rec.scoreLoaded = nil  -- don't persist internal flag

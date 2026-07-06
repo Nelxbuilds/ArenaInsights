@@ -106,6 +106,8 @@ function M.new()
         GetScoreInfo        = function(i) return api.scoreboard[i] end,
         GetCustomVictoryStatID = function() return api.victoryStatID end,
         GetScoreInfoByPlayerGuid = function(guid)
+            local p = api.units.player
+            if api.selfScore and p and guid == p.guid then return api.selfScore end
             for _, row in ipairs(api.scoreboard) do
                 if row.guid == guid then return row end
             end
@@ -217,7 +219,7 @@ function M.new()
     end
 
     env.ArenaInsightsDB = {
-        settings   = { deathRecapEnabled = true, deathRecapWindow = 8 },
+        settings   = {},
         matches    = {},
         challenges = {},
         characters = {

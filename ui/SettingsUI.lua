@@ -527,8 +527,6 @@ end
 
 local sessionPopupCheckbox
 local queueOverlayCheckbox
-local deathRecapCheckbox
-local recapWindowSlider
 
 local function BuildInsightsSettingsContent(parent)
     local f = CreateFrame("Frame", nil, parent)
@@ -564,28 +562,6 @@ local function BuildInsightsSettingsContent(parent)
         "queueOverlayEnabled", function()
             if AI.QueueOverlay and AI.QueueOverlay.Refresh then AI.QueueOverlay.Refresh() end
         end)
-    y = y + 38
-
-    local div2 = f:CreateTexture(nil, "ARTWORK")
-    div2:SetHeight(1)
-    div2:SetPoint("TOPLEFT", f, "TOPLEFT", 8, -y)
-    div2:SetPoint("TOPRIGHT", f, "TOPRIGHT", -8, -y)
-    div2:SetColorTexture(unpack(AI.COLORS.CRIMSON_DIM))
-    y = y + 14
-
-    local recapHeader = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    recapHeader:SetPoint("TOPLEFT", 8, -y)
-    recapHeader:SetText("Death Recap (Solo Shuffle)")
-    recapHeader:SetTextColor(0.96, 0.92, 0.90)
-    y = y + 24
-
-    deathRecapCheckbox = CreateCheckRow(f, "Capture death recaps during rounds", y,
-        "deathRecapEnabled", nil)
-    y = y + 38
-
-    recapWindowSlider = CreateSliderRow(f, "Recap window (seconds before death)", y,
-        "deathRecapWindow", nil,
-        { min = 3, max = 15, step = 1, default = 8, format = "%ds", formatMultiplier = 1 })
 
     return f
 end
@@ -660,8 +636,6 @@ function AI.CreateSettingsPanel(parent)
         -- Insights tab state
         sessionPopupCheckbox:SetChecked(ArenaInsightsDB.settings.sessionPopupEnabled ~= false)
         queueOverlayCheckbox:SetChecked(ArenaInsightsDB.settings.queueOverlayEnabled ~= false)
-        deathRecapCheckbox:SetChecked(ArenaInsightsDB.settings.deathRecapEnabled ~= false)
-        recapWindowSlider:SetValue(ArenaInsightsDB.settings.deathRecapWindow or 8)
         -- History tab state
         tabContent[4].UpdateChartColorLabel()
         -- Currency settings tab state

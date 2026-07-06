@@ -596,8 +596,7 @@ local ROUND_ENEMY_START = 24 + 3 * (ROUND_ICON_S + 2) + VS_W  -- x of first enem
 local ROUND_OUTCOME_X   = 24 + 6 * (ROUND_ICON_S + 2) + VS_W + 8
 local ROUND_DUR_X       = ROUND_OUTCOME_X + 40
 
--- Hover tooltip for a round row: outcome header, kill feed with killing blows,
--- and a damage breakdown for the player's own death (when a recap was captured).
+-- Hover tooltip for a round row: outcome header + kill feed.
 local function ShowRoundTooltip(hitBox)
     local r = hitBox.roundData
     if not r then return end
@@ -618,27 +617,6 @@ local function ShowRoundTooltip(hitBox)
                 GameTooltip:AddLine(ts .. "  " .. who .. " died", 0.13, 0.80, 0.13)
             else
                 GameTooltip:AddLine(ts .. "  " .. who .. " died", 0.80, 0.13, 0.13)
-            end
-            if d.recap and d.recap.killingBlow then
-                local kb = d.recap.killingBlow
-                local kbLine = "    KB: " .. (kb.spell or "?")
-                if kb.src then kbLine = kbLine .. " (" .. kb.src .. ")" end
-                GameTooltip:AddLine(kbLine, 0.48, 0.45, 0.43)
-            end
-        end
-        for _, d in ipairs(deaths) do
-            if d.side == "ally" and hitBox.myName and d.name == hitBox.myName
-                and d.recap and d.recap.lines and #d.recap.lines > 0 then
-                GameTooltip:AddLine(" ")
-                GameTooltip:AddLine("Your death - last " .. (d.recap.window or 8) .. "s:",
-                    0.65, 0.65, 0.65)
-                for _, ln in ipairs(d.recap.lines) do
-                    local txt = "  " .. (ln.spell or "?")
-                    if ln.src then txt = txt .. " - " .. ln.src end
-                    txt = txt .. ": " .. FormatStat(ln.amount) .. " (" .. (ln.hits or 1) .. "x)"
-                    GameTooltip:AddLine(txt, 0.85, 0.85, 0.85)
-                end
-                break
             end
         end
     else
@@ -783,7 +761,6 @@ local function PopulateRoundRows(detail, rec, playerCount)
         rr.durText:Show()
         rr.hitBox:Show()
         rr.hitBox.roundData = r
-        rr.hitBox.myName    = rec.charKey and rec.charKey:match("^(.+)-") or nil
 
         rr.label:SetText("R" .. r.num)
 

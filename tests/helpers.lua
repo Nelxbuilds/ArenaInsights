@@ -33,16 +33,13 @@ function H.setupSSUnits(w)
     w.api.inspectSpecs = { party1 = 72, party2 = 62 }
 end
 
-function H.kill(w, guid, name)
-    w.cleu(0, "UNIT_DIED", false, nil, nil, 0, 0, guid, name)
+-- Death via the direct UNIT_DIED event — live Midnight passes the dead
+-- player's GUID (the combat log is protected for addons and not used).
+function H.kill(w, guid)
+    w.fire("UNIT_DIED", guid)
 end
 
-function H.damage(w, srcName, destGUID, destName, spell, amount)
-    w.cleu(0, "SPELL_DAMAGE", false, "Player-1-X", srcName, 0, 0,
-        destGUID, destName, 0, 0, 12345, spell, 4, amount)
-end
-
--- Direct UNIT_DIED event (the Midnight death source when CLEU is protected).
+-- Alias for specs that exercise the raw event form (GUID or unit token).
 function H.unitDied(w, token)
     w.fire("UNIT_DIED", token)
 end
@@ -59,18 +56,15 @@ function H.playRound(w, outcome, opts)
 
     if not opts.noDeaths then
         if outcome == "win" then
-            H.damage(w, "Tester", GUIDS.arena1, "Foeone", "Chaos Bolt", 50000)
-            H.damage(w, "Tester", GUIDS.arena1, "Foeone", "Chaos Bolt", 60000)
-            H.kill(w, GUIDS.arena1, "Foeone")
+            H.kill(w, GUIDS.arena1)
             w.advance(5)
-            H.kill(w, GUIDS.arena2, "Foetwo")
-            H.kill(w, GUIDS.arena3, "Foethree")
+            H.kill(w, GUIDS.arena2)
+            H.kill(w, GUIDS.arena3)
         else
-            H.damage(w, "Foeone", GUIDS.player, "Tester", "Mortal Strike", 80000)
-            H.kill(w, GUIDS.player, "Tester")
+            H.kill(w, GUIDS.player)
             w.advance(5)
-            H.kill(w, GUIDS.party1, "Allyone")
-            H.kill(w, GUIDS.party2, "Allytwo")
+            H.kill(w, GUIDS.party1)
+            H.kill(w, GUIDS.party2)
         end
     end
 
@@ -79,9 +73,12 @@ function H.playRound(w, outcome, opts)
         w.fire("PVP_MATCH_STATE_CHANGED")
         -- Between-rounds scoreboard: the self row with cumulative wins is
         -- readable after the round ends and feeds the outcome sampling burst.
+        -- The real client fires UPDATE_BATTLEFIELD_SCORE here (recorded
+        -- trace) — firing it lets the tracer snapshot the scoreboard.
         w.ssWins = (w.ssWins or 0) + (outcome == "win" and 1 or 0)
         if not opts.noScore then
             w.api.scoreboard = { H.selfScoreRow(w.ssWins, 2400, 0) }
+            w.fire("UPDATE_BATTLEFIELD_SCORE")
         end
         w.advance(1)  -- run the sampling burst timers
     end

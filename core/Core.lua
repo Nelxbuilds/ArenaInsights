@@ -85,8 +85,6 @@ local SETTINGS_DEFAULTS = {
     sessionPopupPos          = {},
     queueOverlayEnabled      = true,
     queueOverlayPos          = {},
-    deathRecapEnabled        = true,
-    deathRecapWindow         = 8,
 }
 
 local CURRENT_SCHEMA = 2

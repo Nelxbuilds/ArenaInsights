@@ -7,7 +7,7 @@ local Stub = require("tests.wow_stub")
 local H    = require("tests.helpers")
 local GUIDS = H.GUIDS
 
-test("SS happy path: 6 rounds captured with comps, outcomes, recaps", function()
+test("SS happy path: 6 rounds captured with comps and outcomes", function()
     local w = H.newEnv()
     H.startSSMatch(w)
     local script = { "win", "loss", "win", "win", "loss", "win" }
@@ -47,7 +47,7 @@ test("round allySpecs contains teammates only, never self", function()
     eq(#r1.enemySpecs, 3, "enemy spec count")
 end)
 
-test("death recap aggregates damage by source+spell with killing blow", function()
+test("kill feed: deaths recorded with names and sides from GUID maps", function()
     local w = H.newEnv()
     H.startSSMatch(w)
     H.playRound(w, "win")
@@ -55,13 +55,9 @@ test("death recap aggregates damage by source+spell with killing blow", function
 
     local deaths = w.env.ArenaInsightsDB.matches[1].shuffle.rounds[1].deaths
     ok(#deaths >= 1, "deaths recorded")
-    local first = deaths[1]
-    eq(first.name, "Foeone", "victim")
-    eq(first.side, "enemy", "side")
-    ok(first.recap, "recap present")
-    eq(first.recap.killingBlow.spell, "Chaos Bolt", "killing blow spell")
-    eq(first.recap.lines[1].amount, 110000, "aggregated damage")
-    eq(first.recap.lines[1].hits, 2, "hit count")
+    eq(deaths[1].name, "Foeone", "victim name from GUID map")
+    eq(deaths[1].side, "enemy", "side")
+    ok(deaths[1].t ~= nil, "time into round recorded")
 end)
 
 test("regression: final round finalized when its end state-change never fires", function()
@@ -126,7 +122,7 @@ test("regression: ally-only deaths give unknown outcome when enemy GUIDs are sec
     w2.api.matchState = 3
     w2.fire("PVP_MATCH_STATE_CHANGED")
     w2.advance(20)
-    H.kill(w2, GUIDS.party1, "Allyone")   -- one teammate dies, we still win the round
+    H.kill(w2, GUIDS.party1)   -- one teammate dies, we still win the round
     w2.api.matchState = 4
     w2.fire("PVP_MATCH_STATE_CHANGED")
     H.finishSSMatch(w2, 6)
@@ -310,4 +306,54 @@ test("round comp falls back to class tokens when specs never resolve", function(
     ok(r1.enemyClasses, "class fallback captured")
     eq(#r1.enemyClasses, 3, "three enemy classes")
     eq(r1.enemyClasses[1], "MAGE", "first class token")
+end)
+
+test("UNIT_DIED with GUID arg attributes allies and infers blind enemies", function()
+    local w = H.newEnv()
+    H.setupSSUnits(w)
+    -- Live Midnight: enemy unit GUIDs are secret at round start
+    w.api.units.arena1.guid = Stub.Secret("e1")
+    w.api.units.arena2.guid = Stub.Secret("e2")
+    w.api.units.arena3.guid = Stub.Secret("e3")
+    w.fire("PLAYER_LEAVING_WORLD")
+    w.api.isSoloShuffle = true
+    w.fire("PVP_MATCH_ACTIVE")
+
+    w.api.matchState = 3
+    w.fire("PVP_MATCH_STATE_CHANGED")
+    w.advance(10)
+    H.unitDied(w, GUIDS.party1)            -- GUID arg, tracked ally
+    H.unitDied(w, "Player-1301-0D634D7A")  -- GUID arg, untracked player = enemy
+    H.unitDied(w, "Creature-0-1234")       -- pet/npc: ignored
+    w.api.matchState = 4
+    w.fire("PVP_MATCH_STATE_CHANGED")
+    w.ssWins = 1
+    w.api.scoreboard = { H.selfScoreRow(1, 2400, 0) }
+    w.advance(1)
+    H.finishSSMatch(w, 1)
+
+    local r1 = w.env.ArenaInsightsDB.matches[1].shuffle.rounds[1]
+    eq(#r1.deaths, 2, "two attributable deaths")
+    eq(r1.deaths[1].side, "ally", "tracked ally by GUID")
+    eq(r1.deaths[1].name, "Allyone", "ally name from GUID map")
+    eq(r1.deaths[2].side, "enemy", "untracked player inferred as enemy")
+end)
+
+test("wins delta not trusted when the baseline was never observed", function()
+    -- Rounds 1-2: scoreboard secret (no reads). Round 3 onward readable.
+    -- A stale baseline of 0 must not turn round 3's cumulative "2 wins"
+    -- into a round-3 win; once a read succeeds the count is exact again.
+    local w = H.newEnv()
+    H.startSSMatch(w)
+    local script = { "win", "win", "loss", "win", "loss", "win" }
+    for i, outcome in ipairs(script) do
+        H.playRound(w, outcome, { noDeaths = true, noScore = (i <= 2) })
+        if i < 6 then H.zoneBetweenRounds(w) end
+    end
+    H.finishSSMatch(w, 4)
+
+    local rounds = w.env.ArenaInsightsDB.matches[1].shuffle.rounds
+    for i, outcome in ipairs(script) do
+        eq(rounds[i].outcome, outcome, "round " .. i .. " outcome")
+    end
 end)
