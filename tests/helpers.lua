@@ -42,32 +42,48 @@ function H.damage(w, srcName, destGUID, destName, spell, amount)
         destGUID, destName, 0, 0, 12345, spell, 4, amount)
 end
 
+-- Direct UNIT_DIED event (the Midnight death source when CLEU is protected).
+function H.unitDied(w, token)
+    w.fire("UNIT_DIED", token)
+end
+
 -- One SS round: engage, some damage, kills for the losing side, round end.
 -- outcome "win" = enemies die, "loss" = my team dies.
+-- opts.noDeaths: no CLEU traffic (live behavior: CLEU registration blocked)
+-- opts.noScore:  no between-rounds scoreboard (round-outcome sampling fails)
 function H.playRound(w, outcome, opts)
     opts = opts or {}
     w.api.matchState = 3
     w.fire("PVP_MATCH_STATE_CHANGED")
     w.advance(20)
 
-    if outcome == "win" then
-        H.damage(w, "Tester", GUIDS.arena1, "Foeone", "Chaos Bolt", 50000)
-        H.damage(w, "Tester", GUIDS.arena1, "Foeone", "Chaos Bolt", 60000)
-        H.kill(w, GUIDS.arena1, "Foeone")
-        w.advance(5)
-        H.kill(w, GUIDS.arena2, "Foetwo")
-        H.kill(w, GUIDS.arena3, "Foethree")
-    else
-        H.damage(w, "Foeone", GUIDS.player, "Tester", "Mortal Strike", 80000)
-        H.kill(w, GUIDS.player, "Tester")
-        w.advance(5)
-        H.kill(w, GUIDS.party1, "Allyone")
-        H.kill(w, GUIDS.party2, "Allytwo")
+    if not opts.noDeaths then
+        if outcome == "win" then
+            H.damage(w, "Tester", GUIDS.arena1, "Foeone", "Chaos Bolt", 50000)
+            H.damage(w, "Tester", GUIDS.arena1, "Foeone", "Chaos Bolt", 60000)
+            H.kill(w, GUIDS.arena1, "Foeone")
+            w.advance(5)
+            H.kill(w, GUIDS.arena2, "Foetwo")
+            H.kill(w, GUIDS.arena3, "Foethree")
+        else
+            H.damage(w, "Foeone", GUIDS.player, "Tester", "Mortal Strike", 80000)
+            H.kill(w, GUIDS.player, "Tester")
+            w.advance(5)
+            H.kill(w, GUIDS.party1, "Allyone")
+            H.kill(w, GUIDS.party2, "Allytwo")
+        end
     end
 
     if not opts.skipRoundEnd then
         w.api.matchState = 4
         w.fire("PVP_MATCH_STATE_CHANGED")
+        -- Between-rounds scoreboard: the self row with cumulative wins is
+        -- readable after the round ends and feeds the outcome sampling burst.
+        w.ssWins = (w.ssWins or 0) + (outcome == "win" and 1 or 0)
+        if not opts.noScore then
+            w.api.scoreboard = { H.selfScoreRow(w.ssWins, 2400, 0) }
+        end
+        w.advance(1)  -- run the sampling burst timers
     end
 end
 
@@ -99,6 +115,8 @@ end
 
 function H.startSSMatch(w)
     H.setupSSUnits(w)
+    w.ssWins = 0                       -- new match = new instance: fresh scoreboard
+    w.api.scoreboard = {}
     w.fire("PLAYER_LEAVING_WORLD")     -- zoning into the arena: snapshot
     w.api.isSoloShuffle = true
     w.fire("PVP_MATCH_ACTIVE")

@@ -20,6 +20,8 @@ local ssDeadGUIDs     = nil   -- set of GUIDs already recorded dead this round (
 local ssDmgBuffer     = nil   -- rolling damage-taken buffer for death recaps (nil = recap disabled)
 local ssActive        = false -- true only inside a confirmed SS match
 local ssMatchOver     = false -- set at PVP_MATCH_COMPLETE; next PVP_MATCH_ACTIVE is a new match, never a round zone-in
+local ssPrevWins      = 0     -- self round-wins confirmed so far this match (scoreboard)
+local ssRoundStartWins = nil  -- ssPrevWins snapshot when the round engaged
 local matchBracketHint = nil  -- bracket captured early as fallback for DB-diff detection
 
 AI.InsightsDebug = false
@@ -105,6 +107,105 @@ function AI.GetLastKnownMMR(charKey, bracketIndex, specID)
         end
     end
     return nil
+end
+
+-- Session MMR movement for one bracket. Scoreboard post-match MMR fields
+-- return 0 in Midnight 12.x, so summing rec.mmrChange always shows +0.
+-- prematchMMR IS captured reliably, so the delta is derived from it instead:
+-- newest session prematchMMR (+ its mmrChange when present) minus the first.
+-- The newest match's own MMR change stays unknown until the next game.
+-- Per-spec brackets compare only matches on the newest match's spec.
+-- Returns nil when no session match has MMR data for the bracket.
+function AI.GetSessionMMRDelta(session, bracketIndex)
+    local last
+    for _, r in ipairs(session) do
+        if r.bracketIndex == bracketIndex
+            and type(r.prematchMMR) == "number" and r.prematchMMR > 0 then
+            last = r
+        end
+    end
+    if not last then return nil end
+    local first
+    for _, r in ipairs(session) do
+        if r.bracketIndex == bracketIndex
+            and type(r.prematchMMR) == "number" and r.prematchMMR > 0
+            and (not AI.PER_SPEC_BRACKETS[bracketIndex]
+                or not last.specID or r.specID == last.specID) then
+            first = r
+            break
+        end
+    end
+    return last.prematchMMR + (last.mmrChange or 0) - first.prematchMMR
+end
+
+-- ============================================================================
+-- Matchups aggregation (Matchups tab)
+-- Computed on demand from the full match dataset across all characters —
+-- nothing stored in SavedVariables. Simulated and live records never mix:
+-- live data is used unless there is none at all, then simulated (so /ai sim
+-- can exercise the UI).
+-- ============================================================================
+
+-- Arena brackets: one entry per exact enemy comp (bracket + sorted specs).
+-- Returns unsorted array of { key, bracketIndex, specs = {sid,...}, w, l }.
+function AI.GetArenaCompStats()
+    local live, sim = {}, {}
+    for _, rec in ipairs(AI.GetMatches()) do
+        if (rec.bracketIndex == AI.BRACKET_2V2 or rec.bracketIndex == AI.BRACKET_3V3)
+            and (rec.outcome == "win" or rec.outcome == "loss") then
+            local specs = {}
+            for _, sid in ipairs(rec.enemySpecs or {}) do
+                if sid and sid ~= 0 then specs[#specs + 1] = sid end
+            end
+            if #specs >= 2 then
+                table.sort(specs)
+                local key    = rec.bracketIndex .. ":" .. table.concat(specs, "-")
+                local bucket = rec.simulated and sim or live
+                local e = bucket[key]
+                if not e then
+                    e = { key = key, bracketIndex = rec.bracketIndex, specs = specs, w = 0, l = 0 }
+                    bucket[key] = e
+                end
+                if rec.outcome == "win" then e.w = e.w + 1 else e.l = e.l + 1 end
+            end
+        end
+    end
+    local chosen = next(live) and live or sim
+    local out = {}
+    for _, e in pairs(chosen) do out[#out + 1] = e end
+    return out
+end
+
+-- Solo Shuffle: round-level, one entry per enemy spec. Every captured round
+-- with a known outcome credits its win/loss against each of the round's
+-- enemy specs. Matches without per-round capture do not contribute.
+-- Returns unsorted array of { specID, w, l }.
+function AI.GetShuffleSpecStats()
+    local live, sim = {}, {}
+    for _, rec in ipairs(AI.GetMatches()) do
+        if rec.bracketIndex == AI.BRACKET_SOLO_SHUFFLE
+            and rec.shuffle and rec.shuffle.rounds then
+            local bucket = rec.simulated and sim or live
+            for _, round in ipairs(rec.shuffle.rounds) do
+                if round.outcome == "win" or round.outcome == "loss" then
+                    for _, sid in ipairs(round.enemySpecs or {}) do
+                        if sid and sid ~= 0 then
+                            local e = bucket[sid]
+                            if not e then
+                                e = { specID = sid, w = 0, l = 0 }
+                                bucket[sid] = e
+                            end
+                            if round.outcome == "win" then e.w = e.w + 1 else e.l = e.l + 1 end
+                        end
+                    end
+                end
+            end
+        end
+    end
+    local chosen = next(live) and live or sim
+    local out = {}
+    for _, e in pairs(chosen) do out[#out + 1] = e end
+    return out
 end
 
 -- Capture-quality summary: how many recorded matches have full data vs holes.
@@ -312,6 +413,67 @@ local function SplitName(full)
     return n or full, r
 end
 
+-- Rounds-won from a scoreboard row. The stat column order varies by mode, so
+-- stats[1] is not reliable: resolve the victory stat ID when the client
+-- exposes it, then match by column name, then fall back to a range-checked
+-- stats[1]. Returns nil when no readable rounds-won value exists.
+local function GetRoundsWonStat(si)
+    if not si or type(si.stats) ~= "table" then return nil end
+    local statID = C_PvP and C_PvP.GetCustomVictoryStatID
+        and tonumber(C_PvP.GetCustomVictoryStatID()) or 0
+    if statID and statID > 0 then
+        for _, st in ipairs(si.stats) do
+            if st and st.pvpStatID == statID and type(st.pvpStatValue) == "number" then
+                return st.pvpStatValue
+            end
+        end
+    end
+    for _, st in ipairs(si.stats) do
+        if st and type(st.name) == "string" and not IsSecret(st.name)
+            and st.name:lower():find("round", 1, true)
+            and type(st.pvpStatValue) == "number" then
+            return st.pvpStatValue
+        end
+    end
+    local st = si.stats[1]
+    if st and type(st.pvpStatValue) == "number"
+        and st.pvpStatValue >= 0 and st.pvpStatValue <= 6 then
+        return st.pvpStatValue
+    end
+    return nil
+end
+
+-- Self rounds-won read between rounds. The full scoreboard is not populated
+-- mid-match, but the player's own row with the victory stat is readable.
+-- Returns nil when the row or stat cannot be read.
+local function GetSelfRoundsWon()
+    if RequestBattlefieldScoreData then RequestBattlefieldScoreData() end
+    local myGuid = UnitGUID and UnitGUID("player")
+    if myGuid and C_PvP and C_PvP.GetScoreInfoByPlayerGuid then
+        local ok, si = pcall(C_PvP.GetScoreInfoByPlayerGuid, myGuid)
+        if ok then
+            local w = GetRoundsWonStat(si)
+            if w ~= nil then return w end
+        end
+    end
+    local n = (GetNumBattlefieldScores and GetNumBattlefieldScores()) or 0
+    local playerName = UnitName("player")
+    for i = 1, n do
+        local si = C_PvP and C_PvP.GetScoreInfo and C_PvP.GetScoreInfo(i)
+        if si then
+            local isSelf = si.isSelf
+            if not isSelf and si.name and not IsSecret(si.name) and playerName then
+                isSelf = (SplitName(si.name) == playerName)
+            end
+            if isSelf then
+                local w = GetRoundsWonStat(si)
+                if w ~= nil then return w end
+            end
+        end
+    end
+    return nil
+end
+
 -- Pull rating, MMR, specs, and ally/enemy split entirely from scoreboard.
 -- Combine C_PvP.GetScoreInfo with legacy GetBattlefieldScore for faction;
 -- resolve specID from talentSpec name; fallback MMR to GetBattlefieldTeamInfo
@@ -387,11 +549,8 @@ local function CaptureFromScoreboard(rec)
                 healingDone = tonumber(info and info.healingDone) or nil,
                 killingBlows = tonumber(info and info.killingBlows) or nil,
             }
-            -- SS: stats[1].pvpStatValue is round-win count
-            if info and info.stats and info.stats[1]
-                and type(info.stats[1].pvpStatValue) == "number" then
-                row.roundsWon = info.stats[1].pvpStatValue
-            end
+            -- SS: rounds-won via victory-stat lookup (column order varies)
+            row.roundsWon = GetRoundsWonStat(info)
             entries[#entries + 1] = row
             if isSelf then selfRow = row end
         end
@@ -583,17 +742,104 @@ local function BuildDeathRecap(guid)
     }
 end
 
+-- Record one participant death for the engaged round. Shared by the two
+-- death sources: the combat log (registration is protected for addons in
+-- Midnight 12.x, so it rarely arms in live play) and the direct UNIT_DIED
+-- event. Dedup by GUID so double-reports collapse into one entry.
+local function RecordRoundDeath(destGUID, destName)
+    if not ssRoundStart then return end
+    if ssDeadGUIDs and ssDeadGUIDs[destGUID] then return end
+    local side, info
+    if ssAllyGUIDs and ssAllyGUIDs[destGUID] then
+        side, info = "ally", ssAllyGUIDs[destGUID]
+    elseif ssEnemyGUIDs and ssEnemyGUIDs[destGUID] then
+        side, info = "enemy", ssEnemyGUIDs[destGUID]
+    else
+        return  -- pet/totem/non-participant
+    end
+    ssDeadGUIDs   = ssDeadGUIDs or {}
+    ssRoundDeaths = ssRoundDeaths or {}
+    ssDeadGUIDs[destGUID] = true
+    ssRoundDeaths[#ssRoundDeaths + 1] = {
+        name   = info.name or destName,
+        specID = info.specID,
+        side   = side,
+        t      = math.floor(GetTime() - ssRoundStart),
+        recap  = BuildDeathRecap(destGUID),
+    }
+    AI.DebugInsights("Death:", info.name or destName, side,
+        "t=", math.floor(GetTime() - ssRoundStart))
+end
+
+-- Re-read the round comp at round end: GetArenaOpponentSpec often returns 0
+-- at round start and resolves later, and the units are still present when
+-- the end-of-round state change fires. Class tokens recorded for units whose
+-- spec never resolves so the UI can fall back to a class icon.
+local function RefreshRoundCompAtEnd()
+    if not ssRoundComp then return end
+
+    local enemySpecs, enemyClasses = {}, {}
+    for i = 1, 5 do
+        local tok = "arena" .. i
+        if UnitExists(tok) then
+            local sid = GetArenaOpponentSpec and GetArenaOpponentSpec(i)
+            if sid and sid ~= 0 then
+                enemySpecs[#enemySpecs + 1] = sid
+            elseif UnitClass then
+                local _, ct = UnitClass(tok)
+                if ct and not IsSecret(ct) then
+                    enemyClasses[#enemyClasses + 1] = ct
+                end
+            end
+        end
+    end
+    if #enemySpecs > #(ssRoundComp.enemySpecs or {}) then
+        ssRoundComp.enemySpecs = enemySpecs
+    end
+    if #(ssRoundComp.enemySpecs or {}) < 3 and #enemyClasses > 0 then
+        ssRoundComp.enemyClasses = enemyClasses
+    end
+
+    local allySpecs, allyClasses = {}, {}
+    for i = 1, 2 do
+        local tok = "party" .. i
+        if UnitExists(tok) then
+            local sid = GetInspectSpecialization and GetInspectSpecialization(tok)
+            if sid and sid ~= 0 then
+                allySpecs[#allySpecs + 1] = sid
+            elseif UnitClass then
+                local _, ct = UnitClass(tok)
+                if ct and not IsSecret(ct) then
+                    allyClasses[#allyClasses + 1] = ct
+                end
+            end
+        end
+    end
+    if #allySpecs > #(ssRoundComp.allySpecs or {}) then
+        ssRoundComp.allySpecs = allySpecs
+    end
+    if #(ssRoundComp.allySpecs or {}) < 2 and #allyClasses > 0 then
+        ssRoundComp.allyClasses = allyClasses
+    end
+end
+
 -- Close out the engaged round: derive outcome from recorded deaths, append to
 -- ssRounds, clear per-round state. No-op when no round is engaged, so it is
 -- safe to call from both the round-end state transition and (defensively)
 -- PVP_MATCH_COMPLETE — whichever fires first wins, the other is skipped.
+-- The stored outcome is then refined by a short scoreboard sampling burst:
+-- the player's rounds-won count is the authoritative outcome source and the
+-- death-derived value only stands when the scoreboard is unreadable.
 local function FinalizeRound()
     if not ssRoundStart then return end
     local duration = math.floor(GetTime() - ssRoundStart)
     ssRoundStart = nil  -- clear immediately to prevent double-capture
     local roundNum = #ssRounds + 1
+    local baseWins = ssRoundStartWins
+    ssRoundStartWins = nil
 
     if roundNum <= 6 then
+        RefreshRoundCompAtEnd()
         local allyDead, enemyDead = 0, 0
         for _, d in ipairs(ssRoundDeaths or {}) do
             if d.side == "ally" then
@@ -626,17 +872,45 @@ local function FinalizeRound()
             end
         end
 
-        ssRounds[roundNum] = {
-            num        = roundNum,
-            outcome    = outcome,
-            duration   = duration,
-            allySpecs  = ssRoundComp and ssRoundComp.allySpecs or {},
-            enemySpecs = ssRoundComp and ssRoundComp.enemySpecs or {},
-            deaths     = ssRoundDeaths or {},
+        local entry = {
+            num          = roundNum,
+            outcome      = outcome,
+            duration     = duration,
+            allySpecs    = ssRoundComp and ssRoundComp.allySpecs or {},
+            enemySpecs   = ssRoundComp and ssRoundComp.enemySpecs or {},
+            allyClasses  = ssRoundComp and ssRoundComp.allyClasses,
+            enemyClasses = ssRoundComp and ssRoundComp.enemyClasses,
+            deaths       = ssRoundDeaths or {},
         }
-        AI.DebugInsights("Round", roundNum, "outcome:", outcome,
+        ssRounds[roundNum] = entry
+        AI.DebugInsights("Round", roundNum, "death-derived outcome:", outcome,
             "allyDead:", allyDead, "enemyDead:", enemyDead,
             "deaths:", #(ssRoundDeaths or {}))
+
+        -- Authoritative outcome: did the player's scoreboard rounds-won count
+        -- increase during this round? Sampled over a short burst because the
+        -- stat can lag the round-end state change; the max value seen wins.
+        -- Death-derived outcome above stands only when no sample is readable.
+        if baseWins ~= nil then
+            local bestSeen = -1
+            local function sample()
+                local w = GetSelfRoundsWon()
+                if w and w > bestSeen then bestSeen = w end
+            end
+            sample()
+            for i = 1, 4 do
+                C_Timer.After(0.1 * i, function()
+                    if ssRounds[roundNum] ~= entry then return end  -- new match started
+                    sample()
+                    if i == 4 and bestSeen >= 0 then
+                        entry.outcome = (bestSeen > baseWins) and "win" or "loss"
+                        ssPrevWins = math.max(bestSeen, baseWins)
+                        AI.DebugInsights("Round", roundNum, "outcome from wins delta:",
+                            entry.outcome, "(", baseWins, "->", bestSeen, ")")
+                    end
+                end)
+            end
+        end
     else
         AI.DebugInsights("roundNum > 6, skipping (roundNum=", roundNum, ")")
     end
@@ -691,6 +965,8 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
         matchBracketHint   = DetectActiveBracket() or (isSS and AI.BRACKET_SOLO_SHUFFLE or nil)
         ssRounds           = {}
         ssRoundStart       = nil
+        ssPrevWins         = 0
+        ssRoundStartWins   = nil
         ssRoundComp        = nil
         ssRoundDeaths      = nil
         ssAllyGUIDs        = nil
@@ -703,11 +979,14 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
     elseif event == "PLAYER_LEAVING_WORLD" then
         TakeDBSnapshot(AI.currentCharKey)
         if ssActive then
-            -- SS zones between every round — preserve accumulated ssRounds across zone-outs.
-            -- Only clear per-round timing; ssActive re-armed at next state=3.
+            -- SS zones between every round — preserve accumulated ssRounds and
+            -- ssPrevWins across zone-outs. Only clear per-round timing; ssActive
+            -- re-armed at next state=3.
             pcall(self.UnregisterEvent, self, "COMBAT_LOG_EVENT_UNFILTERED")
-            ssRoundStart = nil
-            ssActive     = false
+            pcall(self.UnregisterEvent, self, "UNIT_DIED")
+            ssRoundStart     = nil
+            ssRoundStartWins = nil
+            ssActive         = false
             AI.DebugInsights("PLAYER_LEAVING_WORLD: SS inter-round zone, preserving", #ssRounds, "rounds")
         end
 
@@ -773,22 +1052,27 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
 
         if newState == 3 then
             -- Enum.PvPMatchState.Engaged (Midnight: 3) — round combat begins.
-            -- Capture comp + per-player GUIDs from live unit APIs, then listen for
-            -- deaths. The scoreboard is empty mid-round, so it cannot be used here.
-            ssRoundStart = GetTime()
+            -- Capture comp + per-player GUIDs from live unit APIs and snapshot
+            -- the confirmed rounds-won count (baseline for outcome detection).
+            ssRoundStart     = GetTime()
+            ssRoundStartWins = ssPrevWins
             StartRoundCapture()
-            -- Midnight 12.0 API notes claim CLEU registration can error in some
-            -- contexts. pcall so a blocked combat log only disables death capture
-            -- (outcomes fall back to "unknown") instead of breaking round tracking.
+            -- CLEU registration is protected for addons in Midnight 12.x — the
+            -- pcall almost always fails in live play, which only disables the
+            -- death-recap damage buffer. Deaths themselves come from the direct
+            -- UNIT_DIED event below; round outcomes from scoreboard sampling.
             local ok = pcall(self.RegisterEvent, self, "COMBAT_LOG_EVENT_UNFILTERED")
             if not ok then
-                AI.DebugInsights("CLEU registration blocked - death capture disabled this round")
+                AI.DebugInsights("CLEU registration blocked - recap damage capture disabled")
             end
+            -- Direct death event: fires with a unit token argument in Midnight.
+            pcall(self.RegisterEvent, self, "UNIT_DIED")
 
         elseif ssRoundStart ~= nil then
             -- Any non-Engaged state while a round was active = round ended.
             -- Avoids hardcoding PostRound value (3? 4?) which varies by build.
             pcall(self.UnregisterEvent, self, "COMBAT_LOG_EVENT_UNFILTERED")
+            pcall(self.UnregisterEvent, self, "UNIT_DIED")
             FinalizeRound()
         end
 
@@ -834,28 +1118,25 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
 
         if subevent ~= "UNIT_DIED" then return end
         if IsSecret(destName) then destName = nil end
-        if ssDeadGUIDs and ssDeadGUIDs[destGUID] then return end
+        RecordRoundDeath(destGUID, destName)
 
-        local side, info
-        if ssAllyGUIDs and ssAllyGUIDs[destGUID] then
-            side, info = "ally", ssAllyGUIDs[destGUID]
-        elseif ssEnemyGUIDs and ssEnemyGUIDs[destGUID] then
-            side, info = "enemy", ssEnemyGUIDs[destGUID]
-        else
-            return  -- pet/totem/non-participant
-        end
-
-        ssDeadGUIDs   = ssDeadGUIDs or {}
-        ssRoundDeaths = ssRoundDeaths or {}
-        ssDeadGUIDs[destGUID] = true
-        ssRoundDeaths[#ssRoundDeaths + 1] = {
-            name   = info.name or destName,
-            specID = info.specID,
-            side   = side,
-            t      = math.floor(GetTime() - ssRoundStart),
-            recap  = BuildDeathRecap(destGUID),
-        }
-        AI.DebugInsights("Death:", info.name or destName, side, "t=", math.floor(GetTime() - ssRoundStart))
+    -- ---- SS death capture via direct event: CLEU registration is protected
+    -- for addons in Midnight 12.x, so this is the death source in live play.
+    -- The event passes a unit token; resolve it to a GUID and reuse the same
+    -- recording path (GUID dedup collapses double-reports with CLEU). ----
+    elseif event == "UNIT_DIED" then
+        if not ssRoundStart then return end
+        local unitId = ...
+        if not unitId or IsSecret(unitId) then return end
+        -- Unit APIs can throw on secret/tainted tokens in Midnight — pcall.
+        local g, nm
+        local ok = pcall(function()
+            g  = UnitGUID(unitId)
+            nm = UnitName(unitId)
+        end)
+        if not ok or not g or IsSecret(g) then return end
+        if IsSecret(nm) then nm = nil end
+        RecordRoundDeath(g, nm)
 
     -- ---- I-4 Stage 1: Stash partial record ----
     elseif event == "PVP_MATCH_COMPLETE" then
@@ -863,6 +1144,7 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
         -- If the final round is still engaged (its end state-change never fired),
         -- finalize it now so it isn't lost.
         pcall(self.UnregisterEvent, self, "COMBAT_LOG_EVENT_UNFILTERED")
+        pcall(self.UnregisterEvent, self, "UNIT_DIED")
         FinalizeRound()
         ssActive    = false
         ssMatchOver = true
@@ -1046,6 +1328,28 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
                         capturedRounds[i] = ssRounds[i]
                     end
                     rec.shuffle.rounds = capturedRounds
+                    -- Reconcile rounds whose live outcome reads failed against
+                    -- the authoritative total: distribute the unaccounted wins
+                    -- over the unknown rounds in order, rest become losses.
+                    -- Full captures only — with missing rounds the leftover
+                    -- wins cannot be attributed to specific rounds.
+                    if #capturedRounds == 6 and type(rec.wonRounds) == "number" then
+                        local confirmed = 0
+                        for _, r in ipairs(capturedRounds) do
+                            if r.outcome == "win" then confirmed = confirmed + 1 end
+                        end
+                        local remaining = rec.wonRounds - confirmed
+                        for _, r in ipairs(capturedRounds) do
+                            if r.outcome ~= "win" and r.outcome ~= "loss" then
+                                if remaining > 0 then
+                                    r.outcome = "win"
+                                    remaining = remaining - 1
+                                else
+                                    r.outcome = "loss"
+                                end
+                            end
+                        end
+                    end
                     AI.DebugInsights("shuffle: per-round capture (", #ssRounds, "/", total, "rounds)")
                     if AI.InsightsDebug then
                         local derivedWins = 0
@@ -1068,6 +1372,8 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
                 ssEnemyGUIDs  = nil
                 ssDeadGUIDs   = nil
                 ssActive      = false
+                ssPrevWins    = 0
+                ssRoundStartWins = nil
             end
 
             rec.scoreLoaded = nil  -- don't persist internal flag
@@ -1083,6 +1389,7 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
             -- Nil-guarded UI hooks — no load-order coupling to ui/
             if AI.OnMatchRecorded then AI.OnMatchRecorded(rec) end
             if AI.RefreshInsights then AI.RefreshInsights() end
+            if AI.RefreshMatchups then AI.RefreshMatchups() end
 
             snapshot = {}
         end)

@@ -39,7 +39,7 @@ local function Summarize(session)
         if bi then
             local s = per[bi]
             if not s then
-                s = { games = 0, w = 0, l = 0, d = 0, rw = 0, rl = 0, dr = 0, dm = 0 }
+                s = { games = 0, w = 0, l = 0, d = 0, rw = 0, rl = 0, dr = 0 }
                 per[bi] = s
             end
             s.games = s.games + 1
@@ -58,7 +58,6 @@ local function Summarize(session)
                 end
             end
             s.dr = s.dr + (rec.ratingChange or 0)
-            s.dm = s.dm + (rec.mmrChange or 0)
         end
     end
     return per
@@ -216,7 +215,10 @@ function AI.ShowSessionSummary(charKey)
                 r.score:SetText(s.w .. "-" .. s.l)
             end
             r.score:SetTextColor(1, 1, 1)
-            r.delta:SetText(SignText(s.dr) .. " rating  " .. SignText(s.dm) .. " MMR")
+            -- MMR from prematchMMR diff across the session (scoreboard
+            -- post-match MMR is 0 in Midnight; see AI.GetSessionMMRDelta)
+            local dm = AI.GetSessionMMRDelta(session, bi)
+            r.delta:SetText(SignText(s.dr) .. " rating  " .. SignText(dm or 0) .. " MMR")
             r.name:Show() r.score:Show() r.delta:Show()
             y = y + ROW_H
         end

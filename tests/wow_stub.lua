@@ -55,6 +55,7 @@ function M.new()
         isActiveBattlefieldArena = false,
         numArenaOpponents      = 0,
         cleu                   = nil,  -- payload for CombatLogGetCurrentEventInfo
+        victoryStatID          = nil,  -- C_PvP.GetCustomVictoryStatID
     }
     local api = self.api
 
@@ -103,11 +104,22 @@ function M.new()
         IsRatedSoloRBG      = function() return api.isRatedSoloRBG end,
         GetActiveMatchState = function() return api.matchState end,
         GetScoreInfo        = function(i) return api.scoreboard[i] end,
+        GetCustomVictoryStatID = function() return api.victoryStatID end,
+        GetScoreInfoByPlayerGuid = function(guid)
+            for _, row in ipairs(api.scoreboard) do
+                if row.guid == guid then return row end
+            end
+            return nil
+        end,
     }
 
     env.UnitExists   = function(tok) local u = api.units[tok]; return (u and u.exists ~= false) or false end
     env.UnitGUID     = function(tok) local u = api.units[tok]; return u and u.guid end
     env.UnitName     = function(tok) local u = api.units[tok]; return u and u.name end
+    env.UnitClass    = function(tok)
+        local u = api.units[tok]
+        return u and u.className, u and u.classToken
+    end
     env.UnitFullName = function(tok)
         local u = api.units[tok]
         if not u then return nil end

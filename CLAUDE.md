@@ -22,7 +22,7 @@ Addon organized around main modules:
 - **Core / Event Handling** (`core/Core.lua`): Registers PvP events, extracts rating/MMR data, persists to SavedVariables
 - **Challenge System** (`core/Challenges.lua`): Multi-spec, multi-bracket challenge CRUD with active challenge logic
 - **Overlay** (`ui/Overlay.lua`): Movable frame showing spec rows from active challenge with ratings and tooltips
-- **Main Frame** (`ui/MainFrame.lua`): Custom standalone frame (`/ai`) with vertical sidebar nav. Tabs: Insights, History, Challenges, Characters, Currency, Settings, How-To. Import/Export is embedded inside the Settings tab.
+- **Main Frame** (`ui/MainFrame.lua`): Custom standalone frame (`/ai`) with vertical sidebar nav. Tabs: Insights, Matchups, History, Challenges, Characters, Currency, Settings, How-To. Import/Export is embedded inside the Settings tab.
 - **Data Layer** (`core/Currency.lua`, `ui/ImportExportUI.lua`): Character tracking, challenge management, cross-account Import/Export
 - **System** (`system/`): Party sync, tooltip hooks, WoW Settings integration, minimap button
 

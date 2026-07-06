@@ -188,6 +188,7 @@ function AI.SimulateMatches(n)
     print(("|cffE6D200ArenaInsights|r added %d simulated match%s (/ai sim clear to remove)")
         :format(n, n == 1 and "" or "es"))
     if AI.RefreshInsights then AI.RefreshInsights() end
+    if AI.RefreshMatchups then AI.RefreshMatchups() end
     if AI.OnMatchRecorded and last then AI.OnMatchRecorded(last) end
 end
 
@@ -207,4 +208,5 @@ function AI.ClearSimulatedMatches()
     print(("|cffE6D200ArenaInsights|r removed %d simulated match%s")
         :format(removed, removed == 1 and "" or "es"))
     if AI.RefreshInsights then AI.RefreshInsights() end
+    if AI.RefreshMatchups then AI.RefreshMatchups() end
 end

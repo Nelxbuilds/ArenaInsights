@@ -30,6 +30,7 @@ local TRACKED_EVENTS = {
     "UPDATE_BATTLEFIELD_SCORE",
     "PVP_RATED_STATS_UPDATE",
     "COMBAT_LOG_EVENT_UNFILTERED",
+    "UNIT_DIED",
 }
 
 local function Scrub(v)
@@ -72,8 +73,15 @@ local function SnapScoreboard()
         local info = C_PvP and C_PvP.GetScoreInfo and C_PvP.GetScoreInfo(i)
         if info then
             local stats
-            if info.stats and info.stats[1] then
-                stats = { { pvpStatValue = Scrub(info.stats[1].pvpStatValue) } }
+            if info.stats then
+                stats = {}
+                for k, st in ipairs(info.stats) do
+                    stats[k] = {
+                        pvpStatID    = Scrub(st.pvpStatID),
+                        name         = Scrub(st.name),
+                        pvpStatValue = Scrub(st.pvpStatValue),
+                    }
+                end
             end
             rows[#rows + 1] = {
                 name = Scrub(info.name), isSelf = Scrub(info.isSelf),
@@ -152,6 +160,16 @@ local function Record(event, ...)
             if event == "PVP_RATED_STATS_UPDATE" then
                 entry.api.dbRatings = SnapDBRatings()
             end
+        elseif event == "UNIT_DIED" then
+            -- Direct death event (unit token arg): snapshot the resolved unit
+            -- + the between-rounds scoreboard so the rounds-won sampling and
+            -- death attribution can be verified from the trace.
+            local tok = ...
+            if type(tok) == "string" then entry.api.diedUnit = SnapUnit(tok) end
+            entry.api.scoreboard = SnapScoreboard()
+        end
+        if C_PvP and C_PvP.GetCustomVictoryStatID then
+            entry.api.victoryStatID = Scrub(C_PvP.GetCustomVictoryStatID())
         end
     end
 

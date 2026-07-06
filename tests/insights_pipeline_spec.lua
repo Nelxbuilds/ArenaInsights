@@ -119,7 +119,9 @@ test("regression: ally-only deaths give unknown outcome when enemy GUIDs are sec
     local r1 = w.env.ArenaInsightsDB.matches[1].shuffle.rounds[1]
     eq(r1.outcome, "loss", "full ally wipe is still a certain loss")
 
-    -- Partial ally deaths must NOT be guessed as a loss
+    -- Partial ally deaths must NOT be guessed as a loss. The death-derived
+    -- value is "unknown"; the scoreboard wins-delta then resolves it to the
+    -- true outcome (round won despite the teammate death).
     local w2 = newBlindEnv()
     w2.api.matchState = 3
     w2.fire("PVP_MATCH_STATE_CHANGED")
@@ -130,7 +132,7 @@ test("regression: ally-only deaths give unknown outcome when enemy GUIDs are sec
     H.finishSSMatch(w2, 6)
 
     local r = w2.env.ArenaInsightsDB.matches[1].shuffle.rounds[1]
-    eq(r.outcome, "unknown", "one ally death with blind enemy side stays unknown")
+    eq(r.outcome, "win", "ally death never labels a won round as loss")
 end)
 
 test("2v2: bracket from opponent count, outcome from winner arg, rating from DB diff", function()
@@ -204,4 +206,108 @@ test("session grouping splits on 1h gaps and filters by character", function()
 
     local all = w.AI.GetLatestSession(nil)
     eq(#all, 4, "cross-char session size")
+end)
+
+-- ----------------------------------------------------------------------------
+-- Live Midnight capture conditions: CLEU registration is protected for addons
+-- (no death traffic) — round outcomes must come from scoreboard wins-delta
+-- sampling, with finalize-time reconciliation as the safety net.
+-- ----------------------------------------------------------------------------
+
+test("round outcomes from scoreboard wins delta when death capture is blocked", function()
+    local w = H.newEnv()
+    H.startSSMatch(w)
+    local script = { "win", "loss", "win", "win", "loss", "win" }
+    for i, outcome in ipairs(script) do
+        H.playRound(w, outcome, { noDeaths = true })
+        if i < 6 then H.zoneBetweenRounds(w) end
+    end
+    H.finishSSMatch(w, 4)
+
+    local rec = w.env.ArenaInsightsDB.matches[1]
+    eq(#rec.shuffle.rounds, 6, "round count")
+    for i, outcome in ipairs(script) do
+        eq(rec.shuffle.rounds[i].outcome, outcome, "round " .. i .. " outcome")
+        eq(#rec.shuffle.rounds[i].deaths, 0, "round " .. i .. " has no death data")
+    end
+end)
+
+test("unreadable round outcomes reconciled against total wins at finalize", function()
+    local w = H.newEnv()
+    H.startSSMatch(w)
+    for i = 1, 6 do
+        H.playRound(w, i <= 4 and "win" or "loss", { noDeaths = true, noScore = true })
+        if i < 6 then H.zoneBetweenRounds(w) end
+    end
+    H.finishSSMatch(w, 4)
+
+    local rounds = w.env.ArenaInsightsDB.matches[1].shuffle.rounds
+    eq(#rounds, 6, "round count")
+    local wins = 0
+    for _, r in ipairs(rounds) do
+        ok(r.outcome == "win" or r.outcome == "loss", "no unknown outcomes left")
+        if r.outcome == "win" then wins = wins + 1 end
+    end
+    eq(wins, 4, "reconciled win count matches total")
+end)
+
+test("rounds-won resolved via victory stat ID when stat order varies", function()
+    local w = H.newEnv()
+    w.api.victoryStatID = 500
+    H.startSSMatch(w)
+    H.playRound(w, "win", { noDeaths = true, noScore = true })
+    w.fire("PVP_MATCH_COMPLETE", 0, 600)
+    local row = H.selfScoreRow(0, 2400, 2412)
+    row.stats = {
+        { pvpStatID = 900, name = "First Blood", pvpStatValue = 2 },  -- in 0-6 range: stats[1] fallback would misread
+        { pvpStatID = 500, name = "Victory",     pvpStatValue = 4 },
+    }
+    w.api.scoreboard = { row }
+    for i = 1, 5 do w.api.scoreboard[#w.api.scoreboard + 1] = H.enemyScoreRow(i) end
+    w.setDBRating(7, 1825)
+    w.fire("PVP_RATED_STATS_UPDATE")
+    w.advance(2)
+
+    eq(w.env.ArenaInsightsDB.matches[1].wonRounds, 4, "wonRounds from victory stat ID")
+end)
+
+test("deaths recorded via direct UNIT_DIED event when CLEU is unavailable", function()
+    local w = H.newEnv()
+    H.startSSMatch(w)
+    w.api.matchState = 3
+    w.fire("PVP_MATCH_STATE_CHANGED")
+    w.advance(10)
+    H.unitDied(w, "arena1")
+    H.unitDied(w, "arena1")   -- double-report: must dedup
+    H.unitDied(w, "party1")
+    w.api.matchState = 4
+    w.fire("PVP_MATCH_STATE_CHANGED")
+    w.ssWins = 1
+    w.api.scoreboard = { H.selfScoreRow(1, 2400, 0) }
+    w.advance(1)
+    H.finishSSMatch(w, 1)
+
+    local r1 = w.env.ArenaInsightsDB.matches[1].shuffle.rounds[1]
+    eq(#r1.deaths, 2, "two deaths after dedup")
+    eq(r1.deaths[1].side, "enemy", "arena1 is enemy side")
+    eq(r1.deaths[1].name, "Foeone", "name resolved from GUID map")
+    eq(r1.deaths[2].side, "ally", "party1 is ally side")
+    eq(r1.outcome, "win", "outcome from wins delta")
+end)
+
+test("round comp falls back to class tokens when specs never resolve", function()
+    local w = H.newEnv()
+    H.startSSMatch(w)
+    w.api.arenaSpecs = {}   -- GetArenaOpponentSpec reads 0 all round
+    w.api.units.arena1.classToken = "MAGE"
+    w.api.units.arena2.classToken = "ROGUE"
+    w.api.units.arena3.classToken = "DRUID"
+    H.playRound(w, "win", { noDeaths = true })
+    H.finishSSMatch(w, 6)
+
+    local r1 = w.env.ArenaInsightsDB.matches[1].shuffle.rounds[1]
+    eq(#r1.enemySpecs, 0, "no enemy specs resolved")
+    ok(r1.enemyClasses, "class fallback captured")
+    eq(#r1.enemyClasses, 3, "three enemy classes")
+    eq(r1.enemyClasses[1], "MAGE", "first class token")
 end)

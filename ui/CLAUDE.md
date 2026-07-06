@@ -11,13 +11,19 @@ CRITICAL: ui/MainFrame.lua MUST be last in ui/ TOC order — it calls AI.Create*
 - AI.CreateAIInput(parent, width, height) → EditBox
 - AI.ToggleMainFrame() — lazily creates main window on first call
 - AI.SelectTab(tabName) — show tab; opens main window if hidden
-- Tab names: "Insights", "History", "Challenges", "Characters", "Currency", "Settings", "How-To"
+- Tab names: "Insights", "Matchups", "History", "Challenges", "Characters", "Currency", "Settings", "How-To"
 
 ## Overlay.lua
 - Independent floating frame — not a tab in the main window
 - AI.RefreshOverlay(), AI.Overlay.Toggle(), AI.Overlay.SetLocked(bool)
 - Reads AI.specData, AI.classData (from core/Challenges.lua)
 - Lint D1: opacity=0 → EnableMouse(false) on all interactive sub-frames
+
+## MatchupsUI.lua
+- "Matchups" tab: record vs every enemy comp (2v2/3v3) and vs every enemy spec (Solo Shuffle, round-level)
+- AI.CreateMatchupsPanel(parent), AI.RefreshMatchups() (no-op while panel hidden; also refreshed OnShow)
+- Data from AI.GetArenaCompStats() / AI.GetShuffleSpecStats() (core/Insights.lua) — aggregated on demand across all characters, nothing stored in SavedVariables
+- Mode toggle Arena/Solo Shuffle, sort toggle easiest-first/hardest-first; winrate bar per row
 
 ## SessionUI.lua
 - Session summary popup — not a tab; shows after leaving a PvP instance when a match was recorded

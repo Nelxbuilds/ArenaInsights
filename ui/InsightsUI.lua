@@ -11,7 +11,7 @@ local ICON_STEP = 16   -- icon size + 2px gap
 
 local FILTER_H      = 28
 local SPEC_ROW_H    = 24
-local STATS_BAR_H   = 46
+local STATS_BAR_H   = 58
 local HEADER_H      = 20
 local GAP           = 4
 
@@ -66,6 +66,7 @@ local filterSpecID    = nil   -- nil = show all specs
 local specBarCharKey  = nil   -- char the spec bar was last built for (auto-select guard)
 local filterSession   = false -- true = only matches of the latest play session
 local sessionSet      = nil   -- identity set of session recs, rebuilt in BuildFilteredList
+local sessionList     = nil   -- same recs, chronological (for session deltas)
 
 -- ============================================================================
 -- Module state
@@ -443,6 +444,12 @@ local function FormatStat(n)
     return tostring(n)
 end
 
+local function SignText(n)
+    if n > 0 then return "|cff22cc22+" .. n .. "|r" end
+    if n < 0 then return "|cffcc2222" .. n .. "|r" end
+    return "|cff777777+0|r"
+end
+
 -- Bracket + sorted enemy specs -> stable comp key. Arena brackets only:
 -- SS enemy specs are the whole lobby, Blitz has none.
 local function CompKey(rec)
@@ -731,6 +738,30 @@ local function HideRoundRows(detail, fromIdx)
     end
 end
 
+-- Spec icons first; class icons fill remaining slots for units whose spec
+-- never resolved (recorded as allyClasses/enemyClasses on the round).
+local function FillRoundIcons(icons, maxN, specs, classes)
+    local shown = 0
+    for _, sid in ipairs(specs or {}) do
+        if shown >= maxN then break end
+        local specIcon = GetSpecIcon(sid)
+        if specIcon then
+            shown = shown + 1
+            AI.SetSpecIcon(icons[shown], specIcon)
+            icons[shown]:Show()
+        end
+    end
+    for _, ct in ipairs(classes or {}) do
+        if shown >= maxN then break end
+        shown = shown + 1
+        local ico = icons[shown]
+        ico:SetTexCoord(0, 1, 0, 1)
+        ico:SetAtlas("classicon-" .. tostring(ct):lower())
+        ico:Show()
+    end
+    for j = shown + 1, maxN do icons[j]:Hide() end
+end
+
 local function PopulateRoundRows(detail, rec, playerCount)
     local sh = rec.shuffle
     if not (sh and sh.rounds and #sh.rounds > 0) then
@@ -759,23 +790,8 @@ local function PopulateRoundRows(detail, rec, playerCount)
         if myIcon then AI.SetSpecIcon(rr.myIcon, myIcon) rr.myIcon:Show()
         else rr.myIcon:Hide() end
 
-        local allySpecs = r.allySpecs or {}
-        for j = 1, 2 do
-            local ico = rr.allyIcons[j]
-            local sid = allySpecs[j]
-            local specIcon = sid and GetSpecIcon(sid)
-            if specIcon then AI.SetSpecIcon(ico, specIcon) ico:Show()
-            else ico:Hide() end
-        end
-
-        local enemySpecs = r.enemySpecs or {}
-        for j = 1, 3 do
-            local ico = rr.enemyIcons[j]
-            local sid = enemySpecs[j]
-            local specIcon = sid and GetSpecIcon(sid)
-            if specIcon then AI.SetSpecIcon(ico, specIcon) ico:Show()
-            else ico:Hide() end
-        end
+        FillRoundIcons(rr.allyIcons, 2, r.allySpecs, r.allyClasses)
+        FillRoundIcons(rr.enemyIcons, 3, r.enemySpecs, r.enemyClasses)
 
         if r.outcome == "win" then
             rr.outcomeText:SetText("WIN")
@@ -1109,10 +1125,11 @@ end
 local function BuildFilteredList()
     filteredList = {}
 
-    sessionSet = nil
+    sessionSet, sessionList = nil, nil
     if filterSession then
-        sessionSet = {}
-        for _, rec in ipairs(AI.GetLatestSession(insightsCharKey)) do
+        sessionSet  = {}
+        sessionList = AI.GetLatestSession(insightsCharKey)
+        for _, rec in ipairs(sessionList) do
             sessionSet[rec] = true
         end
     end
@@ -1157,13 +1174,14 @@ local function RefreshStats()
     for _, bi in ipairs(AI.TRACKED_BRACKETS) do
         local blk = bracketStatBlocks[bi]
         if blk then
-            local w, l = 0, 0
+            local w, l, dr = 0, 0, 0
             local isSS = (bi == AI.BRACKET_SOLO_SHUFFLE)
             for _, rec in ipairs(AI.GetMatches()) do
                 if (not insightsCharKey or rec.charKey == insightsCharKey)
                    and rec.bracketIndex == bi
                    and (not filterSpecID or rec.specID == filterSpecID)
                    and (not sessionSet or sessionSet[rec]) then
+                    dr = dr + (rec.ratingChange or 0)
                     if isSS then
                         local won = (rec.shuffle and rec.shuffle.wonRounds) or rec.wonRounds
                         if won ~= nil then
@@ -1197,6 +1215,14 @@ local function RefreshStats()
                 blk.lossVal:SetText(tostring(l))
                 blk.winVal:SetTextColor(0.22, 0.80, 0.22)
                 blk.lossVal:SetTextColor(0.80, 0.22, 0.22)
+            end
+
+            -- Session deltas: rating gained + MMR movement for the session
+            if sessionList and total > 0 then
+                local dm = AI.GetSessionMMRDelta(sessionList, bi)
+                blk.deltaText:SetText(SignText(dr) .. "  " .. SignText(dm or 0) .. " MMR")
+            else
+                blk.deltaText:SetText("")
             end
 
             blk:SetAlpha((not anyFilter or filterBrackets[bi]) and 1.0 or 0.25)
@@ -1520,6 +1546,12 @@ function AI.CreateInsightsPanel(parent)
         blk.lossVal:SetJustifyH("CENTER")
         blk.lossVal:SetText("--")
         blk.lossVal:SetTextColor(0.48, 0.45, 0.43)
+
+        -- Session rating/MMR deltas; populated only while the Session filter is on
+        blk.deltaText = blk:CreateFontString(nil, "OVERLAY", "GameFontNormalTiny")
+        blk.deltaText:SetPoint("BOTTOM", 0, 4)
+        blk.deltaText:SetJustifyH("CENTER")
+        blk.deltaText:SetText("")
 
         if i < bracketCount then
             local sep = blk:CreateTexture(nil, "BORDER")
