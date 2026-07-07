@@ -419,8 +419,12 @@ end
 -- Rounds-won from a scoreboard row. The stat column order varies by mode, so
 -- stats[1] is not reliable: resolve the victory stat ID when the client
 -- exposes it, then match by column name, then fall back to a range-checked
--- stats[1]. Returns nil when no readable rounds-won value exists.
-local function GetRoundsWonStat(si)
+-- stats[1]. requireVictoryID skips both fallbacks: an unlabeled or
+-- name-matched column can be a DIFFERENT counter (live report: a mid-match
+-- read returned cumulative losses, inverting every round outcome) — only
+-- the ID-verified column may feed per-round outcome deltas.
+-- Returns nil when no acceptable rounds-won value exists.
+local function GetRoundsWonStat(si, requireVictoryID)
     if not si or type(si.stats) ~= "table" then return nil end
     local statID = C_PvP and C_PvP.GetCustomVictoryStatID
         and tonumber(C_PvP.GetCustomVictoryStatID()) or 0
@@ -431,6 +435,7 @@ local function GetRoundsWonStat(si)
             end
         end
     end
+    if requireVictoryID then return nil end
     for _, st in ipairs(si.stats) do
         if st and type(st.name) == "string" and not IsSecret(st.name)
             and st.name:lower():find("round", 1, true)
@@ -448,14 +453,15 @@ end
 
 -- Self rounds-won read between rounds. The full scoreboard is not populated
 -- mid-match, but the player's own row with the victory stat is readable.
--- Returns nil when the row or stat cannot be read.
+-- Strict ID-verified lookup only — this value drives per-round outcomes.
+-- Returns nil when the row or the ID-verified stat cannot be read.
 local function GetSelfRoundsWon()
     if RequestBattlefieldScoreData then RequestBattlefieldScoreData() end
     local myGuid = UnitGUID and UnitGUID("player")
     if myGuid and C_PvP and C_PvP.GetScoreInfoByPlayerGuid then
         local ok, si = pcall(C_PvP.GetScoreInfoByPlayerGuid, myGuid)
         if ok then
-            local w = GetRoundsWonStat(si)
+            local w = GetRoundsWonStat(si, true)
             if w ~= nil then return w end
         end
     end
@@ -469,7 +475,7 @@ local function GetSelfRoundsWon()
                 isSelf = (SplitName(si.name) == playerName)
             end
             if isSelf then
-                local w = GetRoundsWonStat(si)
+                local w = GetRoundsWonStat(si, true)
                 if w ~= nil then return w end
             end
         end
@@ -1269,18 +1275,36 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
                     -- Full captures only — with missing rounds the leftover
                     -- wins cannot be attributed to specific rounds.
                     if #capturedRounds == 6 and type(rec.wonRounds) == "number" then
-                        local confirmed = 0
+                        local confirmed, unknowns = 0, 0
                         for _, r in ipairs(capturedRounds) do
-                            if r.outcome == "win" then confirmed = confirmed + 1 end
+                            if r.outcome == "win" then
+                                confirmed = confirmed + 1
+                            elseif r.outcome ~= "loss" then
+                                unknowns = unknowns + 1
+                            end
                         end
-                        local remaining = rec.wonRounds - confirmed
-                        for _, r in ipairs(capturedRounds) do
-                            if r.outcome ~= "win" and r.outcome ~= "loss" then
-                                if remaining > 0 then
-                                    r.outcome = "win"
-                                    remaining = remaining - 1
-                                else
-                                    r.outcome = "loss"
+                        if confirmed > rec.wonRounds
+                            or confirmed + unknowns < rec.wonRounds then
+                            -- Per-round attribution contradicts the total: the
+                            -- live reads tracked a wrong counter (see the
+                            -- losses-column regression). Discard everything
+                            -- and fall back to positional distribution —
+                            -- totals exact, per-round order approximate.
+                            AI.DebugInsights("round outcomes contradict wonRounds (",
+                                confirmed, "vs", rec.wonRounds, ") - redistributed")
+                            for i, r in ipairs(capturedRounds) do
+                                r.outcome = (i <= rec.wonRounds) and "win" or "loss"
+                            end
+                        else
+                            local remaining = rec.wonRounds - confirmed
+                            for _, r in ipairs(capturedRounds) do
+                                if r.outcome ~= "win" and r.outcome ~= "loss" then
+                                    if remaining > 0 then
+                                        r.outcome = "win"
+                                        remaining = remaining - 1
+                                    else
+                                        r.outcome = "loss"
+                                    end
                                 end
                             end
                         end

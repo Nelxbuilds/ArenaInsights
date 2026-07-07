@@ -357,3 +357,59 @@ test("wins delta not trusted when the baseline was never observed", function()
         eq(rounds[i].outcome, outcome, "round " .. i .. " outcome")
     end
 end)
+
+test("regression: wrong stat column (losses) discarded when totals contradict", function()
+    -- Live report: per-round outcomes displayed exactly inverted. The
+    -- mid-match read had picked a column counting LOSSES, so every loss
+    -- looked like a win. In a non-draw the finalize total exposes the
+    -- contradiction and all per-round attributions must be discarded.
+    local w = H.newEnv()
+    H.startSSMatch(w)
+    local script = { "win", "loss", "win", "win", "loss", "win" }  -- 4-2
+    local lossesSoFar = 0
+    for i, outcome in ipairs(script) do
+        -- between-rounds board exposes a WRONG column: cumulative losses
+        if outcome == "loss" then lossesSoFar = lossesSoFar + 1 end
+        H.playRound(w, outcome, {
+            noDeaths = true,
+            scoreRow = H.selfScoreRow(lossesSoFar, 2400, 0),
+        })
+        if i < 6 then H.zoneBetweenRounds(w) end
+    end
+    H.finishSSMatch(w, 4)
+
+    local rounds = w.env.ArenaInsightsDB.matches[1].shuffle.rounds
+    local wins = 0
+    for _, r in ipairs(rounds) do
+        ok(r.outcome == "win" or r.outcome == "loss", "no unknown outcomes")
+        if r.outcome == "win" then wins = wins + 1 end
+    end
+    eq(wins, 4, "win total matches authoritative wonRounds")
+end)
+
+test("mid-match sampling refuses stats without the victory stat ID", function()
+    -- The stats[1] fallback is only safe on the end-of-match scoreboard;
+    -- mid-match rows with unlabeled columns must not feed outcome deltas.
+    local w = H.newEnv()
+    H.startSSMatch(w)
+    local script = { "win", "win", "loss", "win", "loss", "win" }  -- 4-2
+    local winsSoFar = 0
+    for i, outcome in ipairs(script) do
+        if outcome == "win" then winsSoFar = winsSoFar + 1 end
+        local row = H.selfScoreRow(winsSoFar, 2400, 0)
+        row.stats = { { pvpStatValue = winsSoFar } }  -- correct value, no ID
+        H.playRound(w, outcome, { noDeaths = true, scoreRow = row })
+        if i < 6 then H.zoneBetweenRounds(w) end
+    end
+    H.finishSSMatch(w, 4)
+
+    -- Unlabeled columns are refused mid-match, so rounds fall to
+    -- reconciliation: positional fill, totals exact.
+    local rounds = w.env.ArenaInsightsDB.matches[1].shuffle.rounds
+    local wins = 0
+    for _, r in ipairs(rounds) do
+        if r.outcome == "win" then wins = wins + 1 end
+    end
+    eq(wins, 4, "win total from reconciliation")
+    eq(rounds[3].outcome, "win", "positional fill, not column-derived")
+end)

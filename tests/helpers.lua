@@ -46,8 +46,9 @@ end
 
 -- One SS round: engage, some damage, kills for the losing side, round end.
 -- outcome "win" = enemies die, "loss" = my team dies.
--- opts.noDeaths: no CLEU traffic (live behavior: CLEU registration blocked)
+-- opts.noDeaths: no death events this round
 -- opts.noScore:  no between-rounds scoreboard (round-outcome sampling fails)
+-- opts.scoreRow: custom self row to publish at round end (overrides default)
 function H.playRound(w, outcome, opts)
     opts = opts or {}
     w.api.matchState = 3
@@ -77,7 +78,7 @@ function H.playRound(w, outcome, opts)
         -- trace) — firing it lets the tracer snapshot the scoreboard.
         w.ssWins = (w.ssWins or 0) + (outcome == "win" and 1 or 0)
         if not opts.noScore then
-            w.api.scoreboard = { H.selfScoreRow(w.ssWins, 2400, 0) }
+            w.api.scoreboard = { opts.scoreRow or H.selfScoreRow(w.ssWins, 2400, 0) }
             w.fire("UPDATE_BATTLEFIELD_SCORE")
         end
         w.advance(1)  -- run the sampling burst timers
@@ -98,7 +99,8 @@ function H.selfScoreRow(wonRounds, preMMR, postMMR)
         talentSpec = "Arms", faction = 0, rating = 0, ratingChange = 0,
         prematchMMR = preMMR, postmatchMMR = postMMR,
         damageDone = 1000, healingDone = 500, killingBlows = 2,
-        stats = { { pvpStatValue = wonRounds } },
+        -- pvpStatID matches the stub's default victory stat (live: 1012)
+        stats = { { pvpStatID = 1012, name = "Rounds Won", pvpStatValue = wonRounds } },
     }
 end
 

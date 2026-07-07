@@ -55,7 +55,7 @@ function M.new()
         isActiveBattlefieldArena = false,
         numArenaOpponents      = 0,
         cleu                   = nil,  -- payload for CombatLogGetCurrentEventInfo
-        victoryStatID          = nil,  -- C_PvP.GetCustomVictoryStatID
+        victoryStatID          = 1012, -- C_PvP.GetCustomVictoryStatID (live SS value)
     }
     local api = self.api
 
