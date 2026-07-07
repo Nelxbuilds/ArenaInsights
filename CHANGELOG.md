@@ -1,5 +1,22 @@
 # Changelog
 
+## [2.5.0-beta7] -- 2026-07-07
+
+### Added
+- Matchups tab: your record vs every enemy comp (2v2/3v3) and vs every enemy spec (Solo Shuffle, per captured round), computed on demand from the full match history across all characters; easiest/hardest sort, winrate bars
+- Session rating and MMR deltas shown in the Insights bracket blocks while the Session filter is active
+- Recorded live-match trace committed as a permanent test fixture (anonymized); replayed by CI on every push
+
+### Fixed
+- Session popup MMR always showed +0: session MMR is now derived from prematch MMR across the session (post-match MMR fields return 0 in Midnight)
+- Solo Shuffle round outcomes: now derived from the scoreboard rounds-won delta instead of combat-log deaths; rounds the client would not reveal are reconciled against the authoritative match total; misread stat columns (which displayed every round exactly inverted) are detected and discarded in any non-draw match
+- Solo Shuffle round comps: teammate specs backfilled by name from the end-of-match scoreboard (the inspect cache is usually cold in live), enemy trio derived by elimination; class-icon fallback when a spec never resolves
+- Deaths captured via the direct UNIT_DIED event (passes a GUID in live); kill feed restored, though sparse by what the client exposes
+- ADDON_ACTION_FORBIDDEN error spam (5x per session): combat-log registration removed entirely -- it is protected for addons in Midnight and delivered nothing
+
+### Changed
+- Death Recap feature retired (settings section removed): the game no longer exposes combat-log data to addons, so recaps could never capture
+
 ## [2.5.0-beta6] -- 2026-07-05
 
 ### Added
