@@ -1,5 +1,64 @@
 # Changelog
 
+## [2.5.0-beta6] -- 2026-07-05
+
+### Added
+- Queue overlay shows current rating and last-known MMR for rated queues (per-spec for Solo Shuffle/Blitz); the game exposes no live MMR in queue, so MMR is derived from your latest recorded match and marked with ~
+
+## [2.5.0-beta5] -- 2026-07-05
+
+### Fixed
+- Queue overlay shows average wait time (dimmed, next to elapsed) like the default client
+- Session summary popup is draggable; position persists
+
+## [2.5.0-beta4] -- 2026-07-04
+
+### Added
+- Headless test suite (tests/, `lua tests/run.lua`): stubbed WoW environment drives the unmodified capture pipeline; 9 specs including regression tests for every bug fixed in beta1
+- Trace recorder: `/ai trace` records the real in-game event stream + API values as replayable test fixtures; secrets marked
+- CI: tests run on every push; releases (v* tags) only package after tests pass on that commit
+
+### Fixed
+- Tracer scoreboard snapshot dropped the SS round-win stat (caught by the new round-trip test before it ever ran in-game)
+
+## [2.5.0-beta3] -- 2026-07-04
+
+### Added
+- Match simulator for UI testing: `/ai sim [n]` adds tagged fake matches through the real write path (rounds, deaths, recaps included); `/ai sim clear` removes them; simulated rows marked steel-blue
+- `/ai health` capture-quality summary (unknown outcomes, missing rating/MMR, SS round completeness)
+- Comp record: 2v2/3v3 row tooltip shows lifetime W-L vs that exact enemy comp
+- Win/loss streak in the session summary popup
+- Match records tagged with the current PvP season for future pruning
+
+## [2.5.0-beta2] -- 2026-07-04
+
+### Added
+- Session summary popup after leaving arena/BG: per-bracket score (SS as rounds), net rating/MMR, per-match outcome strip; toggleable, `/run AI.ShowSessionSummary()` to preview
+- "Session" filter toggle in Insights: restrict list and stats to the latest play session (matches with less than 1h between them)
+- Queue timer overlay: shows active PvP queues with live elapsed time and Ready state; draggable, toggleable
+- Death recap (Solo Shuffle): last-X-seconds damage aggregation per death with killing blow, shown in round-row hover tooltip; window adjustable in settings
+- New Settings tab "Insights" with the four new controls
+
+## [2.5.0-beta1] -- 2026-07-04
+
+Test build: merge of wip/ss-round-capture into main (v2.4.0) plus fixes.
+
+### Added
+- Solo Shuffle per-round capture from live unit/CLEU sources: per-round comp, outcome, duration, and ordered death log
+- Insights detail view: per-round comp rows with WIN/LOSS and duration, MMR column (SS only, sortable), fallback W/L summary when round data is missing
+- Prematch MMR shown in the Insights MMR column (was post-match)
+
+### Fixed
+- SS round comp no longer duplicates your own spec icon and no longer drops the second teammate
+- Recycled match-detail frames no longer show stale round rows from a previously expanded match
+- Final SS round is captured even if its end-of-round state change never fires (finalized at match complete)
+- Stale rounds from an unfinalized SS match can no longer leak into the next match's record
+- Hidden MMR sort click-zone disabled for non-SS match details
+- Insights spec filter: revisiting the tab no longer re-applies the auto spec filter after you cleared it
+- Replaced non-ASCII dashes in user-facing chat/UI strings (could render as boxes in some WoW fonts)
+- Midnight secret-value guards on round capture: secret GUIDs/names are skipped instead of stored; CLEU registration failures degrade to "round outcome unknown" instead of breaking tracking
+- Round outcome death-count fallback requires both teams' GUIDs to be identifiable — prevents won rounds being mislabeled as losses when enemy identity is API-restricted
+
 ## [2.4.0] -- 2026-06-20
 
 ### Changed

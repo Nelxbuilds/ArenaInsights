@@ -81,6 +81,10 @@ local SETTINGS_DEFAULTS = {
     hiddenCurrencies         = {},
     hiddenItems              = {},
     insightsBracketFilter    = {},
+    sessionPopupEnabled      = true,
+    sessionPopupPos          = {},
+    queueOverlayEnabled      = true,
+    queueOverlayPos          = {},
 }
 
 local CURRENT_SCHEMA = 2
@@ -114,7 +118,7 @@ local function InitDB()
     ArenaInsightsDB.matches               = ArenaInsightsDB.matches or {}
 
     RunMigrations(ArenaInsightsDB)
-    AI.Debug("InitDB complete — schema", ArenaInsightsDB.schemaVersion,
+    AI.Debug("InitDB complete - schema", ArenaInsightsDB.schemaVersion,
         "| chars:", AI.TableCount(ArenaInsightsDB.characters),
         "| challenges:", #ArenaInsightsDB.challenges)
 
@@ -277,7 +281,7 @@ local function CapturePvPStats()
             captured = captured + 1
         else
             AI.Debug("  bracket", AI.BRACKET_NAMES[bracketIndex] or bracketIndex,
-                "— rating:", tostring(rating), "(skipped)")
+                "- rating:", tostring(rating), "(skipped)")
         end
     end
     AI.Debug("CapturePvPStats: saved", captured, "brackets")
@@ -342,7 +346,7 @@ eventFrame:SetScript("OnEvent", function(self, event, ...)
             AI.migrationDismissed = ArenaInsightsDB.migrationDismissed or false
             if AI.BuildSpecData then AI.BuildSpecData() end
             if AI.InitChallenges then AI.InitChallenges() end
-            AI.Debug("ADDON_LOADED complete — specs loaded:",
+            AI.Debug("ADDON_LOADED complete - specs loaded:",
                 AI.TableCount(AI.specData), "| active challenge:",
                 AI.GetActiveChallenge and AI.GetActiveChallenge() and AI.GetActiveChallenge().name or "none")
             self:UnregisterEvent("ADDON_LOADED")
@@ -380,14 +384,41 @@ SlashCmdList["ARENAINSIGHTS"] = function(msg)
     local cmd = (msg or ""):lower():match("^%s*(%S+)") or ""
     if cmd == "help" then
         print("|cffE6D200ArenaInsights|r commands:")
-        print("  /ai — Open the main window")
-        print("  /ai overlay — Toggle overlay visibility")
-        print("  /ai lock — Lock overlay position")
-        print("  /ai unlock — Unlock overlay position")
-        print("  /ai sync — Sync with other ArenaInsights accounts in party")
-        print("  /ai sync selftest — Test serialize/chunk/parse/merge pipeline locally")
-        print("  /ai debug — Toggle debug logging")
-        print("  /ai help — Show this help")
+        print("  /ai - Open the main window")
+        print("  /ai overlay - Toggle overlay visibility")
+        print("  /ai lock - Lock overlay position")
+        print("  /ai unlock - Unlock overlay position")
+        print("  /ai sync - Sync with other ArenaInsights accounts in party")
+        print("  /ai sync selftest - Test serialize/chunk/parse/merge pipeline locally")
+        print("  /ai debug - Toggle debug logging")
+        print("  /ai sim [n] - Add n simulated matches (UI testing)")
+        print("  /ai sim clear - Remove all simulated matches")
+        print("  /ai health - Capture-quality summary of recorded matches")
+        print("  /ai trace - Start/stop recording an event trace (test fixtures)")
+        print("  /ai trace clear - Delete the recorded trace")
+        print("  /ai help - Show this help")
+        return
+    end
+    if cmd == "sim" then
+        local sub = (msg or ""):lower():match("^%s*%S+%s+(%S+)") or ""
+        if sub == "clear" then
+            if AI.ClearSimulatedMatches then AI.ClearSimulatedMatches() end
+        else
+            if AI.SimulateMatches then AI.SimulateMatches(tonumber(sub) or 1) end
+        end
+        return
+    end
+    if cmd == "health" then
+        if AI.PrintCaptureHealth then AI.PrintCaptureHealth() end
+        return
+    end
+    if cmd == "trace" then
+        local sub = (msg or ""):lower():match("^%s*%S+%s+(%S+)") or ""
+        if sub == "clear" then
+            if AI.TraceClear then AI.TraceClear() end
+        else
+            if AI.TraceToggle then AI.TraceToggle() end
+        end
         return
     end
     if cmd == "debug" then

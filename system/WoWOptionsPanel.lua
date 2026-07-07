@@ -45,7 +45,7 @@ local function BuildOptionsFrame()
     desc:SetTextColor(0.78, 0.75, 0.73)
     desc:SetText(
         "Track PvP ratings and MMR across Solo Shuffle, 2v2, 3v3, and Blitz BG\n" ..
-        "— for every spec and character on your account.\n\n" ..
+        "- for every spec and character on your account.\n\n" ..
         "Set rating challenges, view progress history, and compare specs\n" ..
         "side-by-side with the in-game overlay.\n\n" ..
         "Slash command: |cffE6D200/ai|r"

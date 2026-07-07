@@ -78,7 +78,7 @@ local navButtons = {}
 local tabPanels  = {}
 local activeTab  = nil
 
-local TAB_ORDER = { "Insights", "History", "Challenges", "Characters", "Currency", "Settings", "How-To" }
+local TAB_ORDER = { "Insights", "Matchups", "History", "Challenges", "Characters", "Currency", "Settings", "How-To" }
 
 local function SelectTab(tabName)
     if activeTab == tabName then return end
@@ -239,6 +239,9 @@ local function CreateMainFrame()
     end
     if AI.CreateInsightsPanel then
         AI.CreateInsightsPanel(tabPanels["Insights"])
+    end
+    if AI.CreateMatchupsPanel then
+        AI.CreateMatchupsPanel(tabPanels["Matchups"])
     end
     -- Default to Insights tab
     SelectTab("Insights")

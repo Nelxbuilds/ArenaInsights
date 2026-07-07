@@ -11,7 +11,7 @@ local ICON_STEP = 16   -- icon size + 2px gap
 
 local FILTER_H      = 28
 local SPEC_ROW_H    = 24
-local STATS_BAR_H   = 46
+local STATS_BAR_H   = 58
 local HEADER_H      = 20
 local GAP           = 4
 
@@ -22,13 +22,15 @@ local DROPDOWN_WIDTH      = 240
 local DETAIL_PAD_V   = 4
 local DETAIL_HDR_H   = 14
 local DETAIL_PLINE_H = 15
-local DETAIL_ROUNDS_H = 16
+local ROUND_ROW_H    = 20
+local ROUND_ICON_S   = 14
 
 -- Column x-offsets within the detail frame
 local PLINE_NAME_X = 18
 local PLINE_DMG_X  = 162
 local PLINE_HEAL_X = 230
 local PLINE_KB_X   = 298
+local PLINE_MMR_X  = 348
 
 -- Column x-offsets within each row (from row left edge)
 local COL_DATE    = 0
@@ -61,6 +63,10 @@ local OUTCOME_HOVER = {
 local insightsCharKey = nil   -- nil = show all chars
 local filterBrackets  = {}    -- [bracketIndex]=true; empty set = show all
 local filterSpecID    = nil   -- nil = show all specs
+local specBarCharKey  = nil   -- char the spec bar was last built for (auto-select guard)
+local filterSession   = false -- true = only matches of the latest play session
+local sessionSet      = nil   -- identity set of session recs, rebuilt in BuildFilteredList
+local sessionList     = nil   -- same recs, chronological (for session deltas)
 
 -- ============================================================================
 -- Module state
@@ -346,6 +352,12 @@ end
 UpdateSpecBar = function()
     for _, btn in ipairs(specIconBtns) do btn:Hide() end
 
+    -- Auto-select the active spec only when the bar is built for a different
+    -- character. Re-running for the same char (e.g. tab OnShow) must not
+    -- clobber a filter the user explicitly cleared.
+    local isNewChar = insightsCharKey ~= specBarCharKey
+    specBarCharKey  = insightsCharKey
+
     if not specBar or not insightsCharKey then return end
 
     local char = ArenaInsightsDB.characters[insightsCharKey]
@@ -406,7 +418,7 @@ UpdateSpecBar = function()
         btn:SetPoint("LEFT", specBar, "LEFT", x, 0)
         btn:Show()
 
-        if filterSpecID == nil and activeSpecID and specID == activeSpecID then
+        if isNewChar and filterSpecID == nil and activeSpecID and specID == activeSpecID then
             filterSpecID = specID
         end
 
@@ -432,92 +444,60 @@ local function FormatStat(n)
     return tostring(n)
 end
 
+local function SignText(n)
+    if n > 0 then return "|cff22cc22+" .. n .. "|r" end
+    if n < 0 then return "|cffcc2222" .. n .. "|r" end
+    return "|cff777777+0|r"
+end
+
+-- Bracket + sorted enemy specs -> stable comp key. Arena brackets only:
+-- SS enemy specs are the whole lobby, Blitz has none.
+local function CompKey(rec)
+    if rec.bracketIndex ~= AI.BRACKET_2V2 and rec.bracketIndex ~= AI.BRACKET_3V3 then
+        return nil
+    end
+    local specs = {}
+    for _, sid in ipairs(rec.enemySpecs or {}) do
+        if sid and sid ~= 0 then specs[#specs + 1] = sid end
+    end
+    if #specs < 2 then return nil end
+    table.sort(specs)
+    return rec.bracketIndex .. ":" .. table.concat(specs, "-")
+end
+
+-- Lifetime W-L of this character against the exact enemy comp of rec.
+-- Simulated and live records never mix.
+local function CompRecord(rec)
+    local key = CompKey(rec)
+    if not key then return nil end
+    local w, l = 0, 0
+    for _, r in ipairs(AI.GetMatches()) do
+        if r.charKey == rec.charKey
+            and (not r.simulated) == (not rec.simulated)
+            and CompKey(r) == key then
+            if r.outcome == "win" then
+                w = w + 1
+            elseif r.outcome == "loss" then
+                l = l + 1
+            end
+        end
+    end
+    if w + l == 0 then return nil end
+    return w, l
+end
+
 local function ShowMatchTooltip(anchor, rec)
     GameTooltip:SetOwner(anchor, "ANCHOR_RIGHT")
-
-    local dateStr = date("%b %d, %H:%M", rec.timestamp or 0)
-    local bName   = AI.BRACKET_NAMES[rec.bracketIndex] or ("Bracket " .. tostring(rec.bracketIndex))
-    local isSS    = rec.bracketIndex == AI.BRACKET_SOLO_SHUFFLE
-
-    GameTooltip:AddLine(bName .. "  -  " .. dateStr, 1, 1, 1)
-    GameTooltip:AddLine(" ")
-
-    if isSS then
-        local sh  = rec.shuffle
-        local won = (sh and sh.wonRounds) or rec.wonRounds or 0
-        GameTooltip:AddLine("Won " .. won .. " / 6 rounds", 1, 0.85, 0.1)
-        GameTooltip:AddLine(" ")
+    local bName = AI.BRACKET_NAMES[rec.bracketIndex] or ("Bracket " .. tostring(rec.bracketIndex))
+    GameTooltip:AddLine(bName .. "  -  " .. date("%b %d, %H:%M", rec.timestamp or 0), 0.65, 0.65, 0.65)
+    if rec.simulated then
+        GameTooltip:AddLine("Simulated match (/ai sim clear removes)", 0.45, 0.55, 0.75)
     end
-
-    local delta   = rec.ratingChange or 0
-    local preRat  = (rec.rating or 0) - delta
-    local preMMR  = rec.prematchMMR or 0
-    local postMMR = preMMR + (rec.mmrChange or 0)
-
-    GameTooltip:AddDoubleLine("Rating",
-        preRat .. "  ->  " .. (rec.rating or 0) .. "  " .. sign(delta),
-        0.65, 0.65, 0.65, 1, 1, 1)
-    if preMMR > 0 then
-        GameTooltip:AddDoubleLine("MMR",
-            preMMR .. "  ->  " .. postMMR .. "  " .. sign(rec.mmrChange or 0),
-            0.65, 0.65, 0.65, 1, 1, 1)
+    local w, l = CompRecord(rec)
+    if w then
+        GameTooltip:AddLine("Vs this comp: |cffffffff" .. w .. "-" .. l .. "|r lifetime", 0.65, 0.65, 0.65)
     end
-
-    if isSS then
-        local hasAny = rec.specID or (rec.enemySpecs and #rec.enemySpecs > 0)
-        if hasAny then
-            GameTooltip:AddLine(" ")
-            GameTooltip:AddLine("All specs:", 0.65, 0.65, 0.65)
-            if rec.specID then
-                GameTooltip:AddLine("  [You] " .. GetSpecName(rec.specID), 1, 0.82, 0.0)
-            end
-            for _, sid in ipairs(rec.enemySpecs or {}) do
-                GameTooltip:AddLine("  " .. GetSpecName(sid), 0.85, 0.85, 0.85)
-            end
-        end
-    else
-        local hasOwn   = rec.specID ~= nil
-        local hasAlly  = rec.allySpecs and #rec.allySpecs > 0
-        local hasEnemy = rec.enemySpecs and #rec.enemySpecs > 0
-
-        if hasOwn or hasAlly then
-            GameTooltip:AddLine(" ")
-            GameTooltip:AddLine("Your team:", 0.65, 0.65, 0.65)
-            if hasOwn then
-                GameTooltip:AddLine("  [You] " .. GetSpecName(rec.specID), 1, 0.82, 0.0)
-            end
-            for _, sid in ipairs(rec.allySpecs or {}) do
-                if sid then
-                    GameTooltip:AddLine("  " .. GetSpecName(sid), 0.85, 0.85, 0.85)
-                end
-            end
-        end
-        if hasEnemy then
-            GameTooltip:AddLine(" ")
-            GameTooltip:AddLine("Enemies:", 0.65, 0.65, 0.65)
-            for _, sid in ipairs(rec.enemySpecs) do
-                GameTooltip:AddLine("  " .. GetSpecName(sid), 0.85, 0.85, 0.85)
-            end
-        end
-    end
-
-    if isSS then
-        local sh = rec.shuffle
-        if sh and sh.rounds and #sh.rounds == 6 then
-            GameTooltip:AddLine(" ")
-            GameTooltip:AddLine("Round outcomes:", 0.65, 0.65, 0.65)
-            for _, r in ipairs(sh.rounds) do
-                local label = "  R" .. r.num .. "  " .. (r.outcome or "?"):upper()
-                if r.duration then label = label .. "  (" .. r.duration .. "s)" end
-                if r.outcome == "win" then
-                    GameTooltip:AddLine(label, 0.1, 0.9, 0.1)
-                else
-                    GameTooltip:AddLine(label, 0.9, 0.1, 0.1)
-                end
-            end
-        end
-    end
-
+    GameTooltip:AddLine("Click to expand", 0.40, 0.40, 0.40)
     GameTooltip:Show()
 end
 
@@ -539,10 +519,12 @@ local function PopulateDetailPlayers(detail)
             if not a or not b then return b == nil end
             local av = (sk == "dmg"  and (a.damageDone   or 0))
                     or (sk == "heal" and (a.healingDone   or 0))
-                    or (sk == "kb"   and (a.killingBlows  or 0)) or 0
+                    or (sk == "kb"   and (a.killingBlows  or 0))
+                    or (sk == "mmr"  and (a.prematchMMR   or 0)) or 0
             local bv = (sk == "dmg"  and (b.damageDone   or 0))
                     or (sk == "heal" and (b.healingDone   or 0))
-                    or (sk == "kb"   and (b.killingBlows  or 0)) or 0
+                    or (sk == "kb"   and (b.killingBlows  or 0))
+                    or (sk == "mmr"  and (b.prematchMMR   or 0)) or 0
             if dir == "desc" then return av > bv else return av < bv end
         end)
     end
@@ -565,12 +547,25 @@ local function PopulateDetailPlayers(detail)
             pl.dmgText:SetText(FormatStat(p.damageDone))
             pl.healText:SetText(FormatStat(p.healingDone))
             pl.kbText:SetText(FormatStat(p.killingBlows))
+            if detail.isSS then
+                local mmr = p.prematchMMR
+                if mmr and mmr > 0 then
+                    pl.mmrText:SetText(tostring(mmr))
+                    pl.mmrText:SetTextColor(sk == "mmr" and 0.92 or 0.65, sk == "mmr" and 0.92 or 0.65, sk == "mmr" and 0.92 or 0.65)
+                else
+                    pl.mmrText:SetText("--")
+                    pl.mmrText:SetTextColor(0.30, 0.30, 0.30)
+                end
+            else
+                pl.mmrText:SetText("")
+            end
             pl.dmgText:SetTextColor( sk == "dmg"  and 0.92 or 0.65, sk == "dmg"  and 0.92 or 0.65, sk == "dmg"  and 0.92 or 0.65)
             pl.healText:SetTextColor(sk == "heal" and 0.92 or 0.65, sk == "heal" and 0.92 or 0.65, sk == "heal" and 0.92 or 0.65)
             pl.kbText:SetTextColor(  sk == "kb"   and 0.92 or 0.65, sk == "kb"   and 0.92 or 0.65, sk == "kb"   and 0.92 or 0.65)
         else
             pl.icon:Hide()
-            pl.nameText:SetText("") pl.dmgText:SetText("") pl.healText:SetText("") pl.kbText:SetText("")
+            pl.nameText:SetText("") pl.dmgText:SetText("") pl.healText:SetText("")
+            pl.kbText:SetText("") pl.mmrText:SetText("")
         end
     end
 
@@ -578,7 +573,218 @@ local function PopulateDetailPlayers(detail)
         detail.hdrDmg:SetTextColor( sk == "dmg"  and 0.96 or 0.38, sk == "dmg"  and 0.92 or 0.38, sk == "dmg"  and 0.90 or 0.38)
         detail.hdrHeal:SetTextColor(sk == "heal" and 0.96 or 0.38, sk == "heal" and 0.92 or 0.38, sk == "heal" and 0.90 or 0.38)
         detail.hdrKB:SetTextColor(  sk == "kb"   and 0.96 or 0.38, sk == "kb"   and 0.92 or 0.38, sk == "kb"   and 0.90 or 0.38)
+        if detail.isSS then
+            detail.hdrMMR:Show()
+            detail.hdrMMR:SetTextColor(sk == "mmr" and 0.96 or 0.38, sk == "mmr" and 0.92 or 0.38, sk == "mmr" and 0.90 or 0.38)
+        else
+            detail.hdrMMR:Hide()
+        end
+        -- Column is hidden for non-SS — its invisible click zone must not sort
+        if detail.mmrSortBtn then
+            detail.mmrSortBtn:EnableMouse(detail.isSS and true or false)
+        end
     end
+end
+
+-- ============================================================================
+-- SS per-round comp rows
+-- ============================================================================
+
+local VS_W = 18  -- pixel width of "vs" separator area
+local ROUND_ALLY_START  = 24 + ROUND_ICON_S + 2  -- x of first ally icon
+local ROUND_ENEMY_START = 24 + 3 * (ROUND_ICON_S + 2) + VS_W  -- x of first enemy icon
+local ROUND_OUTCOME_X   = 24 + 6 * (ROUND_ICON_S + 2) + VS_W + 8
+local ROUND_DUR_X       = ROUND_OUTCOME_X + 40
+
+-- Hover tooltip for a round row: outcome header + kill feed.
+local function ShowRoundTooltip(hitBox)
+    local r = hitBox.roundData
+    if not r then return end
+    GameTooltip:SetOwner(hitBox, "ANCHOR_RIGHT")
+    local header = "Round " .. tostring(r.num or "?") .. " - " .. tostring(r.outcome or "?"):upper()
+    if r.duration then header = header .. " (" .. r.duration .. "s)" end
+    GameTooltip:AddLine(header, 1, 1, 1)
+
+    local deaths = r.deaths
+    if deaths and #deaths > 0 then
+        GameTooltip:AddLine(" ")
+        GameTooltip:AddLine("Kill feed:", 0.65, 0.65, 0.65)
+        for _, d in ipairs(deaths) do
+            local t  = d.t or 0
+            local ts = string.format("%d:%02d", math.floor(t / 60), t % 60)
+            local who = d.name or GetSpecName(d.specID)
+            if d.side == "enemy" then
+                GameTooltip:AddLine(ts .. "  " .. who .. " died", 0.13, 0.80, 0.13)
+            else
+                GameTooltip:AddLine(ts .. "  " .. who .. " died", 0.80, 0.13, 0.13)
+            end
+        end
+    else
+        GameTooltip:AddLine(" ")
+        GameTooltip:AddLine("No death data captured", 0.48, 0.45, 0.43)
+    end
+    GameTooltip:Show()
+end
+
+local function GetOrCreateRoundRow(detail, idx)
+    if detail.roundRows[idx] then return detail.roundRows[idx] end
+
+    local rr = {}
+
+    rr.label = detail:CreateFontString(nil, "OVERLAY", "GameFontNormalTiny")
+    rr.label:SetWidth(22)
+    rr.label:SetJustifyH("LEFT")
+    rr.label:SetTextColor(0.40, 0.40, 0.40)
+
+    rr.myIcon = detail:CreateTexture(nil, "OVERLAY")
+    rr.myIcon:SetSize(ROUND_ICON_S, ROUND_ICON_S)
+
+    rr.allyIcons = {}
+    for i = 1, 2 do
+        local ico = detail:CreateTexture(nil, "OVERLAY")
+        ico:SetSize(ROUND_ICON_S, ROUND_ICON_S)
+        rr.allyIcons[i] = ico
+    end
+
+    rr.vsLabel = detail:CreateFontString(nil, "OVERLAY", "GameFontNormalTiny")
+    rr.vsLabel:SetText("vs")
+    rr.vsLabel:SetTextColor(0.35, 0.35, 0.35)
+
+    rr.enemyIcons = {}
+    for i = 1, 3 do
+        local ico = detail:CreateTexture(nil, "OVERLAY")
+        ico:SetSize(ROUND_ICON_S, ROUND_ICON_S)
+        rr.enemyIcons[i] = ico
+    end
+
+    rr.outcomeText = detail:CreateFontString(nil, "OVERLAY", "GameFontNormalTiny")
+    rr.outcomeText:SetWidth(36)
+    rr.outcomeText:SetJustifyH("LEFT")
+
+    rr.durText = detail:CreateFontString(nil, "OVERLAY", "GameFontNormalTiny")
+    rr.durText:SetWidth(40)
+    rr.durText:SetJustifyH("LEFT")
+    rr.durText:SetTextColor(0.38, 0.38, 0.38)
+
+    rr.hitBox = CreateFrame("Frame", nil, detail)
+    rr.hitBox:SetSize(ROUND_DUR_X + 44, ROUND_ROW_H)
+    rr.hitBox:EnableMouse(true)
+    rr.hitBox:SetScript("OnEnter", ShowRoundTooltip)
+    rr.hitBox:SetScript("OnLeave", function() GameTooltip:Hide() end)
+
+    detail.roundRows[idx] = rr
+    return rr
+end
+
+local function PositionRoundRow(rr, yOff)
+    rr.label:ClearAllPoints()
+    rr.label:SetPoint("TOPLEFT", 0, yOff - 3)
+    rr.myIcon:ClearAllPoints()
+    rr.myIcon:SetPoint("TOPLEFT", 24, yOff - 2)
+    for i = 1, 2 do
+        rr.allyIcons[i]:ClearAllPoints()
+        rr.allyIcons[i]:SetPoint("TOPLEFT", ROUND_ALLY_START + (i - 1) * (ROUND_ICON_S + 2), yOff - 2)
+    end
+    rr.vsLabel:ClearAllPoints()
+    rr.vsLabel:SetPoint("TOPLEFT", 24 + 3 * (ROUND_ICON_S + 2) + 2, yOff - 3)
+    for i = 1, 3 do
+        rr.enemyIcons[i]:ClearAllPoints()
+        rr.enemyIcons[i]:SetPoint("TOPLEFT", ROUND_ENEMY_START + (i - 1) * (ROUND_ICON_S + 2), yOff - 2)
+    end
+    rr.outcomeText:ClearAllPoints()
+    rr.outcomeText:SetPoint("TOPLEFT", ROUND_OUTCOME_X, yOff - 3)
+    rr.durText:ClearAllPoints()
+    rr.durText:SetPoint("TOPLEFT", ROUND_DUR_X, yOff - 3)
+    rr.hitBox:ClearAllPoints()
+    rr.hitBox:SetPoint("TOPLEFT", 0, yOff)
+end
+
+-- Hide round rows from fromIdx onward — detail frames are recycled across
+-- records, so rows populated for a previous match must not linger.
+local function HideRoundRows(detail, fromIdx)
+    for i = fromIdx, #detail.roundRows do
+        local rr = detail.roundRows[i]
+        rr.label:Hide()
+        rr.myIcon:Hide()
+        rr.vsLabel:Hide()
+        rr.outcomeText:Hide()
+        rr.durText:Hide()
+        rr.hitBox:Hide()
+        rr.hitBox.roundData = nil
+        for _, ico in ipairs(rr.allyIcons) do ico:Hide() end
+        for _, ico in ipairs(rr.enemyIcons) do ico:Hide() end
+    end
+end
+
+-- Spec icons first; class icons fill remaining slots for units whose spec
+-- never resolved (recorded as allyClasses/enemyClasses on the round).
+local function FillRoundIcons(icons, maxN, specs, classes)
+    local shown = 0
+    for _, sid in ipairs(specs or {}) do
+        if shown >= maxN then break end
+        local specIcon = GetSpecIcon(sid)
+        if specIcon then
+            shown = shown + 1
+            AI.SetSpecIcon(icons[shown], specIcon)
+            icons[shown]:Show()
+        end
+    end
+    for _, ct in ipairs(classes or {}) do
+        if shown >= maxN then break end
+        shown = shown + 1
+        local ico = icons[shown]
+        ico:SetTexCoord(0, 1, 0, 1)
+        ico:SetAtlas("classicon-" .. tostring(ct):lower())
+        ico:Show()
+    end
+    for j = shown + 1, maxN do icons[j]:Hide() end
+end
+
+local function PopulateRoundRows(detail, rec, playerCount)
+    local sh = rec.shuffle
+    if not (sh and sh.rounds and #sh.rounds > 0) then
+        HideRoundRows(detail, 1)
+        return
+    end
+
+    local myIcon = GetSpecIcon(rec.specID)
+    local baseY  = -(DETAIL_PAD_V + DETAIL_HDR_H + playerCount * DETAIL_PLINE_H + 4)
+
+    for i, r in ipairs(sh.rounds) do
+        local rr   = GetOrCreateRoundRow(detail, i)
+        local yOff = baseY - (i - 1) * ROUND_ROW_H
+        PositionRoundRow(rr, yOff)
+
+        rr.label:Show()
+        rr.vsLabel:Show()
+        rr.outcomeText:Show()
+        rr.durText:Show()
+        rr.hitBox:Show()
+        rr.hitBox.roundData = r
+
+        rr.label:SetText("R" .. r.num)
+
+        if myIcon then AI.SetSpecIcon(rr.myIcon, myIcon) rr.myIcon:Show()
+        else rr.myIcon:Hide() end
+
+        FillRoundIcons(rr.allyIcons, 2, r.allySpecs, r.allyClasses)
+        FillRoundIcons(rr.enemyIcons, 3, r.enemySpecs, r.enemyClasses)
+
+        if r.outcome == "win" then
+            rr.outcomeText:SetText("WIN")
+            rr.outcomeText:SetTextColor(0.13, 0.80, 0.13)
+        elseif r.outcome == "loss" then
+            rr.outcomeText:SetText("LOSS")
+            rr.outcomeText:SetTextColor(0.80, 0.13, 0.13)
+        else
+            rr.outcomeText:SetText("?")
+            rr.outcomeText:SetTextColor(0.45, 0.45, 0.45)
+        end
+
+        rr.durText:SetText(r.duration and ("(" .. r.duration .. "s)") or "")
+    end
+
+    HideRoundRows(detail, #sh.rounds + 1)
 end
 
 -- ============================================================================
@@ -679,6 +885,11 @@ local function CreateRow(parent)
     row.detail.hdrKB:SetText("KB")
     row.detail.hdrKB:SetTextColor(0.38, 0.38, 0.38)
 
+    row.detail.hdrMMR = row.detail:CreateFontString(nil, "OVERLAY", "GameFontNormalTiny")
+    row.detail.hdrMMR:SetPoint("TOPLEFT", PLINE_MMR_X, -DETAIL_PAD_V)
+    row.detail.hdrMMR:SetText("MMR")
+    row.detail.hdrMMR:SetTextColor(0.38, 0.38, 0.38)
+
     -- Clickable sort zones over each column header
     row.detail.sortKey = nil
     row.detail.sortDir = "desc"
@@ -696,10 +907,12 @@ local function CreateRow(parent)
             end
             PopulateDetailPlayers(row.detail)
         end)
+        return btn
     end
     MkSortBtn(PLINE_DMG_X,  PLINE_HEAL_X - PLINE_DMG_X,  "dmg")
     MkSortBtn(PLINE_HEAL_X, PLINE_KB_X   - PLINE_HEAL_X, "heal")
-    MkSortBtn(PLINE_KB_X,   50,                           "kb")
+    MkSortBtn(PLINE_KB_X,   PLINE_MMR_X  - PLINE_KB_X,   "kb")
+    row.detail.mmrSortBtn = MkSortBtn(PLINE_MMR_X, 55, "mmr")
 
     -- Absorb clicks on the detail area so they don't collapse the row
     row.detail:EnableMouse(true)
@@ -736,18 +949,24 @@ local function CreateRow(parent)
 
         pl.kbText = row.detail:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
         pl.kbText:SetPoint("TOPLEFT", PLINE_KB_X, lineY)
-        pl.kbText:SetWidth(40)
+        pl.kbText:SetWidth(PLINE_MMR_X - PLINE_KB_X - 4)
         pl.kbText:SetJustifyH("LEFT")
+
+        pl.mmrText = row.detail:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        pl.mmrText:SetPoint("TOPLEFT", PLINE_MMR_X, lineY)
+        pl.mmrText:SetWidth(55)
+        pl.mmrText:SetJustifyH("LEFT")
 
         row.detail.playerLines[i] = pl
     end
 
-    -- SS rounds line (anchored dynamically in RefreshRows)
-    row.detail.roundsText = row.detail:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    row.detail.roundsText:SetWidth(480)
-    row.detail.roundsText:SetJustifyH("LEFT")
-    row.detail.roundsText:SetTextColor(0.50, 0.50, 0.50)
-    row.detail.roundsText:Hide()
+    -- SS per-round rows (created lazily, max 6)
+    row.detail.roundRows = {}
+
+    -- Fallback summary shown when shuffle.rounds is nil (no per-round state data)
+    row.detail.wonRoundsText = row.detail:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    row.detail.wonRoundsText:SetJustifyH("LEFT")
+    row.detail.wonRoundsText:Hide()
 
     row:SetScript("OnMouseDown", function(self)
         local idx = self.rowIndex
@@ -882,12 +1101,26 @@ end
 
 local function BuildFilteredList()
     filteredList = {}
+
+    sessionSet, sessionList = nil, nil
+    if filterSession then
+        sessionSet  = {}
+        sessionList = AI.GetLatestSession(insightsCharKey)
+        for _, rec in ipairs(sessionList) do
+            sessionSet[rec] = true
+        end
+    end
+
     local all = AI.GetMatches()
     for i = #all, 1, -1 do
         local rec  = all[i]
         local pass = true
 
         if insightsCharKey and rec.charKey ~= insightsCharKey then
+            pass = false
+        end
+
+        if pass and sessionSet and not sessionSet[rec] then
             pass = false
         end
 
@@ -918,12 +1151,14 @@ local function RefreshStats()
     for _, bi in ipairs(AI.TRACKED_BRACKETS) do
         local blk = bracketStatBlocks[bi]
         if blk then
-            local w, l = 0, 0
+            local w, l, dr = 0, 0, 0
             local isSS = (bi == AI.BRACKET_SOLO_SHUFFLE)
             for _, rec in ipairs(AI.GetMatches()) do
                 if (not insightsCharKey or rec.charKey == insightsCharKey)
                    and rec.bracketIndex == bi
-                   and (not filterSpecID or rec.specID == filterSpecID) then
+                   and (not filterSpecID or rec.specID == filterSpecID)
+                   and (not sessionSet or sessionSet[rec]) then
+                    dr = dr + (rec.ratingChange or 0)
                     if isSS then
                         local won = (rec.shuffle and rec.shuffle.wonRounds) or rec.wonRounds
                         if won ~= nil then
@@ -959,6 +1194,14 @@ local function RefreshStats()
                 blk.lossVal:SetTextColor(0.80, 0.22, 0.22)
             end
 
+            -- Session deltas: rating gained + MMR movement for the session
+            if sessionList and total > 0 then
+                local dm = AI.GetSessionMMRDelta(sessionList, bi)
+                blk.deltaText:SetText(SignText(dr) .. "  " .. SignText(dm or 0) .. " MMR")
+            else
+                blk.deltaText:SetText("")
+            end
+
             blk:SetAlpha((not anyFilter or filterBrackets[bi]) and 1.0 or 0.25)
         end
     end
@@ -986,7 +1229,11 @@ RefreshRows = function()
         row.rowIndex  = i
 
         row.dateText:SetText(date("%b %d  %H:%M", rec.timestamp or 0))
-        row.dateText:SetTextColor(0.65, 0.65, 0.65)
+        if rec.simulated then
+            row.dateText:SetTextColor(0.45, 0.55, 0.75)  -- steel blue = simulated
+        else
+            row.dateText:SetTextColor(0.65, 0.65, 0.65)
+        end
 
         local out = rec.outcome or "unknown"
         local baseColor  = OUTCOME_BASE[out]  or OUTCOME_BASE.unknown
@@ -1019,7 +1266,7 @@ RefreshRows = function()
 
         local preMMR = rec.prematchMMR or 0
         if preMMR > 0 then
-            row.mmrText:SetText(tostring(preMMR + (rec.mmrChange or 0)))
+            row.mmrText:SetText(tostring(preMMR))
             row.mmrText:SetTextColor(0.75, 0.75, 0.75)
         else
             row.mmrText:SetText("Skirm")
@@ -1045,6 +1292,7 @@ RefreshRows = function()
                 damageDone   = rec.damageDone,
                 healingDone  = rec.healingDone,
                 killingBlows = rec.killingBlows,
+                prematchMMR  = rec.prematchMMR,
             }
             if not isSS then
                 for _, p in ipairs(rec.allyPlayers or {}) do
@@ -1056,29 +1304,38 @@ RefreshRows = function()
             end
 
             row.detail.playerData = players
+            row.detail.isSS = isSS
+            if not isSS and row.detail.sortKey == "mmr" then
+                row.detail.sortKey = nil  -- recycled detail sorted by a column non-SS doesn't have
+            end
             PopulateDetailPlayers(row.detail)
             local playerCount = math.min(#players, 6)
 
-            -- SS rounds line below player list
+            -- SS per-round comp rows below player list
             local sh = rec.shuffle
-            local hasRounds = sh and sh.rounds and #sh.rounds == 6
-            local roundsY = -(DETAIL_PAD_V + DETAIL_HDR_H + playerCount * DETAIL_PLINE_H + 2)
+            local hasRounds = isSS and sh and sh.rounds and #sh.rounds > 0
+            local roundCount = hasRounds and #sh.rounds or 0
             local detailH = DETAIL_PAD_V + DETAIL_HDR_H + playerCount * DETAIL_PLINE_H + DETAIL_PAD_V
 
             if hasRounds then
-                local parts = {}
-                for _, r in ipairs(sh.rounds) do
-                    local outcomeStr = (r.outcome == "win") and "|cff22cc22WIN|r" or "|cffcc2222LOSS|r"
-                    local dur = r.duration and ("(" .. r.duration .. "s)") or ""
-                    parts[#parts + 1] = "R" .. r.num .. " " .. outcomeStr .. " " .. dur
-                end
-                row.detail.roundsText:ClearAllPoints()
-                row.detail.roundsText:SetPoint("TOPLEFT", 0, roundsY)
-                row.detail.roundsText:SetText(table.concat(parts, "  "))
-                row.detail.roundsText:Show()
-                detailH = detailH + DETAIL_ROUNDS_H
+                row.detail.wonRoundsText:Hide()
+                PopulateRoundRows(row.detail, rec, playerCount)
+                detailH = detailH + roundCount * ROUND_ROW_H + 4
+            elseif isSS and sh and sh.wonRounds ~= nil then
+                -- No per-round state data — show won/lost summary as fallback
+                HideRoundRows(row.detail, 1)
+                local summaryY = -(DETAIL_PAD_V + DETAIL_HDR_H + playerCount * DETAIL_PLINE_H + 4)
+                local won  = sh.wonRounds or 0
+                local lost = (sh.totalRounds or 6) - won
+                row.detail.wonRoundsText:ClearAllPoints()
+                row.detail.wonRoundsText:SetPoint("TOPLEFT", 0, summaryY)
+                row.detail.wonRoundsText:SetText(
+                    "|cff22cc22" .. won .. " W|r  |cffcc2222" .. lost .. " L|r  (round detail unavailable)")
+                row.detail.wonRoundsText:Show()
+                detailH = detailH + ROUND_ROW_H
             else
-                row.detail.roundsText:Hide()
+                HideRoundRows(row.detail, 1)
+                row.detail.wonRoundsText:Hide()
             end
 
             row.detail:SetHeight(detailH)
@@ -1171,6 +1428,47 @@ function AI.CreateInsightsPanel(parent)
     specBar:SetPoint("TOPLEFT", PAD, -(PAD + FILTER_H + GAP))
     specBar:SetPoint("TOPRIGHT", -PAD, -(PAD + FILTER_H + GAP))
 
+    -- Session filter toggle (latest play session only), right end of the spec bar row
+    local sessBtn = CreateFrame("Button", nil, specBar, "BackdropTemplate")
+    sessBtn:SetSize(62, SPEC_ROW_H - 4)
+    sessBtn:SetPoint("RIGHT", specBar, "RIGHT", 0, 0)
+    sessBtn:SetBackdrop({
+        bgFile   = "Interface\\Buttons\\WHITE8x8",
+        edgeFile = "Interface\\Buttons\\WHITE8x8",
+        edgeSize = 1,
+    })
+    sessBtn.label = sessBtn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    sessBtn.label:SetPoint("CENTER")
+    sessBtn.label:SetText("Session")
+
+    local function UpdateSessionToggle()
+        if filterSession then
+            sessBtn:SetBackdropColor(0.7, 0.1, 0.1, 0.8)
+            sessBtn:SetBackdropBorderColor(0.9, 0.15, 0.15, 1)
+            sessBtn.label:SetTextColor(1, 1, 1)
+        else
+            sessBtn:SetBackdropColor(0.15, 0.15, 0.15, 0.8)
+            sessBtn:SetBackdropBorderColor(0.3, 0.3, 0.3, 0.5)
+            sessBtn.label:SetTextColor(0.7, 0.7, 0.7)
+        end
+    end
+    UpdateSessionToggle()
+
+    sessBtn:SetScript("OnClick", function()
+        filterSession = not filterSession
+        expandedIndex = nil
+        UpdateSessionToggle()
+        RefreshRows()
+    end)
+    sessBtn:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:AddLine("Session filter", 1, 1, 1)
+        GameTooltip:AddLine("Show only the latest play session (matches", 0.7, 0.7, 0.7)
+        GameTooltip:AddLine("with less than 1 hour between them).", 0.7, 0.7, 0.7)
+        GameTooltip:Show()
+    end)
+    sessBtn:SetScript("OnLeave", function() GameTooltip:Hide() end)
+
     -- Stats bar (W/D/L per bracket, below spec bar)
     local statsBar = CreateFrame("Frame", nil, parent)
     statsBar:SetHeight(STATS_BAR_H)
@@ -1225,6 +1523,12 @@ function AI.CreateInsightsPanel(parent)
         blk.lossVal:SetJustifyH("CENTER")
         blk.lossVal:SetText("--")
         blk.lossVal:SetTextColor(0.48, 0.45, 0.43)
+
+        -- Session rating/MMR deltas; populated only while the Session filter is on
+        blk.deltaText = blk:CreateFontString(nil, "OVERLAY", "GameFontNormalTiny")
+        blk.deltaText:SetPoint("BOTTOM", 0, 4)
+        blk.deltaText:SetJustifyH("CENTER")
+        blk.deltaText:SetText("")
 
         if i < bracketCount then
             local sep = blk:CreateTexture(nil, "BORDER")
