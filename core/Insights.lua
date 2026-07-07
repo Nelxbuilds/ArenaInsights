@@ -658,6 +658,7 @@ end
 local function StartRoundCapture()
     local allyGUIDs, enemyGUIDs = {}, {}
     local allySpecs, enemySpecs = {}, {}
+    local allyNames = {}
 
     -- Player (self) — GUID map only. allySpecs holds teammates exclusively:
     -- the UI renders the player's own spec from rec.specID, so including it
@@ -682,6 +683,7 @@ local function StartRoundCapture()
             sid = (sid and sid ~= 0) and sid or nil
             if g and not IsSecret(g) then allyGUIDs[g] = { name = nm, specID = sid } end
             if sid then allySpecs[#allySpecs + 1] = sid end
+            if nm then allyNames[#allyNames + 1] = nm end
         end
     end
 
@@ -702,7 +704,7 @@ local function StartRoundCapture()
         end
     end
 
-    ssRoundComp   = { allySpecs = allySpecs, enemySpecs = enemySpecs }
+    ssRoundComp   = { allySpecs = allySpecs, enemySpecs = enemySpecs, allyNames = allyNames }
     ssAllyGUIDs   = allyGUIDs
     ssEnemyGUIDs  = enemyGUIDs
     ssRoundDeaths = {}
@@ -856,6 +858,7 @@ local function FinalizeRound()
             enemySpecs   = ssRoundComp and ssRoundComp.enemySpecs or {},
             allyClasses  = ssRoundComp and ssRoundComp.allyClasses,
             enemyClasses = ssRoundComp and ssRoundComp.enemyClasses,
+            allyNames    = ssRoundComp and ssRoundComp.allyNames,
             deaths       = ssRoundDeaths or {},
         }
         ssRounds[roundNum] = entry
@@ -907,6 +910,54 @@ local function FinalizeRound()
     ssAllyGUIDs   = nil
     ssEnemyGUIDs  = nil
     ssDeadGUIDs   = nil
+end
+
+-- Backfill round comps from the end-of-match scoreboard (fully readable at
+-- finalize, unlike mid-match rows). Ally specs resolve by teammate name;
+-- with both allies known and all 5 other lobby specs known, the enemy trio
+-- follows by elimination: the 5 others minus the 2 allies. Fixes rounds
+-- where the inspect cache was cold or GetArenaOpponentSpec read 0.
+local function BackfillRoundComps(rec, rounds)
+    local map   = {}   -- short name -> specID for the 5 other lobby players
+    local lobby = {}   -- specID multiset of the 5 others
+    local known = 0
+    for _, p in ipairs(rec.enemyPlayers or {}) do
+        if p.specID then
+            if p.name then map[p.name] = p.specID end
+            lobby[p.specID] = (lobby[p.specID] or 0) + 1
+            known = known + 1
+        end
+    end
+    if known == 0 then return end
+
+    for _, round in ipairs(rounds) do
+        local names = round.allyNames or {}
+        local resolved = {}
+        for _, nm in ipairs(names) do
+            if map[nm] then resolved[#resolved + 1] = map[nm] end
+        end
+        if #resolved > #(round.allySpecs or {}) then
+            round.allySpecs   = resolved
+            round.allyClasses = nil
+        end
+        if #(round.enemySpecs or {}) < 3 and known == 5
+            and #names == 2 and #resolved == 2 then
+            local counts = {}
+            for sid, c in pairs(lobby) do counts[sid] = c end
+            for _, sid in ipairs(resolved) do
+                counts[sid] = (counts[sid] or 0) - 1
+            end
+            local trio = {}
+            for sid, c in pairs(counts) do
+                for _ = 1, c do trio[#trio + 1] = sid end
+            end
+            if #trio == 3 then
+                table.sort(trio)
+                round.enemySpecs   = trio
+                round.enemyClasses = nil
+            end
+        end
+    end
 end
 
 -- ============================================================================
@@ -1269,6 +1320,7 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
                         capturedRounds[i] = ssRounds[i]
                     end
                     rec.shuffle.rounds = capturedRounds
+                    BackfillRoundComps(rec, capturedRounds)
                     -- Reconcile rounds whose live outcome reads failed against
                     -- the authoritative total: distribute the unaccounted wins
                     -- over the unknown rounds in order, rest become losses.

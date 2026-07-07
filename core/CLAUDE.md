@@ -42,7 +42,8 @@ Load order: Core.lua → Currency.lua → Challenges.lua
 - outcome: SS uses wonRounds (>3 "win", <3 "loss", ==3 "draw"); all other brackets use ratingChange sign
 - wonRounds — SS only (top-level): total rounds won, via GetRoundsWonStat over the self scoreboard row
 - shuffle — SS only: { wonRounds, lostRounds, totalRounds=6, rounds? }
-  - rounds[i] = { num, outcome, duration, allySpecs, enemySpecs, deaths }; stored when any rounds captured (#ssRounds > 0), so partial/DNF matches keep what was seen
+  - rounds[i] = { num, outcome, duration, allySpecs, enemySpecs, allyNames, allyClasses?, enemyClasses?, deaths }; stored when any rounds captured (#ssRounds > 0), so partial/DNF matches keep what was seen
+  - BackfillRoundComps at finalize: ally specs resolved by teammate name from the readable end-of-match scoreboard (inspect cache is usually cold live); with both allies known and all 5 other lobby specs known, the enemy trio is derived by elimination (5 others minus 2 allies) — round comps are exact whenever the final scoreboard is readable
   - rounds[i].allySpecs = teammates ONLY (max 2) — self is rendered from rec.specID; do not include the player's own spec here
   - rounds[i].outcome from the rounds-won sampling burst (see above); death counts and finalize reconciliation as fallbacks
   - rounds[i].deaths = [{ name, specID, side ("ally"/"enemy"), t }] — ordered kill log, t = seconds into round; sparse in live (UNIT_DIED does not fire for every death)

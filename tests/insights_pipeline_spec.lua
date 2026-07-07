@@ -413,3 +413,42 @@ test("mid-match sampling refuses stats without the victory stat ID", function()
     eq(wins, 4, "win total from reconciliation")
     eq(rounds[3].outcome, "win", "positional fill, not column-derived")
 end)
+
+test("round comps backfilled from the final scoreboard by teammate name", function()
+    -- Live gap: the ally rogue showed class-only in rounds where the
+    -- inspect cache was cold. The end-of-match scoreboard knows every
+    -- player's spec; ally specs backfill by name, and with both allies
+    -- known the enemy trio follows by elimination.
+    local w = H.newEnv()
+    H.setupSSUnits(w)
+    w.api.inspectSpecs = {}   -- inspect cache cold: no live ally specs
+    w.api.arenaSpecs   = {}   -- enemy spec API dead too
+    w.ssWins = 0
+    w.api.scoreboard = {}
+    w.fire("PLAYER_LEAVING_WORLD")
+    w.api.isSoloShuffle = true
+    w.fire("PVP_MATCH_ACTIVE")
+    H.playRound(w, "win", { noDeaths = true })
+    w.fire("PVP_MATCH_COMPLETE", 0, 600)
+
+    w.api.scoreboard = {
+        H.selfScoreRow(6, 2400, 2412),
+        { name = "Allyone-TestRealm",   classToken = "ROGUE",       talentSpec = "Assassination", faction = 0 },
+        { name = "Allytwo-TestRealm",   classToken = "MAGE",        talentSpec = "Fire",          faction = 0 },
+        { name = "Foeone-OtherRealm",   classToken = "PALADIN",     talentSpec = "Retribution",   faction = 1 },
+        { name = "Foetwo-OtherRealm",   classToken = "DEATHKNIGHT", talentSpec = "Frost",         faction = 1 },
+        { name = "Foethree-OtherRealm", classToken = "MONK",        talentSpec = "Mistweaver",    faction = 1 },
+    }
+    w.setDBRating(7, 1825)
+    w.fire("PVP_RATED_STATS_UPDATE")
+    w.advance(2)
+
+    local r1 = w.env.ArenaInsightsDB.matches[1].shuffle.rounds[1]
+    eq(#r1.allySpecs, 2, "ally specs backfilled")
+    eq(r1.allySpecs[1], 259, "rogue teammate resolved to Assassination")
+    eq(r1.allySpecs[2], 63, "mage teammate resolved to Fire")
+    eq(#r1.enemySpecs, 3, "enemy trio derived by elimination")
+    eq(r1.enemySpecs[1], 70, "ret paladin")
+    eq(r1.enemySpecs[2], 251, "frost dk")
+    eq(r1.enemySpecs[3], 270, "mistweaver monk")
+end)

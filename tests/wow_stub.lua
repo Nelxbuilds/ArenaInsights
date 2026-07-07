@@ -163,10 +163,16 @@ function M.new()
             c[11], c[12], c[13], c[14], c[15]
     end
 
-    -- Class/spec enumeration: two classes x two specs, enough for ResolveSpecID
+    -- Class/spec enumeration for ResolveSpecID; real spec IDs so
+    -- scoreboard-derived specs match arenaSpecs values (fixtures rely on it)
     local CLASSES = {
-        { token = "WARRIOR", id = 1, specs = { { 71, "Arms" }, { 72, "Fury" } } },
-        { token = "MAGE",    id = 8, specs = { { 62, "Arcane" }, { 63, "Fire" } } },
+        { token = "WARRIOR",     id = 1,  specs = { { 71, "Arms" }, { 72, "Fury" } } },
+        { token = "PALADIN",     id = 2,  specs = { { 65, "Holy" }, { 66, "Protection" }, { 70, "Retribution" } } },
+        { token = "ROGUE",       id = 4,  specs = { { 259, "Assassination" }, { 260, "Outlaw" }, { 261, "Subtlety" } } },
+        { token = "PRIEST",      id = 5,  specs = { { 256, "Discipline" }, { 257, "Holy" }, { 258, "Shadow" } } },
+        { token = "DEATHKNIGHT", id = 6,  specs = { { 250, "Blood" }, { 251, "Frost" }, { 252, "Unholy" } } },
+        { token = "MAGE",        id = 8,  specs = { { 62, "Arcane" }, { 63, "Fire" }, { 64, "Frost" } } },
+        { token = "MONK",        id = 10, specs = { { 268, "Brewmaster" }, { 269, "Windwalker" }, { 270, "Mistweaver" } } },
     }
     env.GetNumClasses = function() return #CLASSES end
     env.GetClassInfo  = function(i)
