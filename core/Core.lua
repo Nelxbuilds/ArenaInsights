@@ -388,6 +388,7 @@ SlashCmdList["ARENAINSIGHTS"] = function(msg)
         print("  /ai overlay - Toggle overlay visibility")
         print("  /ai lock - Lock overlay position")
         print("  /ai unlock - Unlock overlay position")
+        print("  /ai session - Show the session summary popup")
         print("  /ai sync - Sync with other ArenaInsights accounts in party")
         print("  /ai sync selftest - Test serialize/chunk/parse/merge pipeline locally")
         print("  /ai debug - Toggle debug logging")
@@ -410,6 +411,10 @@ SlashCmdList["ARENAINSIGHTS"] = function(msg)
     end
     if cmd == "health" then
         if AI.PrintCaptureHealth then AI.PrintCaptureHealth() end
+        return
+    end
+    if cmd == "session" then
+        if AI.ShowSessionSummary then AI.ShowSessionSummary(AI.currentCharKey) end
         return
     end
     if cmd == "trace" then

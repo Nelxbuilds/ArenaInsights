@@ -8,15 +8,16 @@ local addonName, AI = ...
 
 local POPUP_W     = 340
 local ROW_H       = 20
-local BLOCK_W     = 8
-local BLOCK_H     = 14
-local BLOCK_GAP   = 2
-local MAX_BLOCKS  = 34
+local CHART_H     = 96
+local PLOT_PAD_X  = 8
+local PLOT_PAD_Y  = 8
+local MARKER_SIZE = 5
 local PAD         = 12
 
 local popup
-local bracketRows = {}
-local blockPool   = {}
+local bracketRows  = {}
+local chartLines   = {}
+local chartMarkers = {}
 local pendingCharKey = nil  -- set when a match records while still inside the arena
 
 local OUTCOME_COLOR = {
@@ -24,6 +25,14 @@ local OUTCOME_COLOR = {
     loss    = { 0.75, 0.13, 0.13 },
     draw    = { 0.85, 0.72, 0.15 },
     unknown = { 0.40, 0.40, 0.40 },
+}
+
+-- Per-bracket line colour (doubles as the swatch on each summary row)
+local BRACKET_COLOR = {
+    [AI.BRACKET_2V2]          = { 0.36, 0.72, 0.95 },
+    [AI.BRACKET_3V3]          = { 0.55, 0.85, 0.45 },
+    [AI.BRACKET_BLITZ]        = { 0.82, 0.55, 0.98 },
+    [AI.BRACKET_SOLO_SHUFFLE] = { 0.93, 0.42, 0.28 },
 }
 
 local function SignText(n)
@@ -130,15 +139,112 @@ local function BuildPopup()
         GameTooltip:Hide()
     end)
 
+    -- Rating trajectory chart (one line per bracket, each on its own scale)
+    popup.chart = CreateFrame("Frame", nil, popup)
+    popup.chart:SetHeight(CHART_H)
+    local cbg = popup.chart:CreateTexture(nil, "BACKGROUND")
+    cbg:SetAllPoints()
+    cbg:SetColorTexture(0.09, 0.08, 0.10, 0.6)
+    popup.chart:Hide()
+
     popup:Hide()
     return popup
+end
+
+local function GetChartLine(i)
+    if chartLines[i] then return chartLines[i] end
+    local ln = popup.chart:CreateLine(nil, "ARTWORK")
+    ln:SetThickness(2)
+    chartLines[i] = ln
+    return ln
+end
+
+local function GetChartMarker(i)
+    if chartMarkers[i] then return chartMarkers[i] end
+    local m = popup.chart:CreateTexture(nil, "OVERLAY")
+    m:SetSize(MARKER_SIZE, MARKER_SIZE)
+    chartMarkers[i] = m
+    return m
+end
+
+-- Draw one rating line per bracket, each normalised to its own min/max so
+-- brackets with different rating scales share the plot. X = session match
+-- index (shared time axis); markers coloured by match outcome. Returns the
+-- new content Y offset.
+local function RenderChart(session, y)
+    for _, l in ipairs(chartLines) do l:Hide() end
+    for _, m in ipairs(chartMarkers) do m:Hide() end
+
+    local N = #session
+    local series, order = {}, {}
+    for idx, rec in ipairs(session) do
+        local bi, rating = rec.bracketIndex, rec.rating
+        if bi and type(rating) == "number" then
+            local s = series[bi]
+            if not s then
+                s = { pts = {}, min = rating, max = rating }
+                series[bi] = s
+                order[#order + 1] = bi
+            end
+            s.pts[#s.pts + 1] = { x = idx, v = rating, outcome = rec.outcome }
+            if rating < s.min then s.min = rating end
+            if rating > s.max then s.max = rating end
+        end
+    end
+    if #order == 0 then
+        popup.chart:Hide()
+        return y
+    end
+
+    popup.chart:ClearAllPoints()
+    popup.chart:SetPoint("TOPLEFT", PAD, -y)
+    popup.chart:SetPoint("TOPRIGHT", -PAD, -y)
+    popup.chart:Show()
+
+    local plotW = (POPUP_W - 2 * PAD) - 2 * PLOT_PAD_X
+    local plotH = CHART_H - 2 * PLOT_PAD_Y
+    local function xPos(idx)
+        if N <= 1 then return PLOT_PAD_X + plotW / 2 end
+        return PLOT_PAD_X + (idx - 1) / (N - 1) * plotW
+    end
+    local function yPos(s, v)
+        if s.max == s.min then return PLOT_PAD_Y + plotH / 2 end
+        return PLOT_PAD_Y + (v - s.min) / (s.max - s.min) * plotH
+    end
+
+    local li, mi = 0, 0
+    for _, bi in ipairs(order) do
+        local s = series[bi]
+        local col = BRACKET_COLOR[bi] or { 0.88, 0.22, 0.18 }
+        for k = 2, #s.pts do
+            li = li + 1
+            local ln = GetChartLine(li)
+            ln:SetStartPoint("BOTTOMLEFT", xPos(s.pts[k - 1].x), yPos(s, s.pts[k - 1].v))
+            ln:SetEndPoint("BOTTOMLEFT", xPos(s.pts[k].x), yPos(s, s.pts[k].v))
+            ln:SetColorTexture(col[1], col[2], col[3], 0.9)
+            ln:Show()
+        end
+        for _, p in ipairs(s.pts) do
+            mi = mi + 1
+            local m = GetChartMarker(mi)
+            local oc = OUTCOME_COLOR[p.outcome or "unknown"] or OUTCOME_COLOR.unknown
+            m:SetColorTexture(oc[1], oc[2], oc[3], 1)
+            m:ClearAllPoints()
+            m:SetPoint("CENTER", popup.chart, "BOTTOMLEFT", xPos(p.x), yPos(s, p.v))
+            m:Show()
+        end
+    end
+
+    return y + CHART_H
 end
 
 local function GetBracketRow(i)
     if bracketRows[i] then return bracketRows[i] end
     local r = {}
+    r.swatch = popup:CreateTexture(nil, "OVERLAY")
+    r.swatch:SetSize(10, 10)
     r.name = popup:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    r.name:SetWidth(110)
+    r.name:SetWidth(90)
     r.name:SetJustifyH("LEFT")
     r.name:SetTextColor(0.78, 0.75, 0.73)
     r.score = popup:CreateFontString(nil, "OVERLAY", "GameFontHighlightLarge")
@@ -149,14 +255,6 @@ local function GetBracketRow(i)
     r.delta:SetJustifyH("RIGHT")
     bracketRows[i] = r
     return r
-end
-
-local function GetBlock(i)
-    if blockPool[i] then return blockPool[i] end
-    local t = popup:CreateTexture(nil, "ARTWORK")
-    t:SetSize(BLOCK_W, BLOCK_H)
-    blockPool[i] = t
-    return t
 end
 
 -- Public: show the summary for the latest session (charKey nil = all chars).
@@ -195,14 +293,18 @@ function AI.ShowSessionSummary(charKey)
 
     local y = PAD + 44
     local shown = 0
-    for _, r in ipairs(bracketRows) do r.name:Hide() r.score:Hide() r.delta:Hide() end
+    for _, r in ipairs(bracketRows) do r.swatch:Hide() r.name:Hide() r.score:Hide() r.delta:Hide() end
     for _, bi in ipairs(AI.TRACKED_BRACKETS) do
         local s = per[bi]
         if s then
             shown = shown + 1
             local r = GetBracketRow(shown)
+            r.swatch:ClearAllPoints()
+            r.swatch:SetPoint("TOPLEFT", PAD, -(y + 4))
+            local col = BRACKET_COLOR[bi] or { 0.88, 0.22, 0.18 }
+            r.swatch:SetColorTexture(col[1], col[2], col[3], 1)
             r.name:ClearAllPoints()
-            r.name:SetPoint("TOPLEFT", PAD, -y)
+            r.name:SetPoint("TOPLEFT", PAD + 16, -y)
             r.score:ClearAllPoints()
             r.score:SetPoint("TOPLEFT", PAD + 112, -y)
             r.delta:ClearAllPoints()
@@ -219,26 +321,14 @@ function AI.ShowSessionSummary(charKey)
             -- post-match MMR is 0 in Midnight; see AI.GetSessionMMRDelta)
             local dm = AI.GetSessionMMRDelta(session, bi)
             r.delta:SetText(SignText(s.dr) .. " rating  " .. SignText(dm or 0) .. " MMR")
-            r.name:Show() r.score:Show() r.delta:Show()
+            r.swatch:Show() r.name:Show() r.score:Show() r.delta:Show()
             y = y + ROW_H
         end
     end
 
-    -- Per-match outcome strip, chronological
+    -- Rating trajectory chart (replaces the flat outcome strip)
     y = y + 6
-    for _, t in ipairs(blockPool) do t:Hide() end
-    local n = math.min(#session, MAX_BLOCKS)
-    local firstIdx = #session - n + 1
-    for i = 1, n do
-        local rec = session[firstIdx + i - 1]
-        local blk = GetBlock(i)
-        blk:ClearAllPoints()
-        blk:SetPoint("TOPLEFT", PAD + (i - 1) * (BLOCK_W + BLOCK_GAP), -y)
-        local c = OUTCOME_COLOR[rec.outcome or "unknown"] or OUTCOME_COLOR.unknown
-        blk:SetColorTexture(c[1], c[2], c[3], 1)
-        blk:Show()
-    end
-    y = y + BLOCK_H
+    y = RenderChart(session, y)
 
     popup:SetHeight(y + PAD)
     popup:Show()

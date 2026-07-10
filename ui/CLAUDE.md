@@ -27,9 +27,10 @@ CRITICAL: ui/MainFrame.lua MUST be last in ui/ TOC order — it calls AI.Create*
 
 ## SessionUI.lua
 - Session summary popup — not a tab; shows after leaving a PvP instance when a match was recorded
-- AI.ShowSessionSummary(charKey) — manual trigger, charKey nil = all chars (`/run AI.ShowSessionSummary()` to test)
+- AI.ShowSessionSummary(charKey) — manual trigger, charKey nil = all chars; also the `/ai session` slash command (current char) and `/run AI.ShowSessionSummary()` to test
 - AI.OnMatchRecorded(rec) — called nil-guarded by core/Insights.lua after each match write; defers popup while inside arena/BG (PLAYER_ENTERING_WORLD releases it)
 - Reads AI.GetLatestSession() from core/Insights.lua; SS scores shown as rounds, other brackets as match W-L
+- Rating trajectory chart (RenderChart): one CreateLine per bracket, each normalised to its own min/max (BRACKET_COLOR), X = session match index, markers coloured by outcome. Replaces the old flat outcome strip; each bracket row carries a colour swatch as the legend
 - Setting: sessionPopupEnabled
 
 ## QueueOverlay.lua
