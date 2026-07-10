@@ -1,5 +1,14 @@
 # Changelog
 
+## [2.5.0-beta8] -- 2026-07-10
+
+### Fixed
+- Round-end error spam (24x, "attempt to compare a secret number value"): the client now exposes the mid-match rounds-won stat with a secret value, which passed the numeric type check and crashed the outcome sampler at every round end; secret stat values are treated as unreadable on every lookup path, so outcomes fall back cleanly instead of erroring
+
+### Added
+- Second recorded live trace committed as a test fixture (full 6-round Solo Shuffle, anonymized); replayed by CI on every push
+- Test stub emulates live secret-number semantics (type() reads "number", comparisons raise) so specs can reproduce secret-value crashes
+
 ## [2.5.0-beta7] -- 2026-07-07
 
 ### Added
