@@ -1,5 +1,14 @@
 # Changelog
 
+## [2.5.0-beta10] -- 2026-07-10
+
+### Added
+- Matchups tab now filters by character and by spec: a character dropdown plus a class spec icon bar, defaulting to your current character and current spec, so you can inspect matchups per character instead of pooled across every character
+- Session summary chart now has labeled axes -- all brackets share a single rating scale with a numbered Y-axis, gridlines, and match-number labels along the bottom
+
+### Changed
+- Matchups Arena toggle split into separate 2v2 and 3v3 views, each showing one bracket
+
 ## [2.5.0-beta9] -- 2026-07-10
 
 ### Added
