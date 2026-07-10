@@ -414,6 +414,29 @@ test("mid-match sampling refuses stats without the victory stat ID", function()
     eq(rounds[3].outcome, "win", "positional fill, not column-derived")
 end)
 
+test("regression: secret mid-match rounds-won stat treated as unreadable", function()
+    -- Live report (bugsack 24x): the mid-match self row exposed the
+    -- ID-verified victory stat with a SECRET value. type() == "number"
+    -- let it through and the sampling compare crashed FinalizeRound.
+    -- A secret stat must read as nil so outcomes fall back cleanly.
+    local w = H.newEnv()
+    H.startSSMatch(w)
+    local script = { "win", "win", "loss", "loss", "loss", "loss" }  -- 2-4
+    for i, outcome in ipairs(script) do
+        local row = H.selfScoreRow(Stub.Secret(i), 2400, 0)
+        H.playRound(w, outcome, { scoreRow = row })
+        if i < 6 then H.zoneBetweenRounds(w) end
+    end
+    H.finishSSMatch(w, 2)
+
+    local rec = w.env.ArenaInsightsDB.matches[1]
+    eq(rec.shuffle.wonRounds, 2, "totals from readable final scoreboard")
+    eq(#rec.shuffle.rounds, 6, "all rounds survived finalize")
+    for i, r in ipairs(rec.shuffle.rounds) do
+        eq(r.outcome, script[i], "round " .. i .. " outcome death-derived")
+    end
+end)
+
 test("round comps backfilled from the final scoreboard by teammate name", function()
     -- Live gap: the ally rogue showed class-only in rounds where the
     -- inspect cache was cold. The end-of-match scoreboard knows every

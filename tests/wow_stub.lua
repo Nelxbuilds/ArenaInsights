@@ -9,6 +9,10 @@
 local M = {}
 
 local SECRET_MT = { __tostring = function() return "<<SECRET>>" end }
+-- Live Midnight raises on relational comparison with a secret value
+-- (bugsack: "attempt to compare local 'w' (a secret number value ...)").
+SECRET_MT.__lt = function() error("attempt to compare a secret number value") end
+SECRET_MT.__le = SECRET_MT.__lt
 
 function M.Secret(v)
     return setmetatable({ value = v }, SECRET_MT)
@@ -98,6 +102,12 @@ function M.new()
     env.date         = os.date
     env.C_Timer      = { After = function(d, fn) timers[#timers + 1] = { at = now + d, fn = fn } end }
     env.issecretvalue = function(v) return getmetatable(v) == SECRET_MT end
+    -- Live secret values keep their underlying Lua type (a secret number
+    -- reads type() == "number"); only using the value is restricted.
+    env.type = function(v)
+        if getmetatable(v) == SECRET_MT then return type(v.value) end
+        return type(v)
+    end
 
     env.C_PvP = {
         IsSoloShuffle       = function() return api.isSoloShuffle end,

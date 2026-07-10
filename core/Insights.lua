@@ -424,13 +424,17 @@ end
 -- read returned cumulative losses, inverting every round outcome) — only
 -- the ID-verified column may feed per-round outcome deltas.
 -- Returns nil when no acceptable rounds-won value exists.
+-- A secret stat value keeps type() == "number" but errors on comparison
+-- (live: mid-match rows expose the victory stat with a secret value) —
+-- treat it as unreadable on every path.
 local function GetRoundsWonStat(si, requireVictoryID)
     if not si or type(si.stats) ~= "table" then return nil end
     local statID = C_PvP and C_PvP.GetCustomVictoryStatID
         and tonumber(C_PvP.GetCustomVictoryStatID()) or 0
     if statID and statID > 0 then
         for _, st in ipairs(si.stats) do
-            if st and st.pvpStatID == statID and type(st.pvpStatValue) == "number" then
+            if st and st.pvpStatID == statID and type(st.pvpStatValue) == "number"
+                and not IsSecret(st.pvpStatValue) then
                 return st.pvpStatValue
             end
         end
@@ -439,12 +443,12 @@ local function GetRoundsWonStat(si, requireVictoryID)
     for _, st in ipairs(si.stats) do
         if st and type(st.name) == "string" and not IsSecret(st.name)
             and st.name:lower():find("round", 1, true)
-            and type(st.pvpStatValue) == "number" then
+            and type(st.pvpStatValue) == "number" and not IsSecret(st.pvpStatValue) then
             return st.pvpStatValue
         end
     end
     local st = si.stats[1]
-    if st and type(st.pvpStatValue) == "number"
+    if st and type(st.pvpStatValue) == "number" and not IsSecret(st.pvpStatValue)
         and st.pvpStatValue >= 0 and st.pvpStatValue <= 6 then
         return st.pvpStatValue
     end
