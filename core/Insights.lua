@@ -626,7 +626,7 @@ local function CaptureFromScoreboard(rec)
                 prematchMMR = row.prematchMMR, mmrChange = row.mmrChange,
                 rating = row.rating, ratingChange = row.ratingChange,
                 damageDone = row.damageDone, healingDone = row.healingDone,
-                killingBlows = row.killingBlows,
+                killingBlows = row.killingBlows, roundsWon = row.roundsWon,
             }
         end
         rec.allySpecs   = allySpecs
@@ -642,7 +642,7 @@ local function CaptureFromScoreboard(rec)
                 prematchMMR = row.prematchMMR, mmrChange = row.mmrChange,
                 rating = row.rating, ratingChange = row.ratingChange,
                 damageDone = row.damageDone, healingDone = row.healingDone,
-                killingBlows = row.killingBlows,
+                killingBlows = row.killingBlows, roundsWon = row.roundsWon,
             }
         end
         rec.enemySpecs   = enemySpecs
@@ -962,6 +962,82 @@ local function BackfillRoundComps(rec, rounds)
             end
         end
     end
+end
+
+-- Resolve every round's win/loss exactly from the readable end-of-match
+-- scoreboard, without touching the (mid-match redacted) rounds-won counter or
+-- the (sparse, feign-death-polluted) death log. Two facts are readable per SS
+-- match: each round's exact 3v3 partition (your team = self + the 2 captured
+-- teammate names; the enemy trio = the 3 lobby players not on your team) and
+-- every player's TOTAL rounds won. The per-round winners are then the unique
+-- assignment where, for every player, (rounds on the winning side) == their
+-- total. Over-determined (the 6 totals always sum to 18), so a misread makes
+-- it inconsistent — it returns nil rather than guess, and the caller falls
+-- back to the death/positional reconciliation. Resolves 3-3 draws too, which
+-- the win-count fallback cannot. Returns true only on a unique solution.
+local function SolveRoundOutcomes(rec, rounds)
+    if #rounds ~= 6 or type(rec.wonRounds) ~= "number" then return end
+    local selfName = rec.charKey and (rec.charKey:match("^(.+)-") or rec.charKey)
+    if not selfName then return end
+
+    -- Roster of all 6 with per-player totals: self + the 5 other lobby rows.
+    local totals = { [selfName] = rec.wonRounds }
+    local roster = { selfName }
+    for _, p in ipairs(rec.enemyPlayers or {}) do
+        if p.name and type(p.roundsWon) == "number" and totals[p.name] == nil then
+            totals[p.name] = p.roundsWon
+            roster[#roster + 1] = p.name
+        end
+    end
+    if #roster ~= 6 then return end
+
+    -- Your team each round, by name. Needs both teammates identified and in roster.
+    local teams = {}
+    for i, r in ipairs(rounds) do
+        local names = r.allyNames or {}
+        if #names ~= 2 then return end
+        local yset = { [selfName] = true, [names[1]] = true, [names[2]] = true }
+        local n = 0
+        for name in pairs(yset) do
+            if totals[name] == nil then return end
+            n = n + 1
+        end
+        if n ~= 3 then return end  -- a duplicate name collapsed the set
+        teams[i] = yset
+    end
+
+    -- Brute-force the 2^6 "did your team win round i" assignments; keep any
+    -- consistent with all six totals. Stop at the first duplicate (ambiguous).
+    local found
+    for mask = 0, 63 do
+        local wins, m = {}, mask
+        for _, name in ipairs(roster) do wins[name] = 0 end
+        for i = 1, 6 do
+            local youWon = (m % 2) == 1
+            m = math.floor(m / 2)
+            for _, name in ipairs(roster) do
+                local onYourTeam = teams[i][name] ~= nil
+                if youWon == onYourTeam then wins[name] = wins[name] + 1 end
+            end
+        end
+        local ok = true
+        for _, name in ipairs(roster) do
+            if wins[name] ~= totals[name] then ok = false break end
+        end
+        if ok then
+            if found then return end  -- >1 solution: ambiguous, defer to fallback
+            found = mask
+        end
+    end
+    if not found then return end
+
+    local m = found
+    for i = 1, 6 do
+        rounds[i].outcome = ((m % 2) == 1) and "win" or "loss"
+        m = math.floor(m / 2)
+    end
+    AI.DebugInsights("SolveRoundOutcomes: unique solution, per-round outcomes set")
+    return true
 end
 
 -- ============================================================================
@@ -1325,12 +1401,16 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
                     end
                     rec.shuffle.rounds = capturedRounds
                     BackfillRoundComps(rec, capturedRounds)
+                    -- Exact per-round outcomes from the roster/partition solve.
+                    -- When it finds a unique solution every round is authoritative
+                    -- and the positional reconciliation below is skipped.
+                    local solved = SolveRoundOutcomes(rec, capturedRounds)
                     -- Reconcile rounds whose live outcome reads failed against
                     -- the authoritative total: distribute the unaccounted wins
                     -- over the unknown rounds in order, rest become losses.
                     -- Full captures only — with missing rounds the leftover
                     -- wins cannot be attributed to specific rounds.
-                    if #capturedRounds == 6 and type(rec.wonRounds) == "number" then
+                    if not solved and #capturedRounds == 6 and type(rec.wonRounds) == "number" then
                         local confirmed, unknowns = 0, 0
                         for _, r in ipairs(capturedRounds) do
                             if r.outcome == "win" then
