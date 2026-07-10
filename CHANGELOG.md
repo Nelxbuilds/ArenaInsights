@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.5.0-beta9] -- 2026-07-10
+
+### Added
+- Solo Shuffle per-round win/loss is now solved exactly from the end-of-match scoreboard: each round's outcome is derived from every lobby player's total rounds won and the round's 3v3 team split, resolving even 3-3 draws (previously undeterminable per round)
+- Session summary now draws a rating trajectory chart -- one line per bracket, each on its own scale, points colored by match outcome -- in place of the flat win/loss strip
+- /ai session opens the session summary for the current character on demand
+- Third recorded live trace committed as a test fixture (6-round 3-3 draw, anonymized); replayed by CI on every push
+
 ## [2.5.0-beta8] -- 2026-07-10
 
 ### Fixed
