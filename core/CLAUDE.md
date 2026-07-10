@@ -51,7 +51,7 @@ Load order: Core.lua → Currency.lua → Challenges.lua
 - enemySpecs={} for Blitz BG (ARENA_PREP_OPPONENT_SPECIALIZATIONS does not fire)
 - AI.GetLatestSession(charKey) — matches of the most recent play session (consecutive gaps < 1h), chronological; charKey nil = across all characters
 - AI.GetSessionMMRDelta(session, bracketIndex) — session MMR movement derived from prematchMMR diff (first vs newest session match, + newest mmrChange); scoreboard post-match MMR is 0 in Midnight so summing mmrChange shows +0. Per-spec brackets compare only the newest match's spec. nil when no MMR data
-- AI.GetArenaCompStats() / AI.GetShuffleSpecStats() — Matchups tab aggregation over the full dataset (all characters), computed on demand, never stored. Arena: one entry per bracket+sorted enemy comp ({key, bracketIndex, specs, w, l}); SS: round-level, one entry per enemy spec ({specID, w, l}). Live and simulated records never mix (sim used only when zero live data)
+- AI.GetArenaCompStats(bracketIndex, charKey, specID) / AI.GetShuffleSpecStats(charKey, specID) — Matchups tab aggregation, computed on demand, never stored. All params optional (nil = no filter); arena bracketIndex nil = both 2v2+3v3. Arena: one entry per bracket+sorted enemy comp ({key, bracketIndex, specs, w, l}); SS: round-level, one entry per enemy spec ({specID, w, l}). Live and simulated records never mix (sim used only when zero live data)
 - After match write, nil-guarded UI hooks fire: AI.OnMatchRecorded(rec) (SessionUI popup), AI.RefreshInsights()
 - rec.season tagged at write via GetCurrentArenaSeason() (guarded; nil if API unavailable) — reserved for future archiving/pruning
 - AI.PrintCaptureHealth() — /ai health; per-field capture-quality summary over non-simulated matches

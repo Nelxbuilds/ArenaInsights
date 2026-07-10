@@ -14,6 +14,9 @@ local ICON_STEP = 18
 local FILTER_H  = 28
 local HEADER_H  = 20
 local GAP       = 4
+local SPEC_SZ   = 20
+local SPEC_GAP  = 4
+local CHAR_BTN_W = 200
 
 -- Column x-offsets within each row
 local COL_BRACKET = 0
@@ -30,15 +33,26 @@ local BAR_H       = 8
 -- ============================================================================
 
 local matchupsPanel = nil
-local mode          = "ARENA"  -- "ARENA" | "SHUFFLE"
+local mode          = "SHUFFLE"  -- "2V2" | "3V3" | "SHUFFLE"
 local easiestFirst  = true
+
+local filterCharKey = nil  -- nil = all characters
+local filterSpecID  = nil  -- nil = all specs
+local specBarCharKey = nil -- char the spec bar was last built for (auto-select guard)
+local initialized   = false -- default-to-current-char applied once
 
 local scrollFrame, scrollChild
 local rowPool    = {}
 local modeBtns   = {}
 local sortBtn    = nil
+local charButton = nil
+local specBar    = nil
+local specIconBtns = {}
 local emptyLabel = nil
 local hdrNames, hdrGames = nil, nil
+local scopeText  = "All characters"
+
+local function IsArena() return mode ~= "SHUFFLE" end
 
 -- ============================================================================
 -- Helpers
@@ -73,11 +87,92 @@ end
 local BRACKET_SHORT = { [AI.BRACKET_2V2] = "2v2", [AI.BRACKET_3V3] = "3v3" }
 
 -- ============================================================================
+-- Character filter helpers (same char list / label conventions as InsightsUI)
+-- ============================================================================
+
+local function GetClassIDFromFileName(classFileName)
+    if not classFileName or not AI.classData then return nil end
+    for classID, cd in pairs(AI.classData) do
+        if cd.classFileName == classFileName then return classID end
+    end
+    return nil
+end
+
+local function BuildSortedCharList()
+    local hasMatches = {}
+    for _, rec in ipairs(AI.GetMatches()) do
+        if rec.charKey then hasMatches[rec.charKey] = true end
+    end
+
+    local classSortIndex = {}
+    for i, classID in ipairs(AI.sortedClassIDs) do
+        local cd = AI.classData[classID]
+        if cd then classSortIndex[cd.classFileName] = i end
+    end
+
+    local list = {}
+    for key, char in pairs(ArenaInsightsDB.characters or {}) do
+        if hasMatches[key] then
+            list[#list + 1] = { key = key, char = char }
+        end
+    end
+
+    table.sort(list, function(a, b)
+        local ai = classSortIndex[a.char.classFileName] or 999
+        local bi = classSortIndex[b.char.classFileName] or 999
+        if ai ~= bi then return ai < bi end
+        return (a.char.name or "") < (b.char.name or "")
+    end)
+
+    return list
+end
+
+local function FormatRaceIcon(char)
+    if char.raceFileName and char.gender then
+        local g = char.gender == 2 and "male" or char.gender == 3 and "female" or nil
+        if g then
+            return "|A:raceicon-" .. strlower(char.raceFileName) .. "-" .. g .. ":14:14|a"
+        end
+    end
+    return nil
+end
+
+local function FormatCharName(char)
+    local name = (char.name or "?") .. " - " .. (char.realm or "?")
+    local cc = char.classFileName and RAID_CLASS_COLORS and RAID_CLASS_COLORS[char.classFileName]
+    if cc and cc.colorStr then
+        name = "|c" .. cc.colorStr .. name .. "|r"
+    end
+    return name
+end
+
+local function FormatCharDisplay(char)
+    local parts = {}
+    local ri = FormatRaceIcon(char)
+    if ri then parts[#parts + 1] = ri end
+    parts[#parts + 1] = FormatCharName(char)
+    return table.concat(parts, " ")
+end
+
+-- Short name for the tooltip scope line: "Frostmage" or "All characters".
+local function CharShortName(key)
+    if not key then return "All characters" end
+    local char = ArenaInsightsDB.characters and ArenaInsightsDB.characters[key]
+    return char and char.name or (key:match("^(.+)-") or key)
+end
+
+-- ============================================================================
 -- Data
 -- ============================================================================
 
 local function BuildEntries()
-    local entries = (mode == "ARENA") and AI.GetArenaCompStats() or AI.GetShuffleSpecStats()
+    local entries
+    if IsArena() then
+        local bi = (mode == "2V2") and AI.BRACKET_2V2 or AI.BRACKET_3V3
+        entries = AI.GetArenaCompStats(bi, filterCharKey, filterSpecID)
+    else
+        entries = AI.GetShuffleSpecStats(filterCharKey, filterSpecID)
+    end
     for _, e in ipairs(entries) do
         e.total = e.w + e.l
         e.pct   = e.total > 0 and (e.w / e.total) or 0
@@ -101,7 +196,7 @@ local function ShowRowTooltip(row)
     local e = row.entry
     if not e then return end
     GameTooltip:SetOwner(row, "ANCHOR_RIGHT")
-    if mode == "ARENA" then
+    if IsArena() then
         GameTooltip:AddLine((BRACKET_SHORT[e.bracketIndex] or "?") .. " enemy comp", 0.96, 0.92, 0.90)
         for _, sid in ipairs(e.specs) do
             GameTooltip:AddLine(SpecLabel(sid, true))
@@ -116,7 +211,7 @@ local function ShowRowTooltip(row)
             .. e.w .. " won, " .. e.l .. " lost)", 0.65, 0.65, 0.65)
         GameTooltip:AddLine("Only matches with per-round capture count.", 0.40, 0.40, 0.40)
     end
-    GameTooltip:AddLine("All characters, entire match history.", 0.40, 0.40, 0.40)
+    GameTooltip:AddLine(scopeText, 0.40, 0.40, 0.40)
     GameTooltip:Show()
 end
 
@@ -212,15 +307,23 @@ end
 local function RefreshList()
     local entries = BuildEntries()
 
+    -- Tooltip scope line: reflects the active character/spec filter.
+    local who = CharShortName(filterCharKey)
+    if filterSpecID then
+        local sd = AI.specData and AI.specData[filterSpecID]
+        who = who .. " (" .. (sd and sd.specName or "spec") .. ")"
+    end
+    scopeText = who .. ", entire match history."
+
     if hdrNames then
-        hdrNames:SetText(mode == "ARENA" and "ENEMY COMP" or "ENEMY SPEC")
+        hdrNames:SetText(IsArena() and "ENEMY COMP" or "ENEMY SPEC")
     end
     if hdrGames then
-        hdrGames:SetText(mode == "ARENA" and "GAMES" or "ROUNDS")
+        hdrGames:SetText(IsArena() and "GAMES" or "ROUNDS")
     end
     if emptyLabel then
-        if mode == "ARENA" then
-            emptyLabel:SetText("No 2v2/3v3 matches with enemy comp data yet.")
+        if IsArena() then
+            emptyLabel:SetText("No " .. mode:lower() .. " matches with enemy comp data yet.")
         else
             emptyLabel:SetText("No Solo Shuffle rounds captured yet.")
         end
@@ -236,7 +339,7 @@ local function RefreshList()
 
         for _, ico in ipairs(row.icons) do ico:Hide() end
 
-        if mode == "ARENA" then
+        if IsArena() then
             row.bracketText:SetText(BRACKET_SHORT[e.bracketIndex] or "?")
             local names = {}
             for j, sid in ipairs(e.specs) do
@@ -302,6 +405,116 @@ local function UpdateModeButtons()
 end
 
 -- ============================================================================
+-- Character + spec filter (spec icon bar mirrors InsightsUI)
+-- ============================================================================
+
+local function UpdateSpecToggleAppearance()
+    local anyActive = filterSpecID ~= nil
+    for _, btn in ipairs(specIconBtns) do
+        if btn:IsShown() then
+            if filterSpecID == btn.specID then
+                btn:SetBackdropColor(0.7, 0.1, 0.1, 0.8)
+                btn:SetBackdropBorderColor(0.9, 0.15, 0.15, 1)
+                btn.iconTex:SetVertexColor(1, 1, 1)
+            else
+                btn:SetBackdropColor(0.10, 0.10, 0.10, 0.6)
+                btn:SetBackdropBorderColor(0.3, 0.3, 0.3, 0.5)
+                local d = anyActive and 0.45 or 1
+                btn.iconTex:SetVertexColor(d, d, d)
+            end
+        end
+    end
+end
+
+local function UpdateSpecBar()
+    for _, btn in ipairs(specIconBtns) do btn:Hide() end
+
+    -- Auto-select the active spec only when the bar is (re)built for a
+    -- different character; re-running for the same char must not clobber a
+    -- filter the user explicitly cleared.
+    local isNewChar = filterCharKey ~= specBarCharKey
+    specBarCharKey  = filterCharKey
+
+    if not specBar or not filterCharKey then return end
+
+    local char = ArenaInsightsDB.characters[filterCharKey]
+    if not char or not char.classFileName then return end
+
+    local classID = GetClassIDFromFileName(char.classFileName)
+    if not classID then return end
+
+    local numSpecs = GetNumSpecializationsForClassID(classID)
+    if not numSpecs or numSpecs == 0 then return end
+
+    local activeSpecID = nil
+    if filterCharKey == AI.currentCharKey then
+        local specIndex = GetSpecialization()
+        if specIndex then
+            activeSpecID = select(1, GetSpecializationInfo(specIndex))
+        end
+    end
+
+    local x = 0
+    for i = 1, numSpecs do
+        local specID, specName, _, icon = GetSpecializationInfoForClassID(classID, i)
+        if not specIconBtns[i] then
+            local btn = CreateFrame("Button", nil, specBar, "BackdropTemplate")
+            btn:SetSize(SPEC_SZ, SPEC_SZ)
+            btn:SetBackdrop({
+                bgFile   = "Interface\\Buttons\\WHITE8x8",
+                edgeFile = "Interface\\Buttons\\WHITE8x8",
+                edgeSize = 1,
+            })
+            btn.iconTex = btn:CreateTexture(nil, "ARTWORK")
+            btn.iconTex:SetPoint("TOPLEFT",     btn, "TOPLEFT",      1, -1)
+            btn.iconTex:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", -1,  1)
+            btn.iconTex:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+            btn:SetScript("OnEnter", function(self)
+                GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+                GameTooltip:AddLine(self.specName or "Unknown", 1, 1, 1)
+                GameTooltip:AddLine("Filter to matches played on this spec", 0.7, 0.7, 0.7)
+                GameTooltip:Show()
+            end)
+            btn:SetScript("OnLeave", function() GameTooltip:Hide() end)
+            btn:SetScript("OnClick", function(self)
+                filterSpecID = (filterSpecID == self.specID) and nil or self.specID
+                UpdateSpecToggleAppearance()
+                RefreshList()
+            end)
+            specIconBtns[i] = btn
+        end
+
+        local btn = specIconBtns[i]
+        btn.specID   = specID
+        btn.specName = specName or "Unknown"
+        btn.iconTex:SetTexture(icon)
+        btn:ClearAllPoints()
+        btn:SetPoint("LEFT", specBar, "LEFT", x, 0)
+        btn:Show()
+
+        if isNewChar and filterSpecID == nil and activeSpecID and specID == activeSpecID then
+            filterSpecID = specID
+        end
+
+        x = x + SPEC_SZ + SPEC_GAP
+    end
+
+    UpdateSpecToggleAppearance()
+end
+
+local function SelectChar(key)
+    filterCharKey = key
+    filterSpecID  = nil
+    local char = key and ArenaInsightsDB.characters[key]
+    if charButton then
+        charButton.label:SetText(char and FormatCharDisplay(char) or "All Characters")
+        charButton.label:SetJustifyH("LEFT")
+    end
+    UpdateSpecBar()
+    RefreshList()
+end
+
+-- ============================================================================
 -- Panel
 -- ============================================================================
 
@@ -324,37 +537,31 @@ function AI.CreateMatchupsPanel(parent)
         return btn
     end
 
-    local arenaBtn = MkToggle("Arena", 70, 0)
-    arenaBtn:SetScript("OnClick", function()
-        mode = "ARENA"
-        UpdateModeButtons()
-        RefreshList()
-    end)
-    arenaBtn:SetScript("OnEnter", function(self)
-        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        GameTooltip:AddLine("Arena matchups", 1, 1, 1)
-        GameTooltip:AddLine("Your record vs each exact enemy comp", 0.7, 0.7, 0.7)
-        GameTooltip:AddLine("in 2v2 and 3v3.", 0.7, 0.7, 0.7)
-        GameTooltip:Show()
-    end)
-    arenaBtn:SetScript("OnLeave", function() GameTooltip:Hide() end)
-    modeBtns.ARENA = arenaBtn
+    local function MkModeBtn(key, text, width, xOff, tip)
+        local btn = MkToggle(text, width, xOff)
+        btn:SetScript("OnClick", function()
+            mode = key
+            UpdateModeButtons()
+            RefreshList()
+        end)
+        btn:SetScript("OnEnter", function(self)
+            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            GameTooltip:AddLine(tip[1], 1, 1, 1)
+            for i = 2, #tip do GameTooltip:AddLine(tip[i], 0.7, 0.7, 0.7) end
+            GameTooltip:Show()
+        end)
+        btn:SetScript("OnLeave", function() GameTooltip:Hide() end)
+        modeBtns[key] = btn
+        return btn
+    end
 
-    local ssBtn = MkToggle("Solo Shuffle", 100, 74)
-    ssBtn:SetScript("OnClick", function()
-        mode = "SHUFFLE"
-        UpdateModeButtons()
-        RefreshList()
-    end)
-    ssBtn:SetScript("OnEnter", function(self)
-        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        GameTooltip:AddLine("Solo Shuffle matchups", 1, 1, 1)
-        GameTooltip:AddLine("Your round winrate vs each spec on the", 0.7, 0.7, 0.7)
-        GameTooltip:AddLine("enemy team, from captured rounds.", 0.7, 0.7, 0.7)
-        GameTooltip:Show()
-    end)
-    ssBtn:SetScript("OnLeave", function() GameTooltip:Hide() end)
-    modeBtns.SHUFFLE = ssBtn
+    MkModeBtn("2V2", "2v2", 54, 0,
+        { "2v2 matchups", "Your record vs each exact enemy comp in 2v2." })
+    MkModeBtn("3V3", "3v3", 54, 58,
+        { "3v3 matchups", "Your record vs each exact enemy comp in 3v3." })
+    MkModeBtn("SHUFFLE", "Solo Shuffle", 100, 116,
+        { "Solo Shuffle matchups", "Your round winrate vs each spec on the",
+          "enemy team, from captured rounds." })
 
     sortBtn = MkToggle("Easiest first", 96, 0)
     sortBtn:ClearAllPoints()
@@ -376,8 +583,31 @@ function AI.CreateMatchupsPanel(parent)
     end)
     sortBtn:SetScript("OnLeave", function() GameTooltip:Hide() end)
 
+    -- Row 2: character dropdown + spec icon bar
+    local row2Top = PAD + FILTER_H + GAP
+
+    charButton = AI.CreateAIButton(parent, "All Characters", CHAR_BTN_W, FILTER_H - 4)
+    charButton:SetPoint("TOPLEFT", PAD, -row2Top)
+    charButton.label:ClearAllPoints()
+    charButton.label:SetPoint("LEFT", 6, 0)
+    charButton.label:SetPoint("RIGHT", -6, 0)
+    charButton.label:SetJustifyH("LEFT")
+    charButton.label:SetWordWrap(false)
+    charButton:SetScript("OnClick", function(self)
+        MenuUtil.CreateContextMenu(self, function(_, root)
+            root:CreateButton("All Characters", function() SelectChar(nil) end)
+            for _, item in ipairs(BuildSortedCharList()) do
+                root:CreateButton(FormatCharDisplay(item.char), function() SelectChar(item.key) end)
+            end
+        end)
+    end)
+
+    specBar = CreateFrame("Frame", nil, parent)
+    specBar:SetSize(1, SPEC_SZ)
+    specBar:SetPoint("LEFT", charButton, "RIGHT", PAD, 0)
+
     -- Column headers
-    local hdrTop = PAD + FILTER_H + GAP
+    local hdrTop = PAD + 2 * (FILTER_H + GAP)
     local headerRow = CreateFrame("Frame", nil, parent)
     headerRow:SetHeight(HEADER_H)
     headerRow:SetPoint("TOPLEFT", PAD, -hdrTop)
@@ -436,6 +666,15 @@ function AI.CreateMatchupsPanel(parent)
     UpdateModeButtons()
 
     parent:SetScript("OnShow", function()
+        -- Default to the current character + current spec on first open.
+        if not initialized then
+            initialized = true
+            if AI.currentCharKey and ArenaInsightsDB.characters
+                and ArenaInsightsDB.characters[AI.currentCharKey] then
+                SelectChar(AI.currentCharKey)
+                return
+            end
+        end
         RefreshList()
     end)
 

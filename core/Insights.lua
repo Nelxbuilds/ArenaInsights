@@ -151,10 +151,20 @@ end
 
 -- Arena brackets: one entry per exact enemy comp (bracket + sorted specs).
 -- Returns unsorted array of { key, bracketIndex, specs = {sid,...}, w, l }.
-function AI.GetArenaCompStats()
+-- bracketIndex filters to 2v2 or 3v3 (nil = both); charKey filters to one
+-- character (nil = all); specID filters to matches played on that spec (nil = all).
+function AI.GetArenaCompStats(bracketIndex, charKey, specID)
     local live, sim = {}, {}
     for _, rec in ipairs(AI.GetMatches()) do
-        if (rec.bracketIndex == AI.BRACKET_2V2 or rec.bracketIndex == AI.BRACKET_3V3)
+        local bracketOK
+        if bracketIndex then
+            bracketOK = rec.bracketIndex == bracketIndex
+        else
+            bracketOK = rec.bracketIndex == AI.BRACKET_2V2 or rec.bracketIndex == AI.BRACKET_3V3
+        end
+        if bracketOK
+            and (not charKey or rec.charKey == charKey)
+            and (not specID or rec.specID == specID)
             and (rec.outcome == "win" or rec.outcome == "loss") then
             local specs = {}
             for _, sid in ipairs(rec.enemySpecs or {}) do
@@ -183,10 +193,14 @@ end
 -- with a known outcome credits its win/loss against each of the round's
 -- enemy specs. Matches without per-round capture do not contribute.
 -- Returns unsorted array of { specID, w, l }.
-function AI.GetShuffleSpecStats()
+-- charKey filters to one character (nil = all); specID filters to matches
+-- played on that spec (nil = all).
+function AI.GetShuffleSpecStats(charKey, specID)
     local live, sim = {}, {}
     for _, rec in ipairs(AI.GetMatches()) do
         if rec.bracketIndex == AI.BRACKET_SOLO_SHUFFLE
+            and (not charKey or rec.charKey == charKey)
+            and (not specID or rec.specID == specID)
             and rec.shuffle and rec.shuffle.rounds then
             local bucket = rec.simulated and sim or live
             for _, round in ipairs(rec.shuffle.rounds) do

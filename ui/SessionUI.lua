@@ -8,9 +8,11 @@ local addonName, AI = ...
 
 local POPUP_W     = 340
 local ROW_H       = 20
-local CHART_H     = 96
-local PLOT_PAD_X  = 8
-local PLOT_PAD_Y  = 8
+local CHART_H     = 110
+local PLOT_PAD_L  = 34   -- left gutter for Y-axis rating labels
+local PLOT_PAD_R  = 8
+local PLOT_PAD_T  = 8
+local PLOT_PAD_B  = 16   -- bottom gutter for X-axis match labels
 local MARKER_SIZE = 5
 local PAD         = 12
 
@@ -18,6 +20,9 @@ local popup
 local bracketRows  = {}
 local chartLines   = {}
 local chartMarkers = {}
+local chartGrid    = {}  -- horizontal rating gridlines
+local chartYLabels = {}  -- rating labels on the Y-axis
+local chartXLabels = {}  -- match-index labels on the X-axis
 local pendingCharKey = nil  -- set when a match records while still inside the arena
 
 local OUTCOME_COLOR = {
@@ -167,28 +172,58 @@ local function GetChartMarker(i)
     return m
 end
 
--- Draw one rating line per bracket, each normalised to its own min/max so
--- brackets with different rating scales share the plot. X = session match
--- index (shared time axis); markers coloured by match outcome. Returns the
--- new content Y offset.
+local function GetChartGrid(i)
+    if chartGrid[i] then return chartGrid[i] end
+    local ln = popup.chart:CreateLine(nil, "BACKGROUND")
+    ln:SetThickness(1)
+    ln:SetColorTexture(1, 1, 1, 0.06)
+    chartGrid[i] = ln
+    return ln
+end
+
+local function GetChartYLabel(i)
+    if chartYLabels[i] then return chartYLabels[i] end
+    local fs = popup.chart:CreateFontString(nil, "OVERLAY", "GameFontNormalTiny")
+    fs:SetTextColor(0.55, 0.55, 0.55)
+    fs:SetJustifyH("RIGHT")
+    chartYLabels[i] = fs
+    return fs
+end
+
+local function GetChartXLabel(i)
+    if chartXLabels[i] then return chartXLabels[i] end
+    local fs = popup.chart:CreateFontString(nil, "OVERLAY", "GameFontNormalTiny")
+    fs:SetTextColor(0.55, 0.55, 0.55)
+    chartXLabels[i] = fs
+    return fs
+end
+
+-- Draw one rating line per bracket on a single shared rating scale (global
+-- min/max across all brackets), with a numbered Y-axis + gridlines and X-axis
+-- match-index labels (History-style). Markers coloured by match outcome.
+-- Returns the new content Y offset.
 local function RenderChart(session, y)
-    for _, l in ipairs(chartLines) do l:Hide() end
+    for _, l in ipairs(chartLines)   do l:Hide() end
     for _, m in ipairs(chartMarkers) do m:Hide() end
+    for _, g in ipairs(chartGrid)    do g:Hide() end
+    for _, t in ipairs(chartYLabels) do t:Hide() end
+    for _, t in ipairs(chartXLabels) do t:Hide() end
 
     local N = #session
     local series, order = {}, {}
+    local minR, maxR
     for idx, rec in ipairs(session) do
         local bi, rating = rec.bracketIndex, rec.rating
         if bi and type(rating) == "number" then
             local s = series[bi]
             if not s then
-                s = { pts = {}, min = rating, max = rating }
+                s = { pts = {} }
                 series[bi] = s
                 order[#order + 1] = bi
             end
             s.pts[#s.pts + 1] = { x = idx, v = rating, outcome = rec.outcome }
-            if rating < s.min then s.min = rating end
-            if rating > s.max then s.max = rating end
+            if not minR or rating < minR then minR = rating end
+            if not maxR or rating > maxR then maxR = rating end
         end
     end
     if #order == 0 then
@@ -196,20 +231,61 @@ local function RenderChart(session, y)
         return y
     end
 
+    -- Snap the shared scale to clean interval boundaries (History convention)
+    local interval
+    local rawRange = maxR - minR
+    if rawRange <= 300 then interval = 50
+    elseif rawRange <= 600 then interval = 100
+    else interval = 200 end
+    minR = math.floor(minR / interval) * interval
+    maxR = math.ceil(maxR / interval) * interval
+    if maxR == minR then maxR = minR + interval end
+    local ratingRange = maxR - minR
+
     popup.chart:ClearAllPoints()
     popup.chart:SetPoint("TOPLEFT", PAD, -y)
     popup.chart:SetPoint("TOPRIGHT", -PAD, -y)
     popup.chart:Show()
 
-    local plotW = (POPUP_W - 2 * PAD) - 2 * PLOT_PAD_X
-    local plotH = CHART_H - 2 * PLOT_PAD_Y
+    local plotW = (POPUP_W - 2 * PAD) - PLOT_PAD_L - PLOT_PAD_R
+    local plotH = CHART_H - PLOT_PAD_T - PLOT_PAD_B
     local function xPos(idx)
-        if N <= 1 then return PLOT_PAD_X + plotW / 2 end
-        return PLOT_PAD_X + (idx - 1) / (N - 1) * plotW
+        if N <= 1 then return PLOT_PAD_L + plotW / 2 end
+        return PLOT_PAD_L + (idx - 1) / (N - 1) * plotW
     end
-    local function yPos(s, v)
-        if s.max == s.min then return PLOT_PAD_Y + plotH / 2 end
-        return PLOT_PAD_Y + (v - s.min) / (s.max - s.min) * plotH
+    local function yPos(v)
+        return PLOT_PAD_B + (v - minR) / ratingRange * plotH
+    end
+
+    -- Y-axis: gridlines + rating labels at each interval milestone
+    local gi = 0
+    for ms = minR, maxR, interval do
+        gi = gi + 1
+        local gy = yPos(ms)
+        local g = GetChartGrid(gi)
+        g:SetStartPoint("BOTTOMLEFT", PLOT_PAD_L, gy)
+        g:SetEndPoint("BOTTOMLEFT", PLOT_PAD_L + plotW, gy)
+        g:Show()
+
+        local lbl = GetChartYLabel(gi)
+        lbl:SetText(tostring(ms))
+        lbl:ClearAllPoints()
+        lbl:SetPoint("RIGHT", popup.chart, "BOTTOMLEFT", PLOT_PAD_L - 4, gy)
+        lbl:Show()
+    end
+
+    -- X-axis: match-index labels (up to ~5 ticks)
+    local xTicks = math.min(5, N - 1)
+    if xTicks > 0 then
+        for i = 0, xTicks do
+            local frac = i / xTicks
+            local idx  = math.floor(frac * (N - 1)) + 1
+            local lbl = GetChartXLabel(i + 1)
+            lbl:SetText(tostring(idx))
+            lbl:ClearAllPoints()
+            lbl:SetPoint("TOP", popup.chart, "BOTTOMLEFT", xPos(idx), PLOT_PAD_B - 3)
+            lbl:Show()
+        end
     end
 
     local li, mi = 0, 0
@@ -219,8 +295,8 @@ local function RenderChart(session, y)
         for k = 2, #s.pts do
             li = li + 1
             local ln = GetChartLine(li)
-            ln:SetStartPoint("BOTTOMLEFT", xPos(s.pts[k - 1].x), yPos(s, s.pts[k - 1].v))
-            ln:SetEndPoint("BOTTOMLEFT", xPos(s.pts[k].x), yPos(s, s.pts[k].v))
+            ln:SetStartPoint("BOTTOMLEFT", xPos(s.pts[k - 1].x), yPos(s.pts[k - 1].v))
+            ln:SetEndPoint("BOTTOMLEFT", xPos(s.pts[k].x), yPos(s.pts[k].v))
             ln:SetColorTexture(col[1], col[2], col[3], 0.9)
             ln:Show()
         end
@@ -230,7 +306,7 @@ local function RenderChart(session, y)
             local oc = OUTCOME_COLOR[p.outcome or "unknown"] or OUTCOME_COLOR.unknown
             m:SetColorTexture(oc[1], oc[2], oc[3], 1)
             m:ClearAllPoints()
-            m:SetPoint("CENTER", popup.chart, "BOTTOMLEFT", xPos(p.x), yPos(s, p.v))
+            m:SetPoint("CENTER", popup.chart, "BOTTOMLEFT", xPos(p.x), yPos(p.v))
             m:Show()
         end
     end

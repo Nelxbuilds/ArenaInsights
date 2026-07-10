@@ -94,6 +94,45 @@ test("arena comp stats: live and simulated never mix; sim used only when no live
     eq(#stats2, 1, "sim-only dataset used when no live data")
 end)
 
+test("arena comp stats filter by bracket, character, and spec", function()
+    local w = envWithMatches({
+        { bracketIndex = 1, outcome = "win",  charKey = "A-R", specID = 250, enemySpecs = { 259, 105 } },
+        { bracketIndex = 2, outcome = "win",  charKey = "A-R", specID = 250, enemySpecs = { 259, 105, 70 } },
+        { bracketIndex = 1, outcome = "loss", charKey = "B-R", specID = 251, enemySpecs = { 259, 105 } },
+        { bracketIndex = 1, outcome = "win",  charKey = "A-R", specID = 252, enemySpecs = { 259, 105 } },
+    })
+    -- bracket only: 2v2 excludes the 3v3 record
+    eq(#w.AI.GetArenaCompStats(1), 1, "2v2 comps across all chars")
+    eq(#w.AI.GetArenaCompStats(2), 1, "3v3 comps across all chars")
+    -- bracket + char
+    local a2v2 = w.AI.GetArenaCompStats(1, "A-R")
+    eq(#a2v2, 1, "A-R 2v2 comps")
+    eq(a2v2[1].w, 2, "both A-R 2v2 wins on this comp (specs 250 + 252)")
+    eq(#w.AI.GetArenaCompStats(1, "B-R"), 1, "B-R 2v2 comps")
+    -- bracket + char + spec
+    local a250 = w.AI.GetArenaCompStats(1, "A-R", 250)
+    eq(a250[1].w, 1, "only the spec-250 win counts")
+end)
+
+test("shuffle spec stats filter by character and spec", function()
+    local w = envWithMatches({
+        {
+            bracketIndex = 7, outcome = "win", charKey = "A-R", specID = 250,
+            shuffle = { rounds = { { num = 1, outcome = "win", enemySpecs = { 62 } } } },
+        },
+        {
+            bracketIndex = 7, outcome = "loss", charKey = "B-R", specID = 251,
+            shuffle = { rounds = { { num = 1, outcome = "loss", enemySpecs = { 62 } } } },
+        },
+    })
+    eq(#w.AI.GetShuffleSpecStats(), 1, "one enemy spec across all chars")
+    local all = w.AI.GetShuffleSpecStats()
+    eq(all[1].w, 1, "1 win"); eq(all[1].l, 1, "1 loss")
+    local a = w.AI.GetShuffleSpecStats("A-R")
+    eq(a[1].w, 1, "A-R win"); eq(a[1].l, 0, "no A-R loss")
+    eq(#w.AI.GetShuffleSpecStats("A-R", 999), 0, "no matches on unplayed spec")
+end)
+
 -- ----------------------------------------------------------------------------
 -- AI.GetShuffleSpecStats
 -- ----------------------------------------------------------------------------
