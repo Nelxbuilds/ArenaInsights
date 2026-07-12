@@ -8,9 +8,12 @@ local addonName, AI = ...
 
 AI.QueueOverlay = {}
 
-local FRAME_W  = 230
-local TITLE_H  = 18
-local LINE_H   = 16
+local FRAME_W  = 190
+local TITLE_H  = 16   -- vertical space consumed by the "IN QUEUE" title
+local NAME_H   = 15   -- bracket-name row
+local TIME_H   = 22   -- large hero timer row
+local INFO_H   = 13   -- dim CR/MMR footer row
+local BLOCK_GAP = 4   -- gap between stacked queue blocks
 local PAD      = 8
 local MAX_LINES = 6
 
@@ -74,15 +77,22 @@ local function BuildFrame()
 
     for i = 1, MAX_LINES do
         local ln = {}
+        -- Bracket name gets the full width now that nothing shares its row
         ln.name = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-        ln.name:SetWidth(FRAME_W - 115)
+        ln.name:SetWidth(FRAME_W - PAD * 2)
         ln.name:SetJustifyH("LEFT")
         ln.name:SetWordWrap(false)
         ln.name:SetTextColor(0.78, 0.75, 0.73)
-        ln.time = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-        ln.time:SetJustifyH("RIGHT")
+        -- Elapsed queue time - the hero number, large and bright
+        ln.time = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightLarge")
+        ln.time:SetJustifyH("LEFT")
         ln.time:SetTextColor(1, 1, 1)
-        -- Rating / last-known MMR for rated queues (second, dimmer row)
+        -- Estimated wait, small and dim, trailing the timer on the same baseline
+        ln.est = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalTiny")
+        ln.est:SetJustifyH("LEFT")
+        ln.est:SetTextColor(0.48, 0.45, 0.43)
+        ln.est:SetPoint("BOTTOMLEFT", ln.time, "BOTTOMRIGHT", 6, 2)
+        -- Rating / last-known MMR for rated queues (dim footer row)
         ln.info = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalTiny")
         ln.info:SetJustifyH("LEFT")
         ln.info:SetTextColor(0.48, 0.45, 0.43)
@@ -102,24 +112,28 @@ local function BuildFrame()
         acc = 0
         for i, q in ipairs(queues) do
             if i > MAX_LINES then break end
+            local ln = lines[i]
             if q.ready then
-                lines[i].time:SetText("Ready!")
-                lines[i].time:SetTextColor(0.13, 0.80, 0.13)
+                ln.time:SetText("Ready!")
+                ln.time:SetTextColor(0.13, 0.80, 0.13)
+                ln.est:SetText("")
             else
                 local ms = GetBattlefieldTimeWaited and GetBattlefieldTimeWaited(q.index)
                 if IsSecretV(ms) or type(ms) ~= "number" then
-                    lines[i].time:SetText("?")
-                    lines[i].time:SetTextColor(0.48, 0.45, 0.43)
+                    ln.time:SetText("?")
+                    ln.time:SetTextColor(0.48, 0.45, 0.43)
+                    ln.est:SetText("")
                 else
-                    local txt = FmtMS(ms)
+                    ln.time:SetText(FmtMS(ms))
+                    ln.time:SetTextColor(1, 1, 1)
                     -- Average wait, same source the default client tooltip uses
                     local avg = GetBattlefieldEstimatedWaitTime
                         and GetBattlefieldEstimatedWaitTime(q.index)
                     if not IsSecretV(avg) and type(avg) == "number" and avg > 0 then
-                        txt = txt .. " |cff777777~" .. FmtMS(avg) .. "|r"
+                        ln.est:SetText("~" .. FmtMS(avg) .. " est")
+                    else
+                        ln.est:SetText("")
                     end
-                    lines[i].time:SetText(txt)
-                    lines[i].time:SetTextColor(1, 1, 1)
                 end
             end
         end
@@ -205,31 +219,38 @@ function AI.QueueOverlay.Refresh()
         if i <= n and q then
             ln.name:ClearAllPoints()
             ln.name:SetPoint("TOPLEFT", PAD, -y)
-            ln.time:ClearAllPoints()
-            ln.time:SetPoint("TOPRIGHT", -PAD, -y)
             ln.name:SetText(q.name)
-            ln.time:SetText(q.ready and "Ready!" or "0:00")
             ln.name:Show()
+            y = y + NAME_H
+
+            ln.time:ClearAllPoints()
+            ln.time:SetPoint("TOPLEFT", PAD, -y)
+            ln.time:SetText(q.ready and "Ready!" or "0:00")
             ln.time:Show()
-            y = y + LINE_H
+            ln.est:SetText("")   -- populated by the OnUpdate ticker
+            ln.est:Show()
+            y = y + TIME_H
 
             local info = BuildInfoText(q)
             if info then
                 ln.info:ClearAllPoints()
-                ln.info:SetPoint("TOPLEFT", PAD + 4, -y + 2)
+                ln.info:SetPoint("TOPLEFT", PAD, -y)
                 ln.info:SetText(info)
                 ln.info:Show()
-                y = y + 12
+                y = y + INFO_H
             else
                 ln.info:Hide()
             end
+
+            if i < n then y = y + BLOCK_GAP end
         else
             ln.name:Hide()
             ln.time:Hide()
+            ln.est:Hide()
             ln.info:Hide()
         end
     end
-    frame:SetHeight(y + 6)
+    frame:SetHeight(y + PAD)
     frame:Show()
 end
 
