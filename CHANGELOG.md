@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.5.0-beta11] -- 2026-07-12
+
+### Changed
+- Queue timer overlay redesigned to read top-to-bottom: narrower frame, bracket name on its own line, elapsed queue time enlarged as the focal number with the estimate trailing dim beside it, and CR/MMR as a compact footer -- easier to scan at a glance
+
 ## [2.5.0-beta10] -- 2026-07-10
 
 ### Added
