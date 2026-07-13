@@ -1,5 +1,25 @@
 # Changelog
 
+## [2.5.0] -- 2026-07-13
+
+Stable release of the 2.5.0 line (beta1-beta11).
+
+### Added
+- Match Insights for Solo Shuffle: per-round capture (comp, outcome, duration, death log) with exact per-round win/loss solved from the end-of-match scoreboard, resolving even 3-3 draws
+- Matchups tab: your record vs every enemy comp (2v2/3v3) and vs every enemy spec (Solo Shuffle), filterable by character and spec, with easiest/hardest sort and winrate bars
+- Session summary popup after leaving arena/BG: per-bracket score, net rating/MMR, win/loss streak, and a rating trajectory chart with labeled axes; /ai session opens it on demand
+- Session filter in Insights: restrict list and stats to your latest play session
+- Queue timer overlay: live elapsed time, average wait, Ready state, and current rating + last-known MMR per rated queue; draggable and toggleable
+- Headless test suite with a stubbed WoW environment, /ai trace live-trace recorder, and CI that gates every release on passing tests
+- Match simulator (/ai sim) and /ai health capture-quality summary
+
+### Changed
+- Queue timer overlay redesigned to read top-to-bottom with the elapsed time as the focal number
+- Death Recap retired (the game no longer exposes combat-log data to addons)
+
+### Fixed
+- Extensive Midnight 12.x hardening: secret-value guards across round capture, prematch-MMR derivation, scoreboard-based outcome reconciliation, and removal of protected combat-log paths that produced error spam
+
 ## [2.5.0-beta11] -- 2026-07-12
 
 ### Changed
