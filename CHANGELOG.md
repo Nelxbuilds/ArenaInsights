@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.6.0-beta1] -- 2026-07-18
+
+### Added
+- Insights: replaced the Bracket column with a per-round W-L Result
+
 ## [2.5.0] -- 2026-07-13
 
 Stable release of the 2.5.0 line (beta1-beta11).
