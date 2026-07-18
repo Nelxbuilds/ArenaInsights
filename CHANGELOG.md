@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.6.0-beta2] -- 2026-07-18
+
+### Changed
+- Insights: reordered columns to Date, Team, Result, Change, Rating, MMR and removed the bracket badge from the date cell
+
 ## [2.6.0-beta1] -- 2026-07-18
 
 ### Added

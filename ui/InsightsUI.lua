@@ -33,16 +33,16 @@ local PLINE_KB_X   = 298
 local PLINE_MMR_X  = 348
 
 -- Column x-offsets within each row (from row left edge)
+-- Order: date, team, result, change (delta), rating, mmr
 local COL_DATE    = 0
-local COL_RESULT  = 118   -- round W-L (SS) / Win-Loss (other); date owns the space up to here
-local COL_DELTA   = 180
-local COL_RATING  = 240
-local COL_MMR     = 305
-local COL_TEAM    = 370
+local COL_TEAM    = 100
+local COL_RESULT  = 224
+local COL_DELTA   = 286
+local COL_RATING  = 346
+local COL_MMR     = 412
+local COL_MMR_W   = 55    -- mmr is the last data column; fixed width
 
 local BRACKET_SHORT = { [7] = "Shuffle", [4] = "Blitz", [1] = "2v2", [2] = "3v3" }
--- Compact tag appended to the date column (bracket no longer has its own column)
-local BRACKET_TAG   = { [7] = "SS", [4] = "BG", [1] = "2v2", [2] = "3v3" }
 
 -- Row background colors per outcome — subtle tints, not eye-burning
 local OUTCOME_BASE = {
@@ -813,7 +813,7 @@ local function CreateRow(parent)
 
     row.dateText = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     row.dateText:SetPoint("LEFT", row, "TOPLEFT", COL_DATE + PAD, hY)
-    row.dateText:SetWidth(COL_RESULT - COL_DATE - 4)
+    row.dateText:SetWidth(COL_TEAM - COL_DATE - 4)
     row.dateText:SetJustifyH("LEFT")
 
     row.resultText = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
@@ -833,7 +833,7 @@ local function CreateRow(parent)
 
     row.mmrText = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     row.mmrText:SetPoint("LEFT", row, "TOPLEFT", COL_MMR + PAD, hY)
-    row.mmrText:SetWidth(COL_TEAM - COL_MMR - 4)
+    row.mmrText:SetWidth(COL_MMR_W)
     row.mmrText:SetJustifyH("LEFT")
 
     -- Team icons: 3 my-team slots + vs label + 5 enemy slots (enough for SS 1+5 or 3v3 3+3)
@@ -1230,9 +1230,7 @@ RefreshRows = function()
         row.matchData = rec
         row.rowIndex  = i
 
-        local tag = BRACKET_TAG[rec.bracketIndex]
-        row.dateText:SetText(date("%b %d  %H:%M", rec.timestamp or 0)
-            .. (tag and ("  |cff7a736e" .. tag .. "|r") or ""))
+        row.dateText:SetText(date("%b %d  %H:%M", rec.timestamp or 0))
         if rec.simulated then
             row.dateText:SetTextColor(0.45, 0.55, 0.75)  -- steel blue = simulated
         else
@@ -1595,11 +1593,11 @@ function AI.CreateInsightsPanel(parent)
         fs:SetTextColor(0.40, 0.40, 0.40)
     end
     MkHeader("Date",    COL_DATE)
+    MkHeader("Team",    COL_TEAM)
     MkHeader("Result",  COL_RESULT)
     MkHeader("Change",  COL_DELTA)
     MkHeader("Rating",  COL_RATING)
     MkHeader("MMR",     COL_MMR)
-    MkHeader("Team",    COL_TEAM)
 
     local hlineTop = BELOW_FILTERS + 2 + HEADER_H
     local hline = parent:CreateTexture(nil, "BORDER")
