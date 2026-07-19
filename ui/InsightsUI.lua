@@ -35,7 +35,7 @@ local PLINE_MMR_X  = 348
 -- Column x-offsets within each row (from row left edge)
 -- Order: date, team, result, change (delta), rating, mmr
 local COL_DATE    = 0
-local COL_TEAM    = 100
+local COL_TEAM    = 80
 local COL_RESULT  = 224
 local COL_DELTA   = 286
 local COL_RATING  = 346
@@ -499,7 +499,9 @@ local function ShowMatchTooltip(anchor, rec)
     if w then
         GameTooltip:AddLine("Vs this comp: |cffffffff" .. w .. "-" .. l .. "|r lifetime", 0.65, 0.65, 0.65)
     end
-    GameTooltip:AddLine("Click to expand", 0.40, 0.40, 0.40)
+    if rec.bracketIndex ~= AI.BRACKET_BLITZ then
+        GameTooltip:AddLine("Click to expand", 0.40, 0.40, 0.40)
+    end
     GameTooltip:Show()
 end
 
@@ -972,7 +974,7 @@ local function CreateRow(parent)
 
     row:SetScript("OnMouseDown", function(self)
         local idx = self.rowIndex
-        if not idx then return end
+        if not idx or not self.expandable then return end
         if expandedIndex == idx then
             expandedIndex = nil
         else
@@ -1015,9 +1017,22 @@ local function PopulateTeamIcons(row, rec)
     for _, ico in ipairs(row.enemyIcons) do ico:Hide() end
     row.vsLabel:Hide()
 
-    local isSS = rec.bracketIndex == AI.BRACKET_SOLO_SHUFFLE
+    local isSS    = rec.bracketIndex == AI.BRACKET_SOLO_SHUFFLE
+    local isBlitz = rec.bracketIndex == AI.BRACKET_BLITZ
 
-    if isSS then
+    if isBlitz then
+        -- Blitz is an 8v8 BG; team/enemy comps aren't meaningful. Show self only.
+        if rec.specID and rec.specID ~= 0 then
+            local icon = GetSpecIcon(rec.specID)
+            if icon then
+                row.myIcons[1]:ClearAllPoints()
+                row.myIcons[1]:SetPoint("LEFT", row, "TOPLEFT", COL_TEAM + PAD, -(ROW_H / 2))
+                AI.SetSpecIcon(row.myIcons[1], icon)
+                row.myIcons[1]:Show()
+            end
+        end
+
+    elseif isSS then
         -- Flat list: player spec first (full brightness), then up to 5 enemy specs (dimmed)
         local flat = {}
         if rec.specID and rec.specID ~= 0 then
@@ -1291,8 +1306,9 @@ RefreshRows = function()
 
         PopulateTeamIcons(row, rec)
 
-        -- Expand indicator and detail frame
-        local isExpanded = (expandedIndex == i)
+        -- Expand indicator and detail frame (Blitz has no per-match detail)
+        row.expandable = rec.bracketIndex ~= AI.BRACKET_BLITZ
+        local isExpanded = row.expandable and (expandedIndex == i)
         if isExpanded then
             row.expandIndicator:SetText("-")
             row.expandIndicator:SetTextColor(0.70, 0.70, 0.70)
@@ -1359,7 +1375,7 @@ RefreshRows = function()
             row:SetHeight(ROW_H + detailH)
             yOff = yOff + ROW_H + detailH
         else
-            row.expandIndicator:SetText("+")
+            row.expandIndicator:SetText(row.expandable and "+" or "")
             row.expandIndicator:SetTextColor(0.40, 0.40, 0.40)
             row.detail:Hide()
             row:SetHeight(ROW_H)

@@ -1,5 +1,15 @@
 # Changelog
 
+## [2.6.0-beta3] -- 2026-07-19
+
+### Changed
+- Insights: narrowed the Date column and shifted Team left for clearer spacing before Result
+- Insights: Blitz matches now show only your own spec (no team/enemy comp) and no longer expand -- the extra per-match detail was never meaningful for an 8v8 battleground
+- Session summary: each bracket row is now color-coded to match its chart line and swatch
+
+### Fixed
+- Session summary: rating chart now counts each bracket from match 1 instead of scattering brackets across the combined session order
+
 ## [2.6.0-beta2] -- 2026-07-18
 
 ### Changed

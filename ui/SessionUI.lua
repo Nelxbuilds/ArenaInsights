@@ -209,10 +209,9 @@ local function RenderChart(session, y)
     for _, t in ipairs(chartYLabels) do t:Hide() end
     for _, t in ipairs(chartXLabels) do t:Hide() end
 
-    local N = #session
     local series, order = {}, {}
     local minR, maxR
-    for idx, rec in ipairs(session) do
+    for _, rec in ipairs(session) do
         local bi, rating = rec.bracketIndex, rec.rating
         if bi and type(rating) == "number" then
             local s = series[bi]
@@ -221,7 +220,9 @@ local function RenderChart(session, y)
                 series[bi] = s
                 order[#order + 1] = bi
             end
-            s.pts[#s.pts + 1] = { x = idx, v = rating, outcome = rec.outcome }
+            -- Each bracket is its own sequence starting at match 1, so brackets
+            -- share the X-axis rather than being scattered by global order.
+            s.pts[#s.pts + 1] = { x = #s.pts + 1, v = rating, outcome = rec.outcome }
             if not minR or rating < minR then minR = rating end
             if not maxR or rating > maxR then maxR = rating end
         end
@@ -229,6 +230,11 @@ local function RenderChart(session, y)
     if #order == 0 then
         popup.chart:Hide()
         return y
+    end
+
+    local N = 0
+    for _, bi in ipairs(order) do
+        N = math.max(N, #series[bi].pts)
     end
 
     -- Snap the shared scale to clean interval boundaries (History convention)
@@ -387,6 +393,7 @@ function AI.ShowSessionSummary(charKey)
             r.delta:SetPoint("TOPRIGHT", -PAD, -y)
 
             r.name:SetText(AI.BRACKET_NAMES[bi] or ("Bracket " .. bi))
+            r.name:SetTextColor(col[1], col[2], col[3])
             if bi == AI.BRACKET_SOLO_SHUFFLE and (s.rw + s.rl) > 0 then
                 r.score:SetText(s.rw .. "-" .. s.rl)
             else
