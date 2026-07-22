@@ -1,5 +1,20 @@
 # Changelog
 
+## [2.6.0] -- 2026-07-22
+
+Stable release of the 2.6.0 line (beta1-beta3).
+
+### Added
+- Insights: per-round W-L Result column replaces the old Bracket column
+
+### Changed
+- Insights: reordered columns to Date, Team, Result, Change, Rating, MMR
+- Insights: Blitz matches show only your own spec and no longer expand
+- Session summary: bracket rows color-coded to match their chart line and swatch
+
+### Fixed
+- Session summary: rating chart counts each bracket from match 1 instead of scattering brackets across the combined session order
+
 ## [2.6.0-beta3] -- 2026-07-19
 
 ### Changed
