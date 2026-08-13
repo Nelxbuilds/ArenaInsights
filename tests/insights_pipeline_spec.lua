@@ -34,6 +34,39 @@ test("SS happy path: 6 rounds captured with comps and outcomes", function()
     end
 end)
 
+test("leaver: shuffle cut short does not count un-played rounds as losses", function()
+    local w = H.newEnv()
+    H.startSSMatch(w)
+    -- Only 3 rounds played before someone leaves; you win 2, lose 1.
+    H.playRound(w, "win")
+    H.zoneBetweenRounds(w)
+    H.playRound(w, "win")
+    H.zoneBetweenRounds(w)
+    H.playRound(w, "loss")
+
+    -- Match ends early. The end-of-match scoreboard reflects only the 3 rounds
+    -- played: every round has one winning trio, so all six players' rounds-won
+    -- sum to 3 x rounds played (here 9), not 18.
+    w.fire("PVP_MATCH_COMPLETE", 0, 300)
+    local sb = { H.selfScoreRow(2, 2400, 2412) }   -- you won 2
+    local enemyWon = { 2, 2, 1, 1, 1 }             -- 5 others won 7 -> total 9 -> 3 rounds
+    for i = 1, 5 do
+        local row = H.enemyScoreRow(i)
+        row.stats = { { pvpStatID = 1012, name = "Rounds Won", pvpStatValue = enemyWon[i] } }
+        sb[#sb + 1] = row
+    end
+    w.api.scoreboard = sb
+    w.setDBRating(7, 1810)
+    w.fire("PVP_RATED_STATS_UPDATE")
+    w.advance(2)
+
+    local rec = w.env.ArenaInsightsDB.matches[1]
+    eq(rec.shuffle.totalRounds, 3, "totalRounds = rounds actually played")
+    eq(rec.shuffle.wonRounds, 2, "wonRounds")
+    eq(rec.shuffle.lostRounds, 1, "only the one played-and-lost round counts")
+    eq(rec.outcome, "win", "majority of played rounds (2 of 3) = win")
+end)
+
 test("round allySpecs contains teammates only, never self", function()
     local w = H.newEnv()
     H.startSSMatch(w)

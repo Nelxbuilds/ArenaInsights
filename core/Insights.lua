@@ -1354,16 +1354,45 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
                 end
             end
 
+            -- Solo Shuffle rounds actually played. A leaver ends the lobby
+            -- early, so the match may have fewer than 6 rounds — counting the
+            -- un-played rounds as losses skews win/loss stats. Every round has
+            -- exactly one winning trio, so the six players' rounds-won always
+            -- sum to 3x the rounds played (18 for a full match). Recover the
+            -- true count from the readable end-of-match scoreboard; fall back to
+            -- 6 when the totals are incomplete or inconsistent (misread).
+            local ssRoundsPlayed = 6
+            if rec.bracketIndex == AI.BRACKET_SOLO_SHUFFLE and type(rec.wonRounds) == "number" then
+                local sum, complete = rec.wonRounds, true
+                for _, p in ipairs(rec.enemyPlayers or {}) do
+                    if type(p.roundsWon) == "number" then
+                        sum = sum + p.roundsWon
+                    else
+                        complete = false
+                    end
+                end
+                if complete and #(rec.enemyPlayers or {}) == 5 and sum % 3 == 0 then
+                    local played = sum / 3
+                    if played >= 1 and played < 6 then
+                        ssRoundsPlayed = played
+                        AI.DebugInsights("SS ended early - rounds played:", played, "(leaver)")
+                    end
+                end
+            end
+
             -- Derive outcome:
-            --   SS  → wonRounds (>3 win, <3 loss, ==3 draw), fallback to ratingChange
+            --   SS  → majority of rounds PLAYED (won > half win, < half loss,
+            --         == half draw); half = ssRoundsPlayed/2, so a full match
+            --         keeps the >3/<3/==3 rule. Fallback to ratingChange.
             --   2v2/3v3/Blitz → directOutcome from PVP_MATCH_COMPLETE winner arg,
             --                   fallback to ratingChange sign
             if rec.bracketIndex == AI.BRACKET_SOLO_SHUFFLE then
                 local wr = rec.wonRounds
                 if type(wr) == "number" then
-                    if wr > 3 then
+                    local half = ssRoundsPlayed / 2
+                    if wr > half then
                         rec.outcome = "win"
-                    elseif wr < 3 then
+                    elseif wr < half then
                         rec.outcome = "loss"
                     else
                         rec.outcome = "draw"
@@ -1402,7 +1431,7 @@ insightsFrame:SetScript("OnEvent", function(self, event, ...)
             -- in Midnight 12.x, so we store whatever was captured rather than all-or-nothing).
             if rec.bracketIndex == AI.BRACKET_SOLO_SHUFFLE then
                 local won   = rec.wonRounds or 0
-                local total = 6
+                local total = ssRoundsPlayed
                 rec.shuffle = {
                     wonRounds   = won,
                     lostRounds  = total - won,

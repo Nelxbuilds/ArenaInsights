@@ -40,9 +40,9 @@ Load order: Core.lua → Currency.lua → Challenges.lua
 - Three-stage capture: score data attempted on UPDATE_BATTLEFIELD_SCORE, retried + bracket detected on PVP_RATED_STATS_UPDATE (after Core.lua writes new ratings)
 - Match record written to ArenaInsightsDB.matches[]: { timestamp, bracketIndex, charKey, specID, outcome, rating, ratingChange, prematchMMR, mmrChange, wonRounds, enemySpecs, allySpecs, shuffle? }
 - allySpecs={} — teammate spec IDs for 2v2/3v3 (captured via GetInspectSpecialization at ARENA_PREP; best-effort, may contain nil entries if inspect cache unpopulated)
-- outcome: SS uses wonRounds (>3 "win", <3 "loss", ==3 "draw"); all other brackets use ratingChange sign
+- outcome: SS uses majority of rounds PLAYED (won > played/2 "win", < "loss", == "draw"); full match = the >3/<3/==3 rule. Rounds played derived from the six players' rounds-won summing to 3x rounds played (18 for a full match); a leaver ends the lobby early so un-played rounds are never counted. All other brackets use ratingChange sign
 - wonRounds — SS only (top-level): total rounds won, via GetRoundsWonStat over the self scoreboard row
-- shuffle — SS only: { wonRounds, lostRounds, totalRounds=6, rounds? }
+- shuffle — SS only: { wonRounds, lostRounds, totalRounds, rounds? } — totalRounds is rounds actually played (6 for a full match, fewer when a leaver ends it early); lostRounds = totalRounds - wonRounds
   - rounds[i] = { num, outcome, duration, allySpecs, enemySpecs, allyNames, allyClasses?, enemyClasses?, deaths }; stored when any rounds captured (#ssRounds > 0), so partial/DNF matches keep what was seen
   - BackfillRoundComps at finalize: ally specs resolved by teammate name from the readable end-of-match scoreboard (inspect cache is usually cold live); with both allies known and all 5 other lobby specs known, the enemy trio is derived by elimination (5 others minus 2 allies) — round comps are exact whenever the final scoreboard is readable
   - rounds[i].allySpecs = teammates ONLY (max 2) — self is rendered from rec.specID; do not include the player's own spec here
