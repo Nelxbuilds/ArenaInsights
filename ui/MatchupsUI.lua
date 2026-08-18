@@ -35,6 +35,7 @@ local BAR_H       = 8
 local matchupsPanel = nil
 local mode          = "SHUFFLE"  -- "2V2" | "3V3" | "SHUFFLE"
 local easiestFirst  = true
+local seasonAll     = false  -- false = current season only; true = all seasons
 
 local filterCharKey = nil  -- nil = all characters
 local filterSpecID  = nil  -- nil = all specs
@@ -45,6 +46,7 @@ local scrollFrame, scrollChild
 local rowPool    = {}
 local modeBtns   = {}
 local sortBtn    = nil
+local seasonBtn  = nil
 local charButton = nil
 local specBar    = nil
 local specIconBtns = {}
@@ -167,11 +169,15 @@ end
 
 local function BuildEntries()
     local entries
+    -- Default to the current season so a new season's data doesn't blend with
+    -- the last one; "All seasons" (seasonAll) removes the filter. With only one
+    -- season seen, the current index covers everything, so this is a no-op.
+    local si = seasonAll and nil or AI.GetSeasonCount()
     if IsArena() then
         local bi = (mode == "2V2") and AI.BRACKET_2V2 or AI.BRACKET_3V3
-        entries = AI.GetArenaCompStats(bi, filterCharKey, filterSpecID)
+        entries = AI.GetArenaCompStats(bi, filterCharKey, filterSpecID, si)
     else
-        entries = AI.GetShuffleSpecStats(filterCharKey, filterSpecID)
+        entries = AI.GetShuffleSpecStats(filterCharKey, filterSpecID, si)
     end
     for _, e in ipairs(entries) do
         e.total = e.w + e.l
@@ -313,7 +319,19 @@ local function RefreshList()
         local sd = AI.specData and AI.specData[filterSpecID]
         who = who .. " (" .. (sd and sd.specName or "spec") .. ")"
     end
-    scopeText = who .. ", entire match history."
+    local multiSeason = AI.GetSeasonCount() > 1
+    scopeText = who .. ((not multiSeason or seasonAll) and ", entire match history."
+        or ", current season only.")
+
+    -- Season toggle only appears once a rollover has been recorded.
+    if seasonBtn then
+        if multiSeason then
+            seasonBtn:Show()
+            seasonBtn.label:SetText(seasonAll and "All seasons" or "This season")
+        else
+            seasonBtn:Hide()
+        end
+    end
 
     if hdrNames then
         hdrNames:SetText(IsArena() and "ENEMY COMP" or "ENEMY SPEC")
@@ -582,6 +600,28 @@ function AI.CreateMatchupsPanel(parent)
         GameTooltip:Show()
     end)
     sortBtn:SetScript("OnLeave", function() GameTooltip:Hide() end)
+
+    -- Season toggle: left of the sort toggle. Hidden until a rollover exists
+    -- (RefreshList manages visibility + label).
+    seasonBtn = MkToggle("This season", 96, 0)
+    seasonBtn:ClearAllPoints()
+    seasonBtn:SetPoint("TOPRIGHT", sortBtn, "TOPLEFT", -GAP, 0)
+    seasonBtn:SetBackdropColor(0.15, 0.15, 0.15, 0.8)
+    seasonBtn:SetBackdropBorderColor(0.3, 0.3, 0.3, 0.5)
+    seasonBtn.label:SetTextColor(0.7, 0.7, 0.7)
+    seasonBtn:Hide()
+    seasonBtn:SetScript("OnClick", function()
+        seasonAll = not seasonAll
+        RefreshList()
+    end)
+    seasonBtn:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:AddLine("Season scope", 1, 1, 1)
+        GameTooltip:AddLine("Show only the current season's record, or", 0.7, 0.7, 0.7)
+        GameTooltip:AddLine("your entire history across all seasons.", 0.7, 0.7, 0.7)
+        GameTooltip:Show()
+    end)
+    seasonBtn:SetScript("OnLeave", function() GameTooltip:Hide() end)
 
     -- Row 2: character dropdown + spec icon bar
     local row2Top = PAD + FILTER_H + GAP

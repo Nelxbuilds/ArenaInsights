@@ -67,8 +67,11 @@ local filterBrackets  = {}    -- [bracketIndex]=true; empty set = show all
 local filterSpecID    = nil   -- nil = show all specs
 local specBarCharKey  = nil   -- char the spec bar was last built for (auto-select guard)
 local filterSession   = false -- true = only matches of the latest play session
+local seasonAll       = false -- false = current season only; true = all seasons
 local sessionSet      = nil   -- identity set of session recs, rebuilt in BuildFilteredList
 local sessionList     = nil   -- same recs, chronological (for session deltas)
+local seasonBtn       = nil   -- season scope toggle (hidden until a rollover exists)
+local UpdateSeasonToggle      -- forward decl; assigned in CreateInsightsPanel
 
 -- ============================================================================
 -- Module state
@@ -1128,12 +1131,20 @@ local function BuildFilteredList()
         end
     end
 
+    -- Default to the current season so last season's matches don't blend in;
+    -- "All seasons" (seasonAll) removes the filter. No-op with one season seen.
+    local seasonIndex = seasonAll and nil or AI.GetSeasonCount()
+
     local all = AI.GetMatches()
     for i = #all, 1, -1 do
         local rec  = all[i]
         local pass = true
 
         if insightsCharKey and rec.charKey ~= insightsCharKey then
+            pass = false
+        end
+
+        if pass and seasonIndex and AI.GetSeasonIndex(rec.timestamp) ~= seasonIndex then
             pass = false
         end
 
@@ -1170,17 +1181,24 @@ local function RefreshStats()
         if blk then
             local w, l, dr = 0, 0, 0
             local isSS = (bi == AI.BRACKET_SOLO_SHUFFLE)
+            local seasonIndex = seasonAll and nil or AI.GetSeasonCount()
             for _, rec in ipairs(AI.GetMatches()) do
                 if (not insightsCharKey or rec.charKey == insightsCharKey)
                    and rec.bracketIndex == bi
                    and (not filterSpecID or rec.specID == filterSpecID)
+                   and (not seasonIndex or AI.GetSeasonIndex(rec.timestamp) == seasonIndex)
                    and (not sessionSet or sessionSet[rec]) then
                     dr = dr + (rec.ratingChange or 0)
                     if isSS then
-                        local won = (rec.shuffle and rec.shuffle.wonRounds) or rec.wonRounds
+                        local sh  = rec.shuffle
+                        local won = (sh and sh.wonRounds) or rec.wonRounds
                         if won ~= nil then
+                            -- Honor the stored round count: a leaver-shortened
+                            -- shuffle has fewer than 6 rounds, so un-played
+                            -- rounds must not be counted as losses.
+                            local total = (sh and sh.totalRounds) or 6
                             w = w + won
-                            l = l + (6 - won)
+                            l = l + (total - won)
                         end
                     else
                         if     rec.outcome == "win"  then w = w + 1
@@ -1225,6 +1243,7 @@ local function RefreshStats()
 end
 
 RefreshRows = function()
+    if UpdateSeasonToggle then UpdateSeasonToggle() end
     BuildFilteredList()
     RefreshStats()
     local count = #filteredList
@@ -1500,6 +1519,53 @@ function AI.CreateInsightsPanel(parent)
         GameTooltip:Show()
     end)
     sessBtn:SetScript("OnLeave", function() GameTooltip:Hide() end)
+
+    -- Season scope toggle: left of the Session toggle. Hidden until a rollover
+    -- has been recorded (managed by UpdateSeasonToggle, called on refresh).
+    seasonBtn = CreateFrame("Button", nil, specBar, "BackdropTemplate")
+    seasonBtn:SetSize(80, SPEC_ROW_H - 4)
+    seasonBtn:SetPoint("RIGHT", sessBtn, "LEFT", -4, 0)
+    seasonBtn:SetBackdrop({
+        bgFile   = "Interface\\Buttons\\WHITE8x8",
+        edgeFile = "Interface\\Buttons\\WHITE8x8",
+        edgeSize = 1,
+    })
+    seasonBtn.label = seasonBtn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    seasonBtn.label:SetPoint("CENTER")
+
+    UpdateSeasonToggle = function()
+        if AI.GetSeasonCount() <= 1 then
+            seasonBtn:Hide()
+            return
+        end
+        seasonBtn:Show()
+        seasonBtn.label:SetText(seasonAll and "All seasons" or "This season")
+        if not seasonAll then
+            seasonBtn:SetBackdropColor(0.7, 0.1, 0.1, 0.8)
+            seasonBtn:SetBackdropBorderColor(0.9, 0.15, 0.15, 1)
+            seasonBtn.label:SetTextColor(1, 1, 1)
+        else
+            seasonBtn:SetBackdropColor(0.15, 0.15, 0.15, 0.8)
+            seasonBtn:SetBackdropBorderColor(0.3, 0.3, 0.3, 0.5)
+            seasonBtn.label:SetTextColor(0.7, 0.7, 0.7)
+        end
+    end
+    UpdateSeasonToggle()
+
+    seasonBtn:SetScript("OnClick", function()
+        seasonAll = not seasonAll
+        expandedIndex = nil
+        UpdateSeasonToggle()
+        RefreshRows()
+    end)
+    seasonBtn:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:AddLine("Season scope", 1, 1, 1)
+        GameTooltip:AddLine("Show only the current season, or your entire", 0.7, 0.7, 0.7)
+        GameTooltip:AddLine("history across all seasons.", 0.7, 0.7, 0.7)
+        GameTooltip:Show()
+    end)
+    seasonBtn:SetScript("OnLeave", function() GameTooltip:Hide() end)
 
     -- Stats bar (W/D/L per bracket, below spec bar)
     local statsBar = CreateFrame("Frame", nil, parent)

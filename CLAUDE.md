@@ -241,4 +241,6 @@ ArenaInsightsDB.characters      -- Tracked character rating data
 ArenaInsightsDB.challenges      -- Challenge definitions
 ArenaInsightsDB.overlayPosition -- Saved overlay frame position
 ArenaInsightsDB.schemaVersion   -- DB migration version
+ArenaInsightsDB.seasonBoundaries-- Timestamps of detected season rollovers (rating resets)
+ArenaInsightsDB.seasonState     -- Per-character { max=[bracket]=seasonPlayed, seasonIndex } rollover baselines
 ```

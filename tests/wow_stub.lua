@@ -60,6 +60,7 @@ function M.new()
         numArenaOpponents      = 0,
         cleu                   = nil,  -- payload for CombatLogGetCurrentEventInfo
         victoryStatID          = 1012, -- C_PvP.GetCustomVictoryStatID (live SS value)
+        ratedInfo              = {},   -- bracket -> { rating, seasonPlayed } for GetPersonalRatedInfo
     }
     local api = self.api
 
@@ -166,6 +167,19 @@ function M.new()
     env.IsInInstance    = function() return api.instanceType ~= "none", api.instanceType end
     env.GetCurrentArenaSeason = function() return api.currentArenaSeason end
     env.GetBuildInfo    = function() return "12.0.7", "99999", "test", 120007 end
+
+    -- rating, seasonBest, weeklyBest, seasonPlayed, seasonWon, weeklyPlayed, weeklyWon, cap
+    env.GetPersonalRatedInfo = function(bracket)
+        local r = api.ratedInfo[bracket]
+        if not r then return 0, 0, 0, 0, 0, 0, 0, 0 end
+        return r.rating or 0, r.seasonBest or 0, r.weeklyBest or 0, r.seasonPlayed or 0,
+            r.seasonWon or 0, r.weeklyPlayed or 0, r.weeklyWon or 0, r.cap or 0
+    end
+
+    -- Globals Core.lua touches at load time (slash command + migration popup).
+    env.StaticPopupDialogs = {}
+    env.SlashCmdList       = {}
+    env.StaticPopup_Show   = NOOP
 
     env.CombatLogGetCurrentEventInfo = function()
         local c = api.cleu or {}
