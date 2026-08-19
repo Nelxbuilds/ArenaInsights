@@ -32,6 +32,20 @@ test("HasMultipleSeasons true only when matches span more than the current", fun
     eq(AI.HasMultipleSeasons(), true, "untagged legacy match counts as other season")
 end)
 
+test("PrintSeasonInfo tolerates untagged (nil-season) matches", function()
+    local w = H.newEnv()
+    local AI = w.AI
+    w.api.currentArenaSeason = 42
+    w.env.ArenaInsightsDB.matches = {
+        { season = nil }, { season = 41 }, { season = 42 },
+    }
+    local lines = {}
+    w.env.print = function(...) lines[#lines + 1] = table.concat({ ... }, " ") end
+    local okCall = pcall(AI.PrintSeasonInfo)
+    ok(okCall, "PrintSeasonInfo does not error on a nil rec.season")
+    ok(#lines > 0, "it printed a breakdown")
+end)
+
 test("GetShuffleSpecStats seasonId filter isolates seasons", function()
     local w = H.newEnv()
     local AI = w.AI

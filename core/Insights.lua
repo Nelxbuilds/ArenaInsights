@@ -78,9 +78,13 @@ function AI.PrintSeasonInfo()
     print("|cffE6D200ArenaInsights|r season info:")
     print("  GetCurrentArenaSeason() = " .. tostring(live))
     print("  current season id       = " .. tostring(cur))
+    -- Legacy matches have rec.season == nil; bucket them under a string key
+    -- (nil cannot be a table index) so the breakdown still prints.
+    local UNTAGGED = "untagged"
     local counts, order = {}, {}
     for _, rec in ipairs(AI.GetMatches()) do
         local k = rec.season
+        if k == nil then k = UNTAGGED end
         if counts[k] == nil then counts[k] = 0; order[#order + 1] = k end
         counts[k] = counts[k] + 1
     end
