@@ -171,7 +171,9 @@ local function BuildEntries()
     local entries
     -- Default to the current season so a new season's data doesn't blend with
     -- the last one; "All seasons" (seasonAll) removes the filter.
-    local si = seasonAll and nil or AI.GetCurrentSeasonId()
+    -- (Explicit if: `seasonAll and nil or id` can never yield nil.)
+    local si
+    if not seasonAll then si = AI.GetCurrentSeasonId() end
     if IsArena() then
         local bi = (mode == "2V2") and AI.BRACKET_2V2 or AI.BRACKET_3V3
         entries = AI.GetArenaCompStats(bi, filterCharKey, filterSpecID, si)

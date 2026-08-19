@@ -1133,7 +1133,9 @@ local function BuildFilteredList()
 
     -- Default to the current season so last season's matches don't blend in;
     -- "All seasons" (seasonAll) removes the filter.
-    local seasonId = seasonAll and nil or AI.GetCurrentSeasonId()
+    -- (Explicit if: `seasonAll and nil or id` can never yield nil.)
+    local seasonId
+    if not seasonAll then seasonId = AI.GetCurrentSeasonId() end
 
     local all = AI.GetMatches()
     for i = #all, 1, -1 do
@@ -1181,7 +1183,8 @@ local function RefreshStats()
         if blk then
             local w, l, dr = 0, 0, 0
             local isSS = (bi == AI.BRACKET_SOLO_SHUFFLE)
-            local seasonId = seasonAll and nil or AI.GetCurrentSeasonId()
+            local seasonId
+            if not seasonAll then seasonId = AI.GetCurrentSeasonId() end
             for _, rec in ipairs(AI.GetMatches()) do
                 if (not insightsCharKey or rec.charKey == insightsCharKey)
                    and rec.bracketIndex == bi
