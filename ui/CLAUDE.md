@@ -25,7 +25,7 @@ CRITICAL: ui/MainFrame.lua MUST be last in ui/ TOC order — it calls AI.Create*
 - Data from AI.GetArenaCompStats(bracketIndex, charKey, specID) / AI.GetShuffleSpecStats(charKey, specID) (core/Insights.lua) — aggregated on demand, nothing stored in SavedVariables
 - Mode toggle 2v2 / 3v3 / Solo Shuffle (each maps to one bracket), sort toggle easiest-first/hardest-first; winrate bar per row
 - Character dropdown (MenuUtil.CreateContextMenu, "All Characters" + chars with matches) + spec icon bar (mirrors InsightsUI: class specs, click to toggle filterSpecID); defaults to current character + current spec on first open
-- Season toggle ("This season" / "All seasons"): passes seasonId (AI.GetCurrentSeasonId()) to the aggregators; defaults to current season, hidden unless AI.HasMultipleSeasons(). InsightsUI has the same toggle governing both its list (BuildFilteredList) and W/L stat blocks (RefreshStats)
+- Season toggle ("This season" / "All seasons"): passes seasonId (AI.GetCurrentSeasonId()) to the aggregators; defaults to current season, hidden unless AI.HasMultipleSeasons(). InsightsUI has the same toggle governing both its list (BuildFilteredList) and W/L stat blocks (RefreshStats). HistoryUI has it too (title row, right-aligned), clamping the rating graph to entries with timestamp >= AI.GetCurrentSeasonStart() so the season-reset cliff isn't drawn
 
 ## SessionUI.lua
 - Session summary popup — not a tab; shows after leaving a PvP instance when a match was recorded

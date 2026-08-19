@@ -29,6 +29,8 @@ local gridLabels = {}
 local goalLine, goalLabel, goalLabelBg
 local goalLineFrame, goalLabelFrame
 local filterCharKey, filterSpecID, filterBracketIndex
+local seasonAll = false  -- false = current season only; true = all seasons
+local seasonBtn
 local charButton, specButton, bracketButton
 local charDropdown, charDropdownEntries, charDropdownData, charDropdownOffset
 local specDropdown, specDropdownEntries
@@ -144,9 +146,43 @@ end
 local function RefreshGraph()
     if not canvas then return end
 
+    -- Season toggle appears only once there is more than one season of data.
+    local multiSeason = AI.HasMultipleSeasons and AI.HasMultipleSeasons()
+    if seasonBtn then
+        if multiSeason then
+            seasonBtn:Show()
+            seasonBtn.label:SetText(seasonAll and "All seasons" or "This season")
+        else
+            seasonBtn:Hide()
+        end
+    end
+
     local history = AI.GetRatingHistory(filterCharKey, filterBracketIndex, filterSpecID)
 
+    -- Clamp to the current season by default so the S1->S2 reset cliff isn't
+    -- drawn as one continuous line. History entries carry timestamps but no
+    -- season tag, so filter by the current season's start time.
+    local clampedEmpty = false
+    if history and not seasonAll and AI.GetCurrentSeasonStart then
+        local start = AI.GetCurrentSeasonStart()
+        if start then
+            local filtered = {}
+            for _, pt in ipairs(history) do
+                if pt.timestamp and pt.timestamp >= start then
+                    filtered[#filtered + 1] = pt
+                end
+            end
+            clampedEmpty = (#history > 0 and #filtered < MIN_POINTS)
+            history = filtered
+        end
+    end
+
     if not history or #history < MIN_POINTS then
+        if clampedEmpty then
+            placeholder:SetText("|cff808080Not enough games this season yet - use All seasons|r")
+        else
+            placeholder:SetText("|cff808080Play rated games to build history|r")
+        end
         placeholder:Show()
         HideLines(1)
         HideDots(1)
@@ -791,6 +827,44 @@ function AI.CreateHistoryPanel(parent)
 
     bracketButton = CreateDropdownButton(panel, "Bracket", filterWidth, y, PADDING + (filterWidth + gap) * 2)
     bracketButton:SetScript("OnClick", function(self) ShowBracketMenu(self) end)
+
+    -- Season scope toggle (right of the filter dropdowns). Hidden until there is
+    -- more than one season of data; managed in RefreshGraph.
+    seasonBtn = CreateFrame("Button", nil, panel, "BackdropTemplate")
+    seasonBtn:SetSize(100, 22)
+    -- Title row, right-aligned: the filter row is full with the three dropdowns.
+    -- Extra right inset clears the frame's close (X) button.
+    seasonBtn:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -(PADDING + 26), -PADDING)
+    seasonBtn:SetBackdrop({
+        bgFile   = "Interface\\Buttons\\WHITE8x8",
+        edgeFile = "Interface\\Buttons\\WHITE8x8",
+        edgeSize = 1,
+    })
+    seasonBtn:SetBackdropColor(0.7, 0.1, 0.1, 0.8)
+    seasonBtn:SetBackdropBorderColor(0.9, 0.15, 0.15, 1)
+    seasonBtn.label = seasonBtn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    seasonBtn.label:SetPoint("CENTER")
+    seasonBtn.label:SetText("This season")
+    seasonBtn:Hide()
+    seasonBtn:SetScript("OnClick", function()
+        seasonAll = not seasonAll
+        if seasonAll then
+            seasonBtn:SetBackdropColor(0.15, 0.15, 0.15, 0.8)
+            seasonBtn:SetBackdropBorderColor(0.3, 0.3, 0.3, 0.5)
+        else
+            seasonBtn:SetBackdropColor(0.7, 0.1, 0.1, 0.8)
+            seasonBtn:SetBackdropBorderColor(0.9, 0.15, 0.15, 1)
+        end
+        RefreshGraph()
+    end)
+    seasonBtn:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:AddLine("Season scope", 1, 1, 1)
+        GameTooltip:AddLine("Show only the current season, or the full", 0.7, 0.7, 0.7)
+        GameTooltip:AddLine("rating history across all seasons.", 0.7, 0.7, 0.7)
+        GameTooltip:Show()
+    end)
+    seasonBtn:SetScript("OnLeave", function() GameTooltip:Hide() end)
 
     y = y - 44
 

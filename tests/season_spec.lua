@@ -32,6 +32,21 @@ test("HasMultipleSeasons true only when matches span more than the current", fun
     eq(AI.HasMultipleSeasons(), true, "untagged legacy match counts as other season")
 end)
 
+test("GetCurrentSeasonStart is the earliest current-season match timestamp", function()
+    local w = H.newEnv()
+    local AI = w.AI
+    w.api.currentArenaSeason = 42
+    w.env.ArenaInsightsDB.matches = {
+        { season = 41, timestamp = 100 },
+        { season = 42, timestamp = 500 },  -- earliest of season 42
+        { season = 42, timestamp = 900 },
+    }
+    eq(AI.GetCurrentSeasonStart(), 500, "earliest season-42 timestamp")
+
+    w.env.ArenaInsightsDB.matches = { { season = 41, timestamp = 100 } }
+    eq(AI.GetCurrentSeasonStart(), nil, "nil when no current-season match")
+end)
+
 test("PrintSeasonInfo tolerates untagged (nil-season) matches", function()
     local w = H.newEnv()
     local AI = w.AI

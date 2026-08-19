@@ -496,7 +496,12 @@ local function UpdateSpecBar()
             end)
             btn:SetScript("OnLeave", function() GameTooltip:Hide() end)
             btn:SetScript("OnClick", function(self)
-                filterSpecID = (filterSpecID == self.specID) and nil or self.specID
+                -- Toggle: clicking the active spec clears the filter.
+                if filterSpecID == self.specID then
+                    filterSpecID = nil
+                else
+                    filterSpecID = self.specID
+                end
                 UpdateSpecToggleAppearance()
                 RefreshList()
             end)

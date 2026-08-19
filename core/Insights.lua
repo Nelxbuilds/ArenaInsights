@@ -71,6 +71,22 @@ function AI.HasMultipleSeasons()
     return false
 end
 
+-- Earliest match timestamp of the current season, used to clamp the rating
+-- history graph (whose entries carry timestamps but no season tag). nil when no
+-- current-season match is recorded (caller then shows the full history).
+function AI.GetCurrentSeasonStart()
+    local cur = AI.GetCurrentSeasonId()
+    if not cur then return nil end
+    local earliest
+    for _, rec in ipairs(AI.GetMatches()) do
+        if rec.season == cur and type(rec.timestamp) == "number"
+            and (not earliest or rec.timestamp < earliest) then
+            earliest = rec.timestamp
+        end
+    end
+    return earliest
+end
+
 -- Diagnostic (/ai season): current season id + match counts per stamped season.
 function AI.PrintSeasonInfo()
     local live = GetCurrentArenaSeason and GetCurrentArenaSeason()
