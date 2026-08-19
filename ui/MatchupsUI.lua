@@ -170,9 +170,8 @@ end
 local function BuildEntries()
     local entries
     -- Default to the current season so a new season's data doesn't blend with
-    -- the last one; "All seasons" (seasonAll) removes the filter. With only one
-    -- season seen, the current index covers everything, so this is a no-op.
-    local si = seasonAll and nil or AI.GetSeasonCount()
+    -- the last one; "All seasons" (seasonAll) removes the filter.
+    local si = seasonAll and nil or AI.GetCurrentSeasonId()
     if IsArena() then
         local bi = (mode == "2V2") and AI.BRACKET_2V2 or AI.BRACKET_3V3
         entries = AI.GetArenaCompStats(bi, filterCharKey, filterSpecID, si)
@@ -319,7 +318,7 @@ local function RefreshList()
         local sd = AI.specData and AI.specData[filterSpecID]
         who = who .. " (" .. (sd and sd.specName or "spec") .. ")"
     end
-    local multiSeason = AI.GetSeasonCount() > 1
+    local multiSeason = AI.HasMultipleSeasons()
     scopeText = who .. ((not multiSeason or seasonAll) and ", entire match history."
         or ", current season only.")
 

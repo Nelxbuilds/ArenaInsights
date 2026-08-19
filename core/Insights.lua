@@ -39,31 +39,56 @@ end
 
 -- ============================================================================
 -- Season separation
--- A rating reset (new season) appends a timestamp to
--- ArenaInsightsDB.seasonBoundaries (detected in core/Core.lua). A match's season
--- is derived from its timestamp vs those boundaries, so every existing record
--- slots in with no migration. Season 1 = before the first boundary; the current
--- season = at/after the last boundary.
+-- Every match is stamped at write with rec.season = GetCurrentArenaSeason(),
+-- the account-wide PvP season number that ticks over at each rollover. That id
+-- IS the season key — no reset detection or boundary tracking needed, and it
+-- works on existing records. Matches from before season tagging have
+-- rec.season == nil and count as "other season" (excluded from the current one).
 -- ============================================================================
 
-function AI.GetSeasonBoundaries()
-    return (ArenaInsightsDB and ArenaInsightsDB.seasonBoundaries) or {}
-end
-
--- Number of seasons seen = boundaries + 1.
-function AI.GetSeasonCount()
-    return #AI.GetSeasonBoundaries() + 1
-end
-
--- 1-based season index for a match timestamp (boundaries are ascending).
--- nil timestamp is treated as the current season.
-function AI.GetSeasonIndex(ts)
-    if not ts then return AI.GetSeasonCount() end
-    local n = 1
-    for _, b in ipairs(AI.GetSeasonBoundaries()) do
-        if ts >= b then n = n + 1 else break end
+-- Current season id from the account-wide API (guarded); falls back to the
+-- highest season stamped on any match when the API is unavailable.
+function AI.GetCurrentSeasonId()
+    local s = GetCurrentArenaSeason and GetCurrentArenaSeason()
+    if type(s) == "number" and s > 0 then return s end
+    local best
+    for _, rec in ipairs(AI.GetMatches()) do
+        if type(rec.season) == "number" and (not best or rec.season > best) then
+            best = rec.season
+        end
     end
-    return n
+    return best
+end
+
+-- True when recorded matches span more than the current season, so the season
+-- toggle is meaningful (otherwise it stays hidden).
+function AI.HasMultipleSeasons()
+    local cur = AI.GetCurrentSeasonId()
+    if not cur then return false end
+    for _, rec in ipairs(AI.GetMatches()) do
+        if rec.season ~= cur then return true end
+    end
+    return false
+end
+
+-- Diagnostic (/ai season): current season id + match counts per stamped season.
+function AI.PrintSeasonInfo()
+    local live = GetCurrentArenaSeason and GetCurrentArenaSeason()
+    local cur  = AI.GetCurrentSeasonId()
+    print("|cffE6D200ArenaInsights|r season info:")
+    print("  GetCurrentArenaSeason() = " .. tostring(live))
+    print("  current season id       = " .. tostring(cur))
+    local counts, order = {}, {}
+    for _, rec in ipairs(AI.GetMatches()) do
+        local k = rec.season
+        if counts[k] == nil then counts[k] = 0; order[#order + 1] = k end
+        counts[k] = counts[k] + 1
+    end
+    if #order == 0 then print("  no matches recorded"); return end
+    for _, k in ipairs(order) do
+        local tag = (k == cur) and "  (current)" or ""
+        print(("  season %s: %d matches%s"):format(tostring(k), counts[k], tag))
+    end
 end
 
 -- A session = consecutive matches with less than SESSION_GAP between them.
@@ -182,8 +207,8 @@ end
 -- Returns unsorted array of { key, bracketIndex, specs = {sid,...}, w, l }.
 -- bracketIndex filters to 2v2 or 3v3 (nil = both); charKey filters to one
 -- character (nil = all); specID filters to matches played on that spec (nil = all);
--- seasonIndex filters to one season (nil = all seasons).
-function AI.GetArenaCompStats(bracketIndex, charKey, specID, seasonIndex)
+-- seasonId filters to one season's rec.season (nil = all seasons).
+function AI.GetArenaCompStats(bracketIndex, charKey, specID, seasonId)
     local live, sim = {}, {}
     for _, rec in ipairs(AI.GetMatches()) do
         local bracketOK
@@ -195,7 +220,7 @@ function AI.GetArenaCompStats(bracketIndex, charKey, specID, seasonIndex)
         if bracketOK
             and (not charKey or rec.charKey == charKey)
             and (not specID or rec.specID == specID)
-            and (not seasonIndex or AI.GetSeasonIndex(rec.timestamp) == seasonIndex)
+            and (not seasonId or rec.season == seasonId)
             and (rec.outcome == "win" or rec.outcome == "loss") then
             local specs = {}
             for _, sid in ipairs(rec.enemySpecs or {}) do
@@ -225,14 +250,14 @@ end
 -- enemy specs. Matches without per-round capture do not contribute.
 -- Returns unsorted array of { specID, w, l }.
 -- charKey filters to one character (nil = all); specID filters to matches
--- played on that spec (nil = all); seasonIndex filters to one season (nil = all).
-function AI.GetShuffleSpecStats(charKey, specID, seasonIndex)
+-- played on that spec (nil = all); seasonId filters to one season (nil = all).
+function AI.GetShuffleSpecStats(charKey, specID, seasonId)
     local live, sim = {}, {}
     for _, rec in ipairs(AI.GetMatches()) do
         if rec.bracketIndex == AI.BRACKET_SOLO_SHUFFLE
             and (not charKey or rec.charKey == charKey)
             and (not specID or rec.specID == specID)
-            and (not seasonIndex or AI.GetSeasonIndex(rec.timestamp) == seasonIndex)
+            and (not seasonId or rec.season == seasonId)
             and rec.shuffle and rec.shuffle.rounds then
             local bucket = rec.simulated and sim or live
             for _, round in ipairs(rec.shuffle.rounds) do

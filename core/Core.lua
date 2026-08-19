@@ -116,8 +116,6 @@ local function InitDB()
     ArenaInsightsDB.deletedChallengeUIDs  = ArenaInsightsDB.deletedChallengeUIDs or {}
     ArenaInsightsDB.syncPartners          = ArenaInsightsDB.syncPartners or {}
     ArenaInsightsDB.matches               = ArenaInsightsDB.matches or {}
-    ArenaInsightsDB.seasonBoundaries      = ArenaInsightsDB.seasonBoundaries or {}
-    ArenaInsightsDB.seasonState           = ArenaInsightsDB.seasonState or {}
 
     RunMigrations(ArenaInsightsDB)
     AI.Debug("InitDB complete - schema", ArenaInsightsDB.schemaVersion,
@@ -266,46 +264,6 @@ function AI.GetRatingHistory(charKey, bracketIndex, specID)
     end
 end
 
--- Season rollover detection. GetPersonalRatedInfo's seasonPlayed is monotonic
--- within a season and resets to 0 when a new season starts, so a DECREASE for a
--- character signals it entered a new season — independent of the rating>0 guard
--- (rating reads 0 at season start) and of GetCurrentArenaSeason (unverified at
--- boundaries). On a detected reset, append a boundary timestamp: matches are
--- assigned to a season from their timestamp vs these boundaries (see
--- AI.GetSeasonIndex), so no per-record migration is needed.
---
--- Baselines are tracked PER CHARACTER: seasonPlayed differs by character, so a
--- shared baseline would false-trigger on every alt switch. A boundary is
--- appended only when the character was already in the latest season; an alt not
--- seen since an earlier rollover is just catching up and must NOT add a second
--- boundary for the same account-wide reset.
-local function DetectSeasonRollover(charKey, bracketIndex, seasonPlayed)
-    if not charKey or type(seasonPlayed) ~= "number" then return end
-    local db = ArenaInsightsDB
-    db.seasonState = db.seasonState or {}
-    local st = db.seasonState[charKey]
-    if not st then
-        st = { max = {}, seasonIndex = #(db.seasonBoundaries or {}) + 1 }
-        db.seasonState[charKey] = st
-    end
-    local prev = st.max[bracketIndex]
-    if prev and seasonPlayed < prev then
-        local currentSeason = #(db.seasonBoundaries or {}) + 1
-        if st.seasonIndex >= currentSeason then
-            -- Character was current -> a genuinely new season started.
-            db.seasonBoundaries = db.seasonBoundaries or {}
-            db.seasonBoundaries[#db.seasonBoundaries + 1] = time()
-            AI.Debug("Season rollover on", charKey, "- boundary",
-                #db.seasonBoundaries, "-> now season", #db.seasonBoundaries + 1)
-        else
-            AI.Debug("Season catch-up on", charKey, "- no new boundary")
-        end
-        st.max = {}  -- reset this character's baselines for the new season
-        st.seasonIndex = #(db.seasonBoundaries or {}) + 1
-    end
-    st.max[bracketIndex] = math.max(seasonPlayed, st.max[bracketIndex] or 0)
-end
-
 local function CapturePvPStats()
     if not GetPersonalRatedInfo then
         AI.Debug("CapturePvPStats: GetPersonalRatedInfo not available")
@@ -318,7 +276,6 @@ local function CapturePvPStats()
     local captured = 0
     for _, bracketIndex in ipairs(AI.TRACKED_BRACKETS) do
         local rating, seasonBest, weeklyBest, seasonPlayed, seasonWon, weeklyPlayed, weeklyWon, cap = GetPersonalRatedInfo(bracketIndex)
-        DetectSeasonRollover(AI.currentCharKey, bracketIndex, seasonPlayed)
         if rating and rating > 0 then
             AI.SaveBracketData(bracketIndex, rating, 0)
             captured = captured + 1
@@ -438,6 +395,7 @@ SlashCmdList["ARENAINSIGHTS"] = function(msg)
         print("  /ai sim [n] - Add n simulated matches (UI testing)")
         print("  /ai sim clear - Remove all simulated matches")
         print("  /ai health - Capture-quality summary of recorded matches")
+        print("  /ai season - Show current season and match counts per season")
         print("  /ai trace - Start/stop recording an event trace (test fixtures)")
         print("  /ai trace clear - Delete the recorded trace")
         print("  /ai help - Show this help")
@@ -454,6 +412,10 @@ SlashCmdList["ARENAINSIGHTS"] = function(msg)
     end
     if cmd == "health" then
         if AI.PrintCaptureHealth then AI.PrintCaptureHealth() end
+        return
+    end
+    if cmd == "season" then
+        if AI.PrintSeasonInfo then AI.PrintSeasonInfo() end
         return
     end
     if cmd == "session" then

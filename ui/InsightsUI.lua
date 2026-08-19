@@ -1132,8 +1132,8 @@ local function BuildFilteredList()
     end
 
     -- Default to the current season so last season's matches don't blend in;
-    -- "All seasons" (seasonAll) removes the filter. No-op with one season seen.
-    local seasonIndex = seasonAll and nil or AI.GetSeasonCount()
+    -- "All seasons" (seasonAll) removes the filter.
+    local seasonId = seasonAll and nil or AI.GetCurrentSeasonId()
 
     local all = AI.GetMatches()
     for i = #all, 1, -1 do
@@ -1144,7 +1144,7 @@ local function BuildFilteredList()
             pass = false
         end
 
-        if pass and seasonIndex and AI.GetSeasonIndex(rec.timestamp) ~= seasonIndex then
+        if pass and seasonId and rec.season ~= seasonId then
             pass = false
         end
 
@@ -1181,12 +1181,12 @@ local function RefreshStats()
         if blk then
             local w, l, dr = 0, 0, 0
             local isSS = (bi == AI.BRACKET_SOLO_SHUFFLE)
-            local seasonIndex = seasonAll and nil or AI.GetSeasonCount()
+            local seasonId = seasonAll and nil or AI.GetCurrentSeasonId()
             for _, rec in ipairs(AI.GetMatches()) do
                 if (not insightsCharKey or rec.charKey == insightsCharKey)
                    and rec.bracketIndex == bi
                    and (not filterSpecID or rec.specID == filterSpecID)
-                   and (not seasonIndex or AI.GetSeasonIndex(rec.timestamp) == seasonIndex)
+                   and (not seasonId or rec.season == seasonId)
                    and (not sessionSet or sessionSet[rec]) then
                     dr = dr + (rec.ratingChange or 0)
                     if isSS then
@@ -1534,7 +1534,7 @@ function AI.CreateInsightsPanel(parent)
     seasonBtn.label:SetPoint("CENTER")
 
     UpdateSeasonToggle = function()
-        if AI.GetSeasonCount() <= 1 then
+        if not AI.HasMultipleSeasons() then
             seasonBtn:Hide()
             return
         end
