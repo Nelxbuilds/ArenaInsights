@@ -29,7 +29,7 @@ local emptyLabel
 local editingID   = nil
 local formState   = {}
 local formScrollChild
-local nameInput, ratingInput
+local nameInput, ratingInput, seasonCB
 local bracketBtns = {}
 local specCBs     = {}
 local classBtns   = {}
@@ -170,6 +170,7 @@ local function UpdateRow(row, challenge)
     else
         table.insert(parts, specCount .. " spec(s)")
     end
+    table.insert(parts, challenge.seasonReset and "This season" or "All seasons")
     row.subStr:SetText(table.concat(parts, "  |  "))
 
     -- Icons
@@ -256,11 +257,12 @@ end
 
 local function ResetFormState()
     formState = {
-        name       = "",
-        goalRating = 1800,
-        brackets   = {},
-        specs      = {},
-        classes    = {},
+        name        = "",
+        goalRating  = 1800,
+        brackets    = {},
+        specs       = {},
+        classes     = {},
+        seasonReset = true,
     }
 end
 
@@ -336,11 +338,12 @@ local function SaveForm()
     if not rating or rating <= 0 then return end
 
     local data = {
-        name       = formState.name,
-        goalRating = rating,
-        brackets   = CopyTable(formState.brackets),
-        specs      = CopyTable(formState.specs),
-        classes    = CopyTable(formState.classes),
+        name        = formState.name,
+        goalRating  = rating,
+        brackets    = CopyTable(formState.brackets),
+        specs       = CopyTable(formState.specs),
+        classes     = CopyTable(formState.classes),
+        seasonReset = formState.seasonReset and true or false,
     }
 
     if editingID then
@@ -473,6 +476,31 @@ local function BuildForm()
     ratingErr:SetPoint("LEFT", ratingInput, "RIGHT", 8, 0)
     ratingErr:SetTextColor(1, 0.3, 0.3)
     y = y + 34
+
+    -- ----------------------------------------------------------------
+    -- Season scope
+    -- ----------------------------------------------------------------
+    seasonCB = CreateFrame("CheckButton", nil, p, "UICheckButtonTemplate")
+    seasonCB:SetSize(CB_SIZE, CB_SIZE)
+    seasonCB:SetPoint("TOPLEFT", 8, -y)
+    seasonCB:SetScript("OnClick", function(self)
+        formState.seasonReset = self:GetChecked() and true or false
+    end)
+    seasonCB:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:SetText("Reset each season")
+        GameTooltip:AddLine("Only ratings earned in the current season count", 0.7, 0.7, 0.7)
+        GameTooltip:AddLine("toward this challenge, and manual completions", 0.7, 0.7, 0.7)
+        GameTooltip:AddLine("start over at each season rollover.", 0.7, 0.7, 0.7)
+        GameTooltip:AddLine("Unchecked: your best rating in any season counts.", 0.7, 0.7, 0.7)
+        GameTooltip:Show()
+    end)
+    seasonCB:SetScript("OnLeave", function() GameTooltip:Hide() end)
+
+    local seasonLabel = p:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    seasonLabel:SetPoint("LEFT", seasonCB, "RIGHT", 4, 0)
+    seasonLabel:SetText("Reset each season")
+    y = y + 30
 
     -- ----------------------------------------------------------------
     -- Class picker
@@ -658,6 +686,7 @@ local function PopulateFormForEdit(challengeID)
             formState.brackets   = CopyTable(c.brackets)
             formState.specs      = CopyTable(c.specs)
             formState.classes    = CopyTable(c.classes)
+            formState.seasonReset = c.seasonReset and true or false
             return
         end
     end
@@ -677,6 +706,7 @@ ShowForm = function(challengeID)
 
     nameInput:SetText(formState.name)
     ratingInput:SetText(tostring(formState.goalRating))
+    seasonCB:SetChecked(formState.seasonReset)
     UpdateBracketButtons()
     UpdateSpecCheckboxes()
     UpdateClassButtons()

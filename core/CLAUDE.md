@@ -8,9 +8,9 @@ Load order: Core.lua → Currency.lua → Challenges.lua
 - Bracket constants: AI.BRACKET_2V2(1) / 3V3(2) / BLITZ(4) / SOLO_SHUFFLE(7)
 - InitDB() — migrations, merges SETTINGS_DEFAULTS
 - AI.UpdateCharacterInfo() — name/realm/class/spec capture
-- AI.SaveBracketData() — writes rating+MMR, appends ratingHistory (cap 250)
+- AI.SaveBracketData() — writes rating+MMR+season (GetCurrentArenaSeason stamp), appends ratingHistory (cap 250)
 - Slash: /ai season → AI.PrintSeasonInfo() — diagnostic: current season id + match counts per stamped rec.season
-- AI.GetRating(), AI.GetRatingHistory() — read accessors
+- AI.GetRating(charKey, bracketIndex, specID, seasonId), AI.GetRatingHistory() — read accessors. seasonId (nil = any season) returns the snapshot only when data.season matches; snapshots written before season stamping have season == nil and never match
 - Events: ADDON_LOADED, PLAYER_ENTERING_WORLD, ACTIVE_TALENT_GROUP_CHANGED, PVP_RATED_STATS_UPDATE
 - Slash: /ai → delegates to AI.ToggleMainFrame, AI.Overlay, AI.InitiateSync
 
@@ -26,6 +26,8 @@ Load order: Core.lua → Currency.lua → Challenges.lua
 - AI.BuildSpecData() — called at ADDON_LOADED; enumerates via GetClassInfo/GetSpecializationInfoForClassID
 - Challenge CRUD: AI.AddChallenge, AI.DeleteChallenge, AI.SetChallengeActive
 - AI.GetActiveChallenge() — returns active from ArenaInsightsDB.challenges
+- Season scope per challenge: c.seasonReset (set by the "Reset each season" checkbox, default on for new challenges, nil/lifetime for pre-existing ones). AI.GetChallengeSeason(c) → current season id for season-reset challenges, nil for lifetime; Overlay passes it to AI.GetRating so a rating carried over from an earlier season stops counting
+- Manual completions: lifetime challenges keep c.completedSpecs / c.completedClasses; season-reset ones store them under c.seasonProgress[season].completedSpecs / .completedClasses, so a rollover starts clean without discarding last season's ticks
 - All calls to AI.RefreshOverlay() are nil-guarded — no load-order coupling to ui/
 
 ## Insights.lua

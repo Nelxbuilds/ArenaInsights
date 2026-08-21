@@ -1,5 +1,15 @@
 # Changelog
 
+## [2.8.0-beta1] -- 2026-08-21
+
+### Added
+- Challenges: "Reset each season" option -- only ratings earned in the current season count toward the challenge, and manual completions start over at each season rollover. On by default for new challenges; existing challenges keep counting your best rating across all seasons until you tick the box.
+- Challenge list rows show whether a challenge is scoped to "This season" or "All seasons".
+
+### Fixed
+- Overlay: a rating earned last season no longer counts as progress on a season-scoped challenge. Ratings are now stamped with the season they were recorded in, so a spec you pushed last season but have not queued this season shows as unplayed instead of already complete.
+- Import: a current-season rating is no longer overwritten by an older-season one from another account.
+
 ## [2.6.0] -- 2026-07-22
 
 Stable release of the 2.6.0 line (beta1-beta3).

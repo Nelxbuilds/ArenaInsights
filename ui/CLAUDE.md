@@ -18,6 +18,7 @@ CRITICAL: ui/MainFrame.lua MUST be last in ui/ TOC order — it calls AI.Create*
 - AI.RefreshOverlay(), AI.Overlay.Toggle(), AI.Overlay.SetLocked(bool)
 - Reads AI.specData, AI.classData (from core/Challenges.lua)
 - Lint D1: opacity=0 → EnableMouse(false) on all interactive sub-frames
+- Best-rating lookup passes AI.GetChallengeSeason(challenge) to AI.GetRating — season-reset challenges ignore ratings from earlier seasons (and untagged pre-stamping snapshots); lifetime challenges are unfiltered
 
 ## MatchupsUI.lua
 - "Matchups" tab: record vs every enemy comp (2v2/3v3) and vs every enemy spec (Solo Shuffle, round-level)

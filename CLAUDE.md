@@ -56,6 +56,7 @@ Three subdirectories: `core/` (data/logic), `ui/` (frames/panels), `system/` (Wo
 - **Best character selection**: Per spec row in overlay, show only highest-rated character across challenge's selected brackets.
 - **Active challenge**: Only one active at a time. Overlay shows specs from active challenge.
 - **Challenge flexibility**: Multi-spec (individual specs), class challenges (all specs of class count), multi-bracket (rating in any selected bracket counts).
+- **Challenge season scope**: per challenge, "Reset each season" (`seasonReset`) counts only current-season ratings and completions; unchecked keeps the lifetime best across all seasons.
 
 ## Icon Atlas Notes
 
@@ -243,4 +244,4 @@ ArenaInsightsDB.overlayPosition -- Saved overlay frame position
 ArenaInsightsDB.schemaVersion   -- DB migration version
 ```
 
-Season separation uses `rec.season` (GetCurrentArenaSeason stamped per match); no dedicated SavedVariables key.
+Season separation uses `rec.season` (GetCurrentArenaSeason stamped per match); no dedicated SavedVariables key. Bracket snapshots under `characters` carry the same stamp as `data.season`, and challenges opt into season scoping with `c.seasonReset` (progress + manual completions then live under `c.seasonProgress[season]`).

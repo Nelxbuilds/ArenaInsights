@@ -346,6 +346,10 @@ local function FindMatchingCharactersForSpec(specID, challenge)
     local matches = {}
     if not ArenaInsightsDB or not ArenaInsightsDB.characters then return matches end
 
+    -- nil for lifetime challenges; the current season for season-reset ones,
+    -- which then ignore ratings carried over from an earlier season.
+    local season = AI.GetChallengeSeason and AI.GetChallengeSeason(challenge)
+
     for charKey, char in pairs(ArenaInsightsDB.characters) do
         -- Match current spec OR characters with historical data for this spec
         local hasHistoricalData = char.specBrackets and char.specBrackets[specID] ~= nil
@@ -354,7 +358,7 @@ local function FindMatchingCharactersForSpec(specID, challenge)
             local bestBracket = nil
 
             for bracketIdx in pairs(challenge.brackets) do
-                local data = AI.GetRating(charKey, bracketIdx, specID)
+                local data = AI.GetRating(charKey, bracketIdx, specID, season)
                 if data and data.rating and data.rating > bestRating then
                     bestRating = data.rating
                     bestBracket = bracketIdx
@@ -383,6 +387,8 @@ local function FindMatchingCharactersForClass(classID, challenge)
     local matches = {}
     if not ArenaInsightsDB or not ArenaInsightsDB.characters then return matches end
 
+    local season = AI.GetChallengeSeason and AI.GetChallengeSeason(challenge)
+
     local classInfo = AI.classData[classID]
     if not classInfo then return matches end
 
@@ -403,7 +409,7 @@ local function FindMatchingCharactersForClass(classID, challenge)
             -- Check all specs this character might have data for
             for specID in pairs(classSpecIDs) do
                 for bracketIdx in pairs(challenge.brackets) do
-                    local data = AI.GetRating(charKey, bracketIdx, specID)
+                    local data = AI.GetRating(charKey, bracketIdx, specID, season)
                     if data and data.rating and data.rating > bestRating then
                         bestRating = data.rating
                         bestBracket = bracketIdx

@@ -30,6 +30,9 @@ local function SerializeCharacterLines(lines)
             for bi, data in pairs(char.brackets) do
                 table.insert(lines, "bracket_" .. bi .. "_rating=" .. (data.rating or 0))
                 table.insert(lines, "bracket_" .. bi .. "_mmr=" .. (data.mmr or 0))
+                if data.season then
+                    table.insert(lines, "bracket_" .. bi .. "_season=" .. data.season)
+                end
             end
         end
 
@@ -38,6 +41,9 @@ local function SerializeCharacterLines(lines)
                 for bi, data in pairs(brackets) do
                     table.insert(lines, "specbracket_" .. specID .. "_" .. bi .. "_rating=" .. (data.rating or 0))
                     table.insert(lines, "specbracket_" .. specID .. "_" .. bi .. "_mmr=" .. (data.mmr or 0))
+                    if data.season then
+                        table.insert(lines, "specbracket_" .. specID .. "_" .. bi .. "_season=" .. data.season)
+                    end
                 end
             end
         end
@@ -78,6 +84,7 @@ local function SerializeChallengeLines(lines)
         table.insert(lines, "specs=" .. SerializeHashKeys(c.specs or {}))
         table.insert(lines, "classes=" .. SerializeHashKeys(c.classes or {}))
         table.insert(lines, "brackets=" .. SerializeHashKeys(c.brackets or {}))
+        table.insert(lines, "seasonReset=" .. tostring(c.seasonReset or false))
         table.insert(lines, "[END_CHALLENGE]")
     end
     table.insert(lines, "[END_CHALLENGES]")
@@ -190,6 +197,8 @@ local function ParseChallengeBlock(lines, startIdx)
                 c.goalRating = tonumber(v) or 0
             elseif k == "active" then
                 c.active = (v == "true")
+            elseif k == "seasonReset" then
+                c.seasonReset = (v == "true") or nil
             elseif k == "specs" then
                 c.specs = DeserializeHashKeys(v)
             elseif k == "classes" then
@@ -305,13 +314,26 @@ end
 
 local HISTORY_MERGE_CAP = 250
 
+-- A snapshot from the current season always beats one from an earlier season
+-- (or an untagged one), however recently the other account exported it;
+-- otherwise the newer updatedAt wins.
+local function ShouldReplaceBracket(cur, imported)
+    if not cur then return true end
+    local season = AI.GetCurrentSeasonId and AI.GetCurrentSeasonId()
+    if season then
+        local curCurrent = (cur.season == season)
+        local impCurrent = (imported.season == season)
+        if curCurrent ~= impCurrent then return impCurrent end
+    end
+    return (imported.updatedAt or 0) > (cur.updatedAt or 0)
+end
+
 local function MergeCharacterData(existing, imported)
     -- Merge non-per-spec brackets (keep newer by updatedAt)
     if imported.brackets then
         existing.brackets = existing.brackets or {}
         for bi, data in pairs(imported.brackets) do
-            local cur = existing.brackets[bi]
-            if not cur or (data.updatedAt or 0) > (cur.updatedAt or 0) then
+            if ShouldReplaceBracket(existing.brackets[bi], data) then
                 existing.brackets[bi] = data
             end
         end
@@ -323,8 +345,7 @@ local function MergeCharacterData(existing, imported)
         for specID, brackets in pairs(imported.specBrackets) do
             existing.specBrackets[specID] = existing.specBrackets[specID] or {}
             for bi, data in pairs(brackets) do
-                local cur = existing.specBrackets[specID][bi]
-                if not cur or (data.updatedAt or 0) > (cur.updatedAt or 0) then
+                if ShouldReplaceBracket(existing.specBrackets[specID][bi], data) then
                     existing.specBrackets[specID][bi] = data
                 end
             end
@@ -400,6 +421,7 @@ local function MergeChallenges(imported)
                 brackets   = c.brackets or {},
                 specs      = c.specs or {},
                 classes    = c.classes or {},
+                seasonReset = c.seasonReset,
                 active     = false,
             })
             added = added + 1

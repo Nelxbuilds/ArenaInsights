@@ -126,6 +126,7 @@ function AI.AddChallenge(data)
         brackets   = data.brackets or {},
         specs      = data.specs or {},
         classes    = data.classes or {},
+        seasonReset = data.seasonReset or nil,
     }
     if data.active ~= nil then
         c.active = data.active
@@ -170,6 +171,7 @@ function AI.UpdateChallenge(id, data)
             if data.brackets then c.brackets = data.brackets end
             if data.specs then c.specs = data.specs end
             if data.classes then c.classes = data.classes end
+            if data.seasonReset ~= nil then c.seasonReset = data.seasonReset or nil end
             if c.active and AI.RefreshOverlay then
                 AI.RefreshOverlay()
             end
@@ -196,45 +198,70 @@ function AI.GetActiveChallenge()
 end
 
 -- ============================================================================
+-- Season scoping
+-- ============================================================================
+
+-- Season a challenge counts progress in: the current season for challenges
+-- created with "Reset each season", nil (all seasons) for lifetime challenges.
+function AI.GetChallengeSeason(challenge)
+    if not (challenge and challenge.seasonReset) then return nil end
+    return AI.GetCurrentSeasonId and AI.GetCurrentSeasonId() or nil
+end
+
+local function FindChallenge(challengeID)
+    for _, c in ipairs(ArenaInsightsDB.challenges) do
+        if c.id == challengeID then return c end
+    end
+end
+
+-- Manual completions live on the challenge for lifetime challenges and under
+-- c.seasonProgress[season] for season-reset ones, so a new season starts clean
+-- without discarding what was ticked last season. create=false never writes.
+local function CompletionTable(c, field, create)
+    local season = AI.GetChallengeSeason(c)
+    if not season then
+        if create then c[field] = c[field] or {} end
+        return c[field]
+    end
+    if not create then
+        local bucket = c.seasonProgress and c.seasonProgress[season]
+        return bucket and bucket[field]
+    end
+    c.seasonProgress = c.seasonProgress or {}
+    c.seasonProgress[season] = c.seasonProgress[season] or {}
+    local bucket = c.seasonProgress[season]
+    bucket[field] = bucket[field] or {}
+    return bucket[field]
+end
+
+-- ============================================================================
 -- Manual spec/class completion (Story: Manual Spec Completion)
 -- ============================================================================
 
 function AI.SetSpecCompleted(challengeID, specID, completed)
-    for _, c in ipairs(ArenaInsightsDB.challenges) do
-        if c.id == challengeID then
-            c.completedSpecs = c.completedSpecs or {}
-            c.completedSpecs[specID] = completed and true or nil
-            return
-        end
-    end
+    local c = FindChallenge(challengeID)
+    if not c then return end
+    CompletionTable(c, "completedSpecs", true)[specID] = completed and true or nil
 end
 
 function AI.IsSpecCompleted(challengeID, specID)
-    for _, c in ipairs(ArenaInsightsDB.challenges) do
-        if c.id == challengeID then
-            return c.completedSpecs and c.completedSpecs[specID] == true
-        end
-    end
-    return false
+    local c = FindChallenge(challengeID)
+    if not c then return false end
+    local t = CompletionTable(c, "completedSpecs", false)
+    return (t and t[specID]) == true
 end
 
 function AI.SetClassCompleted(challengeID, classID, completed)
-    for _, c in ipairs(ArenaInsightsDB.challenges) do
-        if c.id == challengeID then
-            c.completedClasses = c.completedClasses or {}
-            c.completedClasses[classID] = completed and true or nil
-            return
-        end
-    end
+    local c = FindChallenge(challengeID)
+    if not c then return end
+    CompletionTable(c, "completedClasses", true)[classID] = completed and true or nil
 end
 
 function AI.IsClassCompleted(challengeID, classID)
-    for _, c in ipairs(ArenaInsightsDB.challenges) do
-        if c.id == challengeID then
-            return c.completedClasses and c.completedClasses[classID] == true
-        end
-    end
-    return false
+    local c = FindChallenge(challengeID)
+    if not c then return false end
+    local t = CompletionTable(c, "completedClasses", false)
+    return (t and t[classID]) == true
 end
 
 -- ============================================================================

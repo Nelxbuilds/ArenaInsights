@@ -218,6 +218,9 @@ function AI.SaveBracketData(bracketIndex, rating, mmr)
         rating    = rating,
         mmr       = mmr,
         updatedAt = time(),
+        -- Season stamp so season-scoped challenges can ignore a rating carried
+        -- over from a previous season (nil when the API is unavailable).
+        season    = (GetCurrentArenaSeason and GetCurrentArenaSeason()) or nil,
     }
 
     if AI.PER_SPEC_BRACKETS[bracketIndex] then
@@ -240,16 +243,23 @@ function AI.SaveBracketData(bracketIndex, rating, mmr)
     end
 end
 
-function AI.GetRating(charKey, bracketIndex, specID)
+-- seasonId restricts the result to a snapshot stamped with that season
+-- (nil = any season). Snapshots written before season stamping have
+-- data.season == nil and never match a seasonId.
+function AI.GetRating(charKey, bracketIndex, specID, seasonId)
     local char = ArenaInsightsDB.characters[charKey]
     if not char then return nil end
 
+    local data
     if AI.PER_SPEC_BRACKETS[bracketIndex] then
         local sb = char.specBrackets and char.specBrackets[specID]
-        return sb and sb[bracketIndex]
+        data = sb and sb[bracketIndex]
     else
-        return char.brackets and char.brackets[bracketIndex]
+        data = char.brackets and char.brackets[bracketIndex]
     end
+
+    if seasonId and data and data.season ~= seasonId then return nil end
+    return data
 end
 
 function AI.GetRatingHistory(charKey, bracketIndex, specID)
