@@ -10,6 +10,7 @@ Load order: Core.lua → Currency.lua → Challenges.lua
 - AI.UpdateCharacterInfo() — name/realm/class/spec capture
 - AI.SaveBracketData() — writes rating+MMR+season (GetCurrentArenaSeason stamp), appends ratingHistory (cap 250)
 - Slash: /ai season → AI.PrintSeasonInfo() — diagnostic: current season id + match counts per stamped rec.season
+- AI.RaceIconMarkup(char, size) — inline |A:raceicon-<slug>-<gender>:size:size|a, nil when race/gender unknown. Five races' atlas slug is NOT the lowercased UnitRace() file name (Scourge→undead, HighmountainTauren→highmountain, LightforgedDraenei→lightforged, ZandalariTroll→zandalari, EarthenDwarf→earthen); mapped by RACE_ATLAS_SLUG, verified against the 12.1.0 atlas list (build 69404). Sole race-icon builder — ui/ must not format the escape itself
 - AI.GetRating(charKey, bracketIndex, specID, seasonId), AI.GetRatingHistory() — read accessors. seasonId (nil = any season) returns the snapshot only when data.season matches; snapshots written before season stamping have season == nil and never match
 - Events: ADDON_LOADED, PLAYER_ENTERING_WORLD, ACTIVE_TALENT_GROUP_CHANGED, PVP_RATED_STATS_UPDATE
 - Slash: /ai → delegates to AI.ToggleMainFrame, AI.Overlay, AI.InitiateSync

@@ -130,6 +130,34 @@ local function InitDB()
 end
 
 -- ============================================================================
+-- Race icons
+-- ============================================================================
+
+-- raceicon-<slug>-<gender> atlas slugs that are NOT just the lowercased race
+-- file name from UnitRace(). Verified against the 12.1.0 atlas list (build
+-- 69404); every other playable race lowercases directly.
+local RACE_ATLAS_SLUG = {
+    scourge            = "undead",
+    highmountaintauren = "highmountain",
+    lightforgeddraenei = "lightforged",
+    zandalaritroll     = "zandalari",
+    earthendwarf       = "earthen",
+}
+
+-- Inline |A: escape for a character's race icon, nil when race/gender is
+-- unknown. UnitSex: 2 = male, 3 = female.
+function AI.RaceIconMarkup(char, size)
+    if not (char and char.raceFileName and char.gender) then return nil end
+    local gender = char.gender == 2 and "male" or char.gender == 3 and "female" or nil
+    if not gender then return nil end
+
+    local slug = char.raceFileName:lower()
+    slug = RACE_ATLAS_SLUG[slug] or slug
+    size = size or 14
+    return "|A:raceicon-" .. slug .. "-" .. gender .. ":" .. size .. ":" .. size .. "|a"
+end
+
+-- ============================================================================
 -- Character information capture
 -- ============================================================================
 

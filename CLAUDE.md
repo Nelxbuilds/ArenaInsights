@@ -61,7 +61,7 @@ Three subdirectories: `core/` (data/logic), `ui/` (frames/panels), `system/` (Wo
 ## Icon Atlas Notes
 
 - `classicon-<class>` — flat circular style (Overlay, ChallengesUI)
-- `raceicon-<race>-<gender>` — 3D embossed style
+- `raceicon-<race>-<gender>` — 3D embossed style. The slug is NOT always `strlower(raceFileName)`: Scourge→undead, HighmountainTauren→highmountain, LightforgedDraenei→lightforged, ZandalariTroll→zandalari, EarthenDwarf→earthen. Always build race icons with `AI.RaceIconMarkup()` (core/Core.lua), never inline
 - Spec icons via `GetSpecializationInfoForClassID()` — 3D painted texture IDs
 - No single atlas covers all three in same style. History tab: race icon + class-colored text only (no classicon).
 - FontStrings cannot parent child frames/textures. To layer texture behind FontString, parent texture to containing frame and anchor points to FontString.

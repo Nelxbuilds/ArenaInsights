@@ -130,13 +130,7 @@ local function BuildSortedCharList()
 end
 
 local function FormatRaceIcon(char)
-    if char.raceFileName and char.gender then
-        local g = char.gender == 2 and "male" or char.gender == 3 and "female" or nil
-        if g then
-            return "|A:raceicon-" .. strlower(char.raceFileName) .. "-" .. g .. ":14:14|a"
-        end
-    end
-    return nil
+    return AI.RaceIconMarkup(char, 14)
 end
 
 local function FormatCharName(char)

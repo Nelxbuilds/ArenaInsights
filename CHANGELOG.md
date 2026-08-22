@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.8.0-beta2] -- 2026-08-22
+
+### Fixed
+- Character race icons were missing for five races wherever a character is listed (Insights, Matchups, History). The icon lookup assumed the atlas name matches the race name, which is not true for Undead, Highmountain Tauren, Lightforged Draenei, Zandalari Troll and Earthen -- those now show their icon.
+
 ## [2.8.0-beta1] -- 2026-08-21
 
 ### Added
